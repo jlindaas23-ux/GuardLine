@@ -351,6 +351,7 @@ tbody tr:last-child td{border-bottom:none;}
       <div class="live-dot"><span class="dot"></span><span id="sync-label">LIVE</span></div>
       <button class="switch-role" id="refresh-app-btn" title="Reload to get the newest version">⟳ Refresh</button>
       <button class="switch-role" id="new-order-btn" style="border-color:rgba(127,188,207,.5);color:var(--steel-bright);">+ New Duct Order</button>
+      <button class="switch-role" id="new-material-btn-global" style="border-color:rgba(90,149,168,.5);color:var(--steel-bright);">📦 New Material Request</button>
       <button class="switch-role" id="report-issue-btn" style="border-color:rgba(209,69,59,.5);color:#e88b83;">⚠ Report Issue</button>
       <button class="switch-role" id="switch-role-btn">Switch Role</button>
     </div>
@@ -1572,6 +1573,7 @@ function resetQcReportForm(){
   document.getElementById('qc-report-upload').value = '';
 }
 document.getElementById('new-order-btn').addEventListener('click', openAddModal);
+document.getElementById('new-material-btn-global').addEventListener('click', ()=> openMaterialModal(null));
 document.getElementById('report-issue-btn').addEventListener('click', ()=>{
   const sel = document.getElementById('qc-report-job');
   const sorted = [...state.jobs].sort((a,b)=> a.jobName.localeCompare(b.jobName));
