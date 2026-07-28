@@ -71,8 +71,8 @@ input,select,textarea{font-family:inherit;}
 }
 .brand-mark h1{font-size:34px;margin:0;font-weight:700;letter-spacing:.06em;}
 .brand-sub{color:var(--text-dim);font-size:13px;letter-spacing:.14em;margin-bottom:48px;text-transform:uppercase;}
-.role-grid{display:grid;grid-template-columns:repeat(4,180px);gap:18px;}
-@media(max-width:760px){.role-grid{grid-template-columns:repeat(2,1fr);width:100%;max-width:420px;}}
+.role-grid{display:grid;grid-template-columns:repeat(3,180px);gap:18px;justify-content:center;}
+@media(max-width:640px){.role-grid{grid-template-columns:1fr;width:100%;max-width:280px;}}
 .role-card{
   background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
   padding:26px 16px; text-align:center; transition:.15s; position:relative; overflow:hidden;
@@ -91,7 +91,7 @@ header.topbar{
   background:linear-gradient(180deg, #171d24, #131820);
   border-bottom:1px solid var(--border);
   display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:16px;
-  padding:0 20px; height:60px; position:sticky; top:0; z-index:40;
+  padding:10px 20px; min-height:60px; position:sticky; top:0; z-index:40;
   box-shadow:0 2px 12px rgba(0,0,0,.3);
 }
 .topbar-left{display:flex;align-items:center;gap:12px;}
@@ -101,7 +101,7 @@ header.topbar{
   font-size:10.5px; padding:3px 9px; border-radius:20px; background:var(--panel-2);
   border:1px solid var(--border); color:var(--text-dim); letter-spacing:.08em; text-transform:uppercase;
 }
-nav.tabs{display:flex; gap:4px; justify-content:center; overflow-x:auto;}
+nav.tabs{display:flex; flex-wrap:wrap; gap:4px; justify-content:center;}
 nav.tabs button{
   background:none;border:none;color:var(--text-dim); font-family:'Oswald'; letter-spacing:.05em;
   font-size:13px; text-transform:uppercase; padding:10px 14px; border-radius:8px; font-weight:500;
@@ -109,7 +109,7 @@ nav.tabs button{
 }
 nav.tabs button.active{color:var(--text); background:var(--panel-2); border-bottom:2px solid var(--steel-bright);}
 nav.tabs button:hover:not(.active){color:var(--text);}
-.topbar-right{display:flex; align-items:center; gap:14px;}
+.topbar-right{display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:flex-end;}
 .live-dot{display:flex;align-items:center;gap:6px; font-size:11px; color:var(--text-faint); letter-spacing:.05em;}
 .live-dot .dot{width:7px;height:7px;border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
@@ -533,9 +533,9 @@ const SEARCH_FIELDS = [
 const COLOR_HEX = {'FL-Yellow':'#f0d33a','FL Green':'#4f9d69','FL Red':'#d1453b','FL Pink':'#e0559c','Blue':'#4a7fd1','Orange':'#df7a3d','Yellow':'#f0d33a','Green':'#5eb87f','Red':'#d1453b'};
 
 const ROLE_VIEWS = {
-  master:  ['dashboard','managers','completed','delivered','field','calendar','trailer'],
-  manager: ['dashboard','managers','completed','delivered','field','calendar','trailer'],
-  field:   ['field','delivered','calendar','trailer']
+  master:  ['dashboard','managers','completed','delivered','calendar','trailer'],
+  manager: ['dashboard','managers','completed','delivered','calendar','trailer'],
+  field:   ['managers','completed','delivered','calendar','trailer']
 };
 const ROLE_LABEL = {master:'Executive',manager:'Managers',field:'Field'};
 
@@ -925,7 +925,7 @@ document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',(e)=
 /* ============================ RENDER: SHELL ============================ */
 function renderNav(){
   const views = ROLE_VIEWS[state.role];
-  const labelMap = {dashboard:'Executive Dashboard',managers:'Production Schedule',completed:'Completed',delivered:'Delivered / Picked Up',field:'Field',calendar:'Delivery Calendar',trailer:'Trailer Dashboard'};
+  const labelMap = {dashboard:'Executive Dashboard',managers:'Production Schedule',completed:'Completed',delivered:'Delivered / Picked Up',calendar:'Delivery Calendar',trailer:'Trailer Dashboard'};
   const html = views.map(v=>`<button data-view="${v}" class="${state.view===v?'active':''}">${labelMap[v]}</button>`).join('');
   document.getElementById('nav-tabs').innerHTML = html;
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{ state.view=b.dataset.view; render(); }));
@@ -941,7 +941,6 @@ function render(){
   else if(state.view==='managers') main.innerHTML = viewManagers();
   else if(state.view==='completed') main.innerHTML = viewCompleted();
   else if(state.view==='delivered') main.innerHTML = viewDelivered();
-  else if(state.view==='field') main.innerHTML = viewField();
   else if(state.view==='calendar') main.innerHTML = viewCalendar();
   else if(state.view==='trailer') main.innerHTML = viewTrailer();
   bindMainEvents();
@@ -1323,15 +1322,6 @@ function viewDelivered(){
     </div>
   </div>
   ${renderJobsTable(jobs, {emptyText:'Nothing delivered or picked up yet.'})}`;
-}
-
-/* ============================ FIELD VIEW ============================ */
-function viewField(){
-  const jobs = state.jobs.filter(j=>j.status==='Complete'||j.status==='In Shop'||j.status==='Delivered/Picked Up')
-    .sort((a,b)=>{ const ac=a.status==='Complete'?0:1, bc=b.status==='Complete'?0:1; if(ac!==bc) return ac-bc; return needDateSort(a,b); });
-  return `
-  <div class="section-title"><span class="bar"></span>Deliveries & Pickups — Sorted by Need Date</div>
-  ${renderJobsTable(jobs, {emptyText:'No jobs ready for delivery or pickup yet.'})}`;
 }
 
 /* ============================ CALENDAR VIEW ============================ */
