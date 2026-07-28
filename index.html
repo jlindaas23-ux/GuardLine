@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -167,11 +166,15 @@ main{flex:1; padding:24px; max-width:1500px; margin:0 auto; width:100%;}
 .cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;}
 .cal-weekday{font-family:'Oswald';font-size:11px;color:var(--text-faint);text-transform:uppercase;text-align:center;padding-bottom:4px;letter-spacing:.06em;}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
-.cal-cell{background:var(--panel);border:1px solid var(--border);border-radius:8px;min-height:104px;padding:8px;overflow:hidden;}
+.cal-cell{background:var(--panel);border:1px solid var(--border);border-radius:8px;min-height:104px;padding:8px;overflow:hidden;transition:.1s;}
+.cal-cell.drag-over{border-color:var(--steel-bright);background:var(--panel-2);box-shadow:0 0 0 1px var(--steel-bright) inset;}
+.cal-chip{cursor:grab;}
+.cal-chip:active{cursor:grabbing;}
 .cal-cell.other-month{opacity:.32;}
 .cal-cell.today{border-color:var(--steel-bright);box-shadow:0 0 0 1px var(--steel-bright) inset;}
 .cal-daynum{font-family:'IBM Plex Mono';font-size:11px;color:var(--text-faint);margin-bottom:6px;}
-.cal-chip{font-size:10.5px;padding:3px 6px;border-radius:5px;background:var(--panel-2);border-left:3px solid var(--steel);margin-bottom:4px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cal-chip{font-size:10.5px;padding:3px 6px;border-radius:5px;background:var(--panel-2);border-left:3px solid var(--steel);margin-bottom:4px;cursor:grab;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cal-chip:active{cursor:grabbing;}
 .cal-chip:hover{background:var(--border-soft);}
 .cal-chip.urgent{border-left-color:var(--red);}
 .cal-more{font-size:10px;color:var(--text-faint);margin-top:2px;}
@@ -444,18 +447,52 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
+<!-- DELETED JOBS ARCHIVE MODAL -->
+<div class="overlay" id="deleted-jobs-modal">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head">
+      <div><h2>Deleted Jobs</h2><div class="sub">Nothing is deleted forever — restore any job back to the active schedule</div></div>
+      <button class="modal-close" data-close="deleted-jobs-modal">×</button>
+    </div>
+    <div class="modal-body" id="deleted-jobs-body"></div>
+  </div>
+</div>
+
+<!-- MATERIAL REQUEST MODAL -->
+<div class="overlay" id="material-modal">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-head">
+      <div><h2 id="material-modal-title">New Material Request</h2><div class="sub">List what's needed for a job</div></div>
+      <button class="modal-close" data-close="material-modal">×</button>
+    </div>
+    <div class="modal-body" id="material-modal-body"></div>
+    <div class="modal-foot">
+      <button class="btn-ghost" data-close="material-modal">Cancel</button>
+      <button class="btn-primary" id="material-save-btn">Save Material Request</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ============================ STATE ============================ */
 const STATUSES = ['Pending','In Shop','QC Hold','Complete','Delivered/Picked Up'];
 const ISSUE_TYPES = ['Wrong Dimensions','Fabrication Defect','Wrong Gauge / Material','Wrong Connection / Hardware','Damaged in Transit','Missing Item','Incorrect Liner / Insulation','Other'];
+const MATERIAL_ITEMS = [
+  ['hangerStrap','Hanger Strap'],['slipAndDrive','Slip and Drive'],['angle','Angle'],['cleats','Cleats'],
+  ['ductSealer','Duct Sealer'],['stickyGasket','Sticky Gasket (Butyl)'],['allThread38','3/8" All Thread Rod'],
+  ['allThread12','1/2" All Thread Rod'],['blackSprayPaint','Black Spray Paint'],['rags','Rags'],
+  ['greyDuctTape','Grey Duct Tape'],['blackDuctTape','Black Duct Tape'],['silverTape','Silver Tape'],
+  ['redLetterSilverTape','Red Letter Silver Tape'],['ductGuard','Duct Guard'],['visqueen','Visqueen'],
+  ['toolsEquipment','Tools and Equipment']
+];
 const STATUS_CLASS = {'Pending':'pending','In Shop':'inshop','QC Hold':'qchold','Complete':'complete','Delivered/Picked Up':'delivered'};
 const COLOR_HEX = {'FL-Yellow':'#f0d33a','FL Green':'#4f9d69','FL Red':'#d1453b','FL Pink':'#e0559c','Blue':'#4a7fd1','Orange':'#df7a3d','Yellow':'#f0d33a','Green':'#5eb87f','Red':'#d1453b'};
 
 const ROLE_VIEWS = {
-  master:  ['dashboard','managers','shop','field','calendar','trailer'],
-  manager: ['dashboard','managers','shop','field','calendar','trailer'],
-  shop:    ['shop','dashboard','calendar','trailer'],
-  field:   ['field','calendar','trailer']
+  master:  ['dashboard','managers','shop','field','calendar','trailer','materials'],
+  manager: ['dashboard','managers','shop','field','calendar','trailer','materials'],
+  shop:    ['shop','dashboard','calendar','trailer','materials'],
+  field:   ['field','calendar','trailer','materials']
 };
 const ROLE_LABEL = {master:'Executive',manager:'Managers',shop:'Shop',field:'Field'};
 
@@ -464,9 +501,20 @@ const ROLE_LABEL = {master:'Executive',manager:'Managers',shop:'Shop',field:'Fie
 const ACCESS_CODE = 'GUARDLINE1';
 
 let pendingRole = null;
+let draggedJobId = null;
+function persistRole(role){
+  try{ localStorage.setItem('guardline-role', role); }catch(e){}
+}
+function clearPersistedRole(){
+  try{ localStorage.removeItem('guardline-role'); }catch(e){}
+}
+function getPersistedRole(){
+  try{ return localStorage.getItem('guardline-role'); }catch(e){ return null; }
+}
 function logIn(role){
   state.role = role; state.userName = ROLE_LABEL[role];
   state.view = ROLE_VIEWS[role][0];
+  persistRole(role);
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='flex';
   render();
@@ -501,6 +549,8 @@ let state = {
   jobs: [],
   goal: 22000,
   trailers: [],
+  deletedJobs: [],
+  materials: [],
   search: '',
   statusFilter: 'All',
   openJobId: null,
@@ -566,6 +616,8 @@ function saveStateNow(){
     jobsJson: JSON.stringify(state.jobs),
     goal: state.goal,
     trailersJson: JSON.stringify(state.trailers),
+    deletedJobsJson: JSON.stringify(state.deletedJobs),
+    materialsJson: JSON.stringify(state.materials),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).catch(err=>{ console.error('Save failed', err); toast('Could not save — check connection.'); });
 }
@@ -592,6 +644,8 @@ function startLiveSync(onFirstLoad){
       state.jobs = JSON.parse(data.jobsJson || '[]');
       state.goal = data.goal || 22000;
       state.trailers = JSON.parse(data.trailersJson || '[]');
+      state.deletedJobs = JSON.parse(data.deletedJobsJson || '[]');
+      state.materials = JSON.parse(data.materialsJson || '[]');
       firestoreReady = true;
       if(onFirstLoad){ onFirstLoad(true); onFirstLoad = null; }
       else if(state.role){ render(); }
@@ -666,7 +720,7 @@ document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',(e)=
 /* ============================ RENDER: SHELL ============================ */
 function renderNav(){
   const views = ROLE_VIEWS[state.role];
-  const labelMap = {dashboard:'Executive Dashboard',managers:'Managers',shop:'Shop',field:'Field',calendar:'Delivery Calendar',trailer:'Trailer Dashboard'};
+  const labelMap = {dashboard:'Executive Dashboard',managers:'Managers',shop:'Shop',field:'Field',calendar:'Delivery Calendar',trailer:'Trailer Dashboard',materials:'Material List'};
   const html = views.map(v=>`<button data-view="${v}" class="${state.view===v?'active':''}">${labelMap[v]}</button>`).join('');
   document.getElementById('nav-tabs').innerHTML = html;
   const mobileNav = document.getElementById('nav-tabs-mobile');
@@ -689,6 +743,7 @@ function render(){
   else if(state.view==='field') main.innerHTML = viewField();
   else if(state.view==='calendar') main.innerHTML = viewCalendar();
   else if(state.view==='trailer') main.innerHTML = viewTrailer();
+  else if(state.view==='materials') main.innerHTML = viewMaterials();
   bindMainEvents();
   hydratePhotoThumbs();
 }
@@ -846,7 +901,7 @@ function viewManagers(){
         ${STATUSES.map(s=>`<button data-filter="${s}" class="${state.statusFilter===s?'active':''}">${s} (${state.jobs.filter(j=>j.status===s).length})</button>`).join('')}
       </div>
     </div>
-    ${canEdit ? `<button class="btn-primary" id="new-job-btn">+ New Duct Order</button>` : ''}
+    ${canEdit ? `<div style="display:flex;gap:8px;"><button class="btn-ghost" id="view-deleted-btn">🗑 Deleted Jobs (${(state.deletedJobs||[]).length})</button><button class="btn-primary" id="new-job-btn">+ New Duct Order</button></div>` : ''}
   </div>
   <div class="table-wrap">
     <table>
@@ -958,9 +1013,9 @@ function viewCalendar(){
     const iso = cellDate.getFullYear()+'-'+String(cellDate.getMonth()+1).padStart(2,'0')+'-'+String(cellDate.getDate()).padStart(2,'0');
     const isToday = iso === today;
     const jobsToday = (byDate[iso]||[]).sort((a,b)=> (a.priority==='Urgent'?0:1)-(b.priority==='Urgent'?0:1));
-    cells += `<div class="cal-cell ${otherMonth?'other-month':''} ${isToday?'today':''}">
+    cells += `<div class="cal-cell ${otherMonth?'other-month':''} ${isToday?'today':''}" data-cal-date="${iso}">
       <div class="cal-daynum">${cellDate.getDate()}</div>
-      ${jobsToday.slice(0,4).map(j=>`<div class="cal-chip ${j.priority==='Urgent'?'urgent':''}" data-open="${j.id}" title="${j.jobName} — ${j.jobNumber} (${j.shippingMethod})">${j.shippingMethod==='Pickup'?'📦':'🚚'} ${j.jobName}</div>`).join('')}
+      ${jobsToday.slice(0,4).map(j=>`<div class="cal-chip ${j.priority==='Urgent'?'urgent':''}" data-open="${j.id}" draggable="true" data-drag-job="${j.id}" title="${j.jobName} — ${j.jobNumber} (${j.shippingMethod}) — drag to reschedule">${j.shippingMethod==='Pickup'?'📦':'🚚'} ${j.jobName}</div>`).join('')}
       ${jobsToday.length>4?`<div class="cal-more">+${jobsToday.length-4} more</div>`:''}
     </div>`;
   }
@@ -998,6 +1053,38 @@ function viewTrailer(){
   </div>`;
 }
 
+/* ============================ MATERIAL LIST ============================ */
+function materialSummary(m){
+  const checked = MATERIAL_ITEMS.filter(([k])=> m.materials && m.materials[k] && m.materials[k].checked)
+    .map(([k,label])=> m.materials[k].qty ? `${label} (${m.materials[k].qty})` : label);
+  if(m.otherItems) checked.push(m.otherItems);
+  return checked.length ? checked.join(', ') : 'No items selected';
+}
+function viewMaterials(){
+  const list = (state.materials||[]).slice().sort((a,b)=>{
+    const av = a.dateNeeded? new Date(a.dateNeeded).getTime(): Infinity;
+    const bv = b.dateNeeded? new Date(b.dateNeeded).getTime(): Infinity;
+    return av-bv;
+  });
+  return `
+  <div class="toolbar">
+    <div class="section-title" style="margin:0;"><span class="bar"></span>Material List</div>
+    <button class="btn-primary" id="new-material-btn">+ New Material Request</button>
+  </div>
+  <div class="shop-grid">
+    ${list.length ? list.map(m=>`
+    <div class="card job-card" data-open-material="${m.id}">
+      <div class="top">
+        <div><div class="jname">${m.jobName}${m.leadTime==='Urgent Order'?'<span class="urgent-badge">Urgent</span>':''}</div><div class="jnum">${m.jobNumber||''}</div></div>
+        <span class="status ${m.status==='Fulfilled'?'complete':'pending'}">${m.status||'Requested'}</span>
+      </div>
+      <div class="notes" style="border-left-color:var(--steel);">${materialSummary(m)}</div>
+      <div class="row2"><span>Need ${m.dateNeeded? needDateLabel(m.dateNeeded):'—'}</span><span>${m.shippingMethod||''}</span></div>
+      ${m.notes?`<div class="row2" style="color:var(--text-faint);">${m.notes}</div>`:''}
+    </div>`).join('') : `<div class="empty" style="grid-column:1/-1;"><div class="big">No material requests yet</div>Click "+ New Material Request" to add one.</div>`}
+  </div>`;
+}
+
 
 function bindMainEvents(){
   document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{ state.statusFilter=b.dataset.filter; render(); }));
@@ -1025,6 +1112,44 @@ function bindMainEvents(){
   document.querySelectorAll('[data-thumb-open]').forEach(el=>el.addEventListener('click',(e)=>{ e.stopPropagation(); openJobPhoto(el.dataset.thumbOpen); }));
   document.querySelectorAll('tr[data-open]').forEach(tr=>tr.addEventListener('click',()=>openJob(tr.dataset.open)));
   const newBtn = document.getElementById('new-job-btn'); if(newBtn) newBtn.addEventListener('click', openAddModal);
+  const viewDeletedBtn = document.getElementById('view-deleted-btn'); if(viewDeletedBtn) viewDeletedBtn.addEventListener('click', ()=>{ renderDeletedJobsModal(); openModal('deleted-jobs-modal'); });
+  const newMaterialBtn = document.getElementById('new-material-btn'); if(newMaterialBtn) newMaterialBtn.addEventListener('click', ()=> openMaterialModal(null));
+  document.querySelectorAll('[data-open-material]').forEach(el=>el.addEventListener('click',()=> openMaterialModal(el.dataset.openMaterial)));
+
+  /* Delivery Calendar drag-and-drop rescheduling */
+  document.querySelectorAll('[data-drag-job]').forEach(chip=>{
+    chip.addEventListener('dragstart', (e)=>{
+      draggedJobId = chip.dataset.dragJob;
+      e.dataTransfer.effectAllowed = 'move';
+      try{ e.dataTransfer.setData('text/plain', draggedJobId); }catch(err){}
+    });
+    chip.addEventListener('dragend', ()=>{
+      draggedJobId = null;
+      document.querySelectorAll('.cal-cell.drag-over').forEach(c=>c.classList.remove('drag-over'));
+    });
+  });
+  document.querySelectorAll('[data-cal-date]').forEach(cell=>{
+    cell.addEventListener('dragover', (e)=>{
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      cell.classList.add('drag-over');
+    });
+    cell.addEventListener('dragleave', ()=>{ cell.classList.remove('drag-over'); });
+    cell.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      cell.classList.remove('drag-over');
+      const jobId = draggedJobId || (e.dataTransfer ? e.dataTransfer.getData('text/plain') : null);
+      draggedJobId = null;
+      if(!jobId) return;
+      const job = jobById(jobId);
+      const newDate = cell.dataset.calDate;
+      if(!job || !newDate || job.needDate === newDate) return;
+      const oldDate = job.needDate ? needDateLabel(job.needDate) : 'no date';
+      job.needDate = newDate;
+      addHistory(job, `Need Date moved from ${oldDate} to ${needDateLabel(newDate)} by ${state.userName} (dragged on Delivery Calendar).`);
+      saveState(); toast(`${job.jobName} rescheduled to ${needDateLabel(newDate)}.`); render();
+    });
+  });
   const goalBtn = document.getElementById('edit-goal-btn'); if(goalBtn) goalBtn.addEventListener('click', ()=>{
     const v = prompt('Set weekly weight goal (lbs):', state.goal);
     if(v && !isNaN(v)){ state.goal = Number(v); saveState(); render(); }
@@ -1127,9 +1252,13 @@ async function renderJobModal(){
         saveState(); toast('Job saved.'); closeModal('job-modal'); render();
       };
       document.getElementById('delete-job-btn').onclick = ()=>{
-        if(confirm('Delete this job permanently?')){
+        if(confirm('Move this job to the deleted archive? You can restore it later from Managers → Deleted Jobs.')){
+          job.deletedAt = nowStr();
+          job.deletedBy = state.userName;
+          state.deletedJobs = state.deletedJobs || [];
+          state.deletedJobs.unshift(job);
           state.jobs = state.jobs.filter(j=>j.id!==job.id);
-          saveState(); closeModal('job-modal'); render(); toast('Job deleted.');
+          saveState(); closeModal('job-modal'); render(); toast('Job moved to deleted archive.');
         }
       };
     }
@@ -1250,6 +1379,104 @@ function compressImage(file){
 }
 
 /* ============================ ADD JOB MODAL ============================ */
+/* ============================ DELETED JOBS ARCHIVE ============================ */
+/* ============================ MATERIAL REQUEST MODAL ============================ */
+let editingMaterialId = null;
+function openMaterialModal(existingId){
+  editingMaterialId = existingId || null;
+  const existing = existingId ? (state.materials||[]).find(m=>m.id===existingId) : null;
+  document.getElementById('material-modal-title').textContent = existing ? 'Edit Material Request' : 'New Material Request';
+  const mat = existing ? existing.materials||{} : {};
+  document.getElementById('material-modal-body').innerHTML = `
+    <div class="form-grid">
+      <div class="field"><label>Job Name</label><input id="mat-jobName" value="${existing?existing.jobName:''}" placeholder="e.g. TPA-AIRSIDE-D"></div>
+      <div class="field"><label>Job Number</label><input id="mat-jobNumber" value="${existing?existing.jobNumber||'':''}" placeholder="e.g. 25-10-0054"></div>
+    </div>
+    <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Materials Needed</div>
+    <div class="form-grid">
+      ${MATERIAL_ITEMS.map(([k,label])=>`
+        <div class="field" style="display:flex;align-items:center;gap:8px;flex-direction:row;">
+          <input type="checkbox" id="mat-chk-${k}" style="width:auto;" ${mat[k]&&mat[k].checked?'checked':''}>
+          <label style="margin:0;text-transform:none;font-size:13px;flex:1;">${label}</label>
+          <input id="mat-qty-${k}" placeholder="qty" value="${mat[k]?mat[k].qty||'':''}" style="width:70px;">
+        </div>`).join('')}
+    </div>
+    <div class="form-grid" style="margin-top:6px;">
+      <div class="field" style="grid-column:1/-1;"><label>Other Items Required</label><textarea id="mat-other">${existing?existing.otherItems||'':''}</textarea></div>
+      <div class="field" style="grid-column:1/-1;"><label>Notes</label><textarea id="mat-notes">${existing?existing.notes||'':''}</textarea></div>
+    </div>
+    <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Lead Time</div>
+    <div class="form-grid">
+      <div class="field"><label>Order Type</label>
+        <select id="mat-leadtime"><option ${existing&&existing.leadTime==='Regular Order'?'selected':''}>Regular Order</option><option ${existing&&existing.leadTime==='Urgent Order'?'selected':''}>Urgent Order</option></select>
+      </div>
+      <div class="field"><label>Date Needed</label><input id="mat-dateneeded" type="date" value="${existing?existing.dateNeeded||'':''}"></div>
+      <div class="field"><label>Shipping Method</label>
+        <select id="mat-shipping"><option ${existing&&existing.shippingMethod==='Pickup'?'selected':''}>Pickup</option><option ${!existing||existing.shippingMethod==='Delivery'?'selected':''}>Delivery</option></select>
+      </div>
+    </div>
+    ${existing ? `
+    <div class="field" style="margin-top:14px;display:flex;align-items:center;gap:10px;background:var(--panel-2);padding:12px 14px;border-radius:8px;border:1px solid var(--border);">
+      <input type="checkbox" id="mat-fulfilled" style="width:auto;" ${existing.status==='Fulfilled'?'checked':''}>
+      <label style="margin:0;text-transform:none;font-size:13px;color:var(--text);" for="mat-fulfilled">Mark as Fulfilled</label>
+    </div>
+    <button class="btn-danger" id="material-delete-btn" style="margin-top:12px;">Delete Request</button>` : ''}
+  `;
+  const delBtn = document.getElementById('material-delete-btn');
+  if(delBtn) delBtn.onclick = ()=>{
+    if(confirm('Delete this material request?')){
+      state.materials = state.materials.filter(m=>m.id!==existingId);
+      saveState(); closeModal('material-modal'); toast('Material request deleted.'); render();
+    }
+  };
+  openModal('material-modal');
+}
+document.getElementById('material-save-btn').addEventListener('click', ()=>{
+  const jobName = val('mat-jobName');
+  if(!jobName.trim()){ toast('Job name is required.'); return; }
+  const materials = {};
+  MATERIAL_ITEMS.forEach(([k])=>{
+    const checked = document.getElementById('mat-chk-'+k).checked;
+    const qty = val('mat-qty-'+k);
+    if(checked || qty) materials[k] = {checked, qty};
+  });
+  const existing = editingMaterialId ? (state.materials||[]).find(m=>m.id===editingMaterialId) : null;
+  const fulfilledEl = document.getElementById('mat-fulfilled');
+  const record = {
+    id: existing ? existing.id : uid(),
+    jobName, jobNumber: val('mat-jobNumber'), materials,
+    otherItems: val('mat-other'), notes: val('mat-notes'),
+    leadTime: val('mat-leadtime'), dateNeeded: val('mat-dateneeded'), shippingMethod: val('mat-shipping'),
+    status: fulfilledEl && fulfilledEl.checked ? 'Fulfilled' : 'Requested',
+    createdBy: existing ? existing.createdBy : state.userName,
+    createdAt: existing ? existing.createdAt : nowStr()
+  };
+  state.materials = state.materials || [];
+  if(existing){ state.materials = state.materials.map(m=> m.id===existing.id ? record : m); }
+  else { state.materials.unshift(record); }
+  saveState(); closeModal('material-modal'); toast('Material request saved.'); render();
+});
+
+function renderDeletedJobsModal(){
+  const list = state.deletedJobs || [];
+  document.getElementById('deleted-jobs-body').innerHTML = list.length ? list.map(j=>`
+    <div class="qc-item">
+      <div class="qh"><span>Deleted ${j.deletedAt||''} by ${j.deletedBy||'unknown'}</span></div>
+      <div class="qd"><b>${j.jobName}</b> <span class="mono" style="color:var(--text-faint);">${j.jobNumber}</span></div>
+      <div class="qd" style="margin-top:4px;color:var(--text-faint);font-size:12px;">${j.system||''} · ${fmt(j.weight)} lbs · Need ${needDateLabel(j.needDate)}</div>
+      <button class="btn-primary resolve-btn" data-restore="${j.id}">Restore to Schedule</button>
+    </div>`).join('') : `<div class="empty" style="padding:16px 0;">No deleted jobs. Anything you delete will show up here instead of disappearing for good.</div>`;
+  document.querySelectorAll('[data-restore]').forEach(b=>b.addEventListener('click',()=>{
+    const job = (state.deletedJobs||[]).find(j=>j.id===b.dataset.restore);
+    if(!job) return;
+    delete job.deletedAt; delete job.deletedBy;
+    addHistory(job, `Restored from the deleted archive by ${state.userName}.`);
+    state.jobs.unshift(job);
+    state.deletedJobs = state.deletedJobs.filter(j=>j.id!==job.id);
+    saveState(); toast('Job restored.'); renderDeletedJobsModal(); render();
+  }));
+}
+
 function openAddModal(){
   document.getElementById('add-body').innerHTML = `
   <div class="form-grid">
@@ -1363,17 +1590,26 @@ function forceRefresh(){
 document.getElementById('refresh-app-btn').addEventListener('click', forceRefresh);
 document.getElementById('refresh-app-btn-login').addEventListener('click', forceRefresh);
 document.getElementById('switch-role-btn').addEventListener('click', ()=>{
+  clearPersistedRole();
   document.getElementById('app').style.display='none';
   document.getElementById('login-screen').style.display='flex';
   state.role=null; state.view=null; state.userName=null;
 });
 
 function boot(){
+  const savedRole = getPersistedRole();
+  if(savedRole && ROLE_LABEL[savedRole]){
+    state.role = savedRole; state.userName = ROLE_LABEL[savedRole];
+    state.view = ROLE_VIEWS[savedRole][0];
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app').style.display='flex';
+  }
   startLiveSync((found)=>{
     if(!found){
       state.jobs = seedJobs();
       saveStateNow();
     }
+    if(state.role){ render(); }
   });
 }
 boot();
