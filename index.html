@@ -374,6 +374,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="modal-tabs" id="jm-tabs">
       <button data-tab="info" class="active">Info</button>
       <button data-tab="photo">Sketch Photo</button>
+      <button data-tab="materials">Materials</button>
       <button data-tab="history">Backlog History</button>
       <button data-tab="qc">Quality Control</button>
     </div>
@@ -491,10 +492,10 @@ const STATUS_CLASS = {'Pending':'pending','In Shop':'inshop','QC Hold':'qchold',
 const COLOR_HEX = {'FL-Yellow':'#f0d33a','FL Green':'#4f9d69','FL Red':'#d1453b','FL Pink':'#e0559c','Blue':'#4a7fd1','Orange':'#df7a3d','Yellow':'#f0d33a','Green':'#5eb87f','Red':'#d1453b'};
 
 const ROLE_VIEWS = {
-  master:  ['dashboard','managers','shop','field','calendar','trailer','materials'],
-  manager: ['dashboard','managers','shop','field','calendar','trailer','materials'],
-  shop:    ['shop','dashboard','calendar','trailer','materials'],
-  field:   ['field','calendar','trailer','materials']
+  master:  ['dashboard','managers','shop','field','calendar','trailer'],
+  manager: ['dashboard','managers','shop','field','calendar','trailer'],
+  shop:    ['shop','dashboard','calendar','trailer'],
+  field:   ['field','calendar','trailer']
 };
 const ROLE_LABEL = {master:'Executive',manager:'Managers',shop:'Shop',field:'Field'};
 
@@ -761,7 +762,7 @@ document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',(e)=
 /* ============================ RENDER: SHELL ============================ */
 function renderNav(){
   const views = ROLE_VIEWS[state.role];
-  const labelMap = {dashboard:'Executive Dashboard',managers:'Managers',shop:'Shop',field:'Field',calendar:'Delivery Calendar',trailer:'Trailer Dashboard',materials:'Material List'};
+  const labelMap = {dashboard:'Executive Dashboard',managers:'Managers',shop:'Shop',field:'Field',calendar:'Delivery Calendar',trailer:'Trailer Dashboard'};
   const html = views.map(v=>`<button data-view="${v}" class="${state.view===v?'active':''}">${labelMap[v]}</button>`).join('');
   document.getElementById('nav-tabs').innerHTML = html;
   const mobileNav = document.getElementById('nav-tabs-mobile');
@@ -784,7 +785,6 @@ function render(){
   else if(state.view==='field') main.innerHTML = viewField();
   else if(state.view==='calendar') main.innerHTML = viewCalendar();
   else if(state.view==='trailer') main.innerHTML = viewTrailer();
-  else if(state.view==='materials') main.innerHTML = viewMaterials();
   bindMainEvents();
   hydratePhotoThumbs();
 }
@@ -1328,6 +1328,21 @@ async function renderJobModal(){
     foot.innerHTML = '';
   }
 
+  else if(state.jmTab==='materials'){
+    const reqs = (state.materials||[]).filter(m=> m.jobNumber && job.jobNumber && m.jobNumber.trim().toLowerCase()===job.jobNumber.trim().toLowerCase());
+    body.innerHTML = `
+    <div id="jm-materials-list">${reqs.length ? reqs.map(m=>`
+      <div class="qc-item" data-edit-material="${m.id}" style="cursor:pointer;">
+        <div class="qh"><span>${m.createdAt||''} · requested by ${m.createdBy||''}</span><span class="badge-open" style="background:${m.status==='Fulfilled'?'var(--green)':'var(--red)'}">${m.status||'Requested'}</span></div>
+        <div class="qd">${materialSummary(m)}</div>
+        <div class="qd" style="margin-top:4px;color:var(--text-faint);font-size:11.5px;">${m.leadTime||''} · Need ${m.dateNeeded?needDateLabel(m.dateNeeded):'—'} · ${m.shippingMethod||''}</div>
+      </div>`).join('') : '<div class="empty" style="padding:16px 0;">No material requests for this job yet.</div>'}
+    </div>`;
+    foot.innerHTML = `<button class="btn-primary" id="jm-add-material-btn">+ New Material Request</button>`;
+    document.getElementById('jm-add-material-btn').onclick = ()=>{ openMaterialModal(null, job); };
+    body.querySelectorAll('[data-edit-material]').forEach(el=>el.addEventListener('click',()=> openMaterialModal(el.dataset.editMaterial)));
+  }
+
   else if(state.jmTab==='qc'){
     body.innerHTML = `
     <div id="qc-list">${(job.qc||[]).length ? job.qc.map(q=>`
@@ -1410,15 +1425,16 @@ function compressImage(file){
 /* ============================ DELETED JOBS ARCHIVE ============================ */
 /* ============================ MATERIAL REQUEST MODAL ============================ */
 let editingMaterialId = null;
-function openMaterialModal(existingId){
+function openMaterialModal(existingId, prefillJob){
   editingMaterialId = existingId || null;
   const existing = existingId ? (state.materials||[]).find(m=>m.id===existingId) : null;
+  const lockJob = !existing && prefillJob;
   document.getElementById('material-modal-title').textContent = existing ? 'Edit Material Request' : 'New Material Request';
   const mat = existing ? existing.materials||{} : {};
   document.getElementById('material-modal-body').innerHTML = `
     <div class="form-grid">
-      <div class="field"><label>Job Name</label><input id="mat-jobName" value="${existing?existing.jobName:''}" placeholder="e.g. TPA-AIRSIDE-D"></div>
-      <div class="field"><label>Job Number</label><input id="mat-jobNumber" value="${existing?existing.jobNumber||'':''}" placeholder="e.g. 25-10-0054"></div>
+      <div class="field"><label>Job Name</label><input id="mat-jobName" value="${existing?existing.jobName:(prefillJob?prefillJob.jobName:'')}" placeholder="e.g. TPA-AIRSIDE-D" ${lockJob?'disabled':''}></div>
+      <div class="field"><label>Job Number</label><input id="mat-jobNumber" value="${existing?existing.jobNumber||'':(prefillJob?prefillJob.jobNumber||'':'')}" placeholder="e.g. 25-10-0054" ${lockJob?'disabled':''}></div>
     </div>
     <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Materials Needed</div>
     <div class="form-grid">
@@ -1455,6 +1471,7 @@ function openMaterialModal(existingId){
     if(confirm('Delete this material request?')){
       state.materials = state.materials.filter(m=>m.id!==existingId);
       saveState(); closeModal('material-modal'); toast('Material request deleted.'); render();
+      if(state.openJobId && state.jmTab==='materials'){ renderJobModal(); }
     }
   };
   openModal('material-modal');
@@ -1483,6 +1500,7 @@ document.getElementById('material-save-btn').addEventListener('click', ()=>{
   if(existing){ state.materials = state.materials.map(m=> m.id===existing.id ? record : m); }
   else { state.materials.unshift(record); }
   saveState(); closeModal('material-modal'); toast('Material request saved.'); render();
+  if(state.openJobId && state.jmTab==='materials'){ renderJobModal(); }
 });
 
 function renderDeletedJobsModal(){
