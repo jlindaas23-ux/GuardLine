@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GuardLine — Production Schedule</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-firestore-compat.min.js"></script>
+<style>
+:root{
+  --bg:#12161b;
+  --bg-2:#0d1013;
+  --panel:#1b2129;
+  --panel-2:#232a33;
+  --border:#323b46;
+  --border-soft:#262e38;
+  --text:#e9e7e1;
+  --text-dim:#93a0ac;
+  --text-faint:#5f6b78;
+  --steel:#5a95a8;
+  --steel-bright:#7fbccf;
+  --yellow:#f0b429;
+  --red:#d1453b;
+  --green:#4f9d69;
+  --orange:#df7a3d;
+  --pink:#d24f8f;
+  --blue:#4a7fd1;
+  --radius:10px;
+  --shadow: 0 4px 18px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(90,149,168,.06), transparent 40%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 8px);
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  min-height:100vh;
+}
+.mono{font-family:'IBM Plex Mono',monospace;}
+.disp{font-family:'Oswald',sans-serif; text-transform:uppercase; letter-spacing:.03em;}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+button{font-family:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;}
+
+/* ---------- LOGIN / ROLE SELECT ---------- */
+#login-screen{
+  min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:40px 20px;
+}
+.brand-mark{
+  display:flex; align-items:center; gap:14px; margin-bottom:6px;
+}
+.brand-mark .bolt{
+  width:38px;height:38px;border-radius:8px;
+  background:linear-gradient(155deg, var(--steel-bright), var(--steel) 60%, #2c5866);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.15), 0 3px 10px rgba(0,0,0,.4);
+  position:relative;
+}
+.brand-mark .bolt::after{
+  content:"";width:10px;height:10px;border-radius:2px;background:var(--bg-2);
+  transform:rotate(45deg);
+}
+.brand-mark h1{font-size:34px;margin:0;font-weight:700;letter-spacing:.06em;}
+.brand-sub{color:var(--text-dim);font-size:13px;letter-spacing:.14em;margin-bottom:48px;text-transform:uppercase;}
+.role-grid{display:grid;grid-template-columns:repeat(4,180px);gap:18px;}
+@media(max-width:760px){.role-grid{grid-template-columns:repeat(2,1fr);width:100%;max-width:420px;}}
+.role-card{
+  background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+  padding:26px 16px; text-align:center; transition:.15s; position:relative; overflow:hidden;
+}
+.role-card:hover{border-color:var(--steel); transform:translateY(-2px); box-shadow:var(--shadow);}
+.role-card .tag{
+  position:absolute; top:0; left:0; right:0; height:4px;
+}
+.role-card .icon{font-size:26px; margin-bottom:10px; display:block;}
+.role-card .name{font-family:'Oswald'; font-weight:600; letter-spacing:.05em; font-size:15px; text-transform:uppercase;}
+.role-card .desc{color:var(--text-faint); font-size:11.5px; margin-top:6px; line-height:1.4;}
+
+/* ---------- APP SHELL ---------- */
+#app{display:none; min-height:100vh; flex-direction:column;}
+header.topbar{
+  background:linear-gradient(180deg, #171d24, #131820);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 20px; height:60px; position:sticky; top:0; z-index:40;
+  box-shadow:0 2px 12px rgba(0,0,0,.3);
+}
+.topbar-left{display:flex;align-items:center;gap:12px;}
+.topbar-left .bolt{width:26px;height:26px;border-radius:6px;}
+.topbar-left h1{font-size:18px;margin:0;font-weight:700;}
+.topbar-left .role-pill{
+  font-size:10.5px; padding:3px 9px; border-radius:20px; background:var(--panel-2);
+  border:1px solid var(--border); color:var(--text-dim); letter-spacing:.08em; text-transform:uppercase;
+}
+nav.tabs{display:flex; gap:4px;}
+nav.tabs button{
+  background:none;border:none;color:var(--text-dim); font-family:'Oswald'; letter-spacing:.05em;
+  font-size:13px; text-transform:uppercase; padding:10px 14px; border-radius:8px; font-weight:500;
+  border-bottom:2px solid transparent;
+}
+nav.tabs button.active{color:var(--text); background:var(--panel-2); border-bottom:2px solid var(--steel-bright);}
+nav.tabs button:hover:not(.active){color:var(--text);}
+.topbar-right{display:flex; align-items:center; gap:14px;}
+.live-dot{display:flex;align-items:center;gap:6px; font-size:11px; color:var(--text-faint); letter-spacing:.05em;}
+.live-dot .dot{width:7px;height:7px;border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+.switch-role{
+  background:var(--panel-2); border:1px solid var(--border); color:var(--text-dim);
+  padding:7px 12px; border-radius:7px; font-size:12px;
+}
+.switch-role:hover{color:var(--text); border-color:var(--steel);}
+
+main{flex:1; padding:24px; max-width:1500px; margin:0 auto; width:100%;}
+@media(max-width:640px){main{padding:14px;}}
+
+.card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);}
+.section-title{font-family:'Oswald'; text-transform:uppercase; letter-spacing:.06em; font-size:13px; color:var(--text-dim); margin:0 0 14px; display:flex; align-items:center; gap:8px;}
+.section-title .bar{width:4px;height:14px;background:var(--steel-bright);border-radius:2px;}
+
+/* ---------- DASHBOARD ---------- */
+.dash-grid{display:grid; grid-template-columns:340px 1fr; gap:20px;}
+@media(max-width:980px){.dash-grid{grid-template-columns:1fr;}}
+.gauge-card{padding:26px 20px; display:flex; flex-direction:column; align-items:center;}
+.gauge-wrap{position:relative; width:260px; height:260px;}
+.gauge-readout{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.gauge-readout .num{font-family:'IBM Plex Mono'; font-size:34px; font-weight:600; color:var(--text);}
+.gauge-readout .goal{font-size:11px; color:var(--text-faint); letter-spacing:.05em; margin-top:2px;}
+.gauge-readout .pct{font-family:'Oswald'; font-size:13px; color:var(--steel-bright); margin-top:8px; letter-spacing:.08em;}
+.week-range{color:var(--text-faint); font-size:11.5px; margin-top:16px; letter-spacing:.04em;}
+.goal-edit{margin-top:10px;}
+.goal-edit button{background:none;border:none;color:var(--text-faint); font-size:11px; text-decoration:underline; padding:0;}
+
+.stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px;}
+@media(max-width:760px){.stat-row{grid-template-columns:repeat(2,1fr);}}
+.stat-box{padding:16px; }
+.stat-box .val{font-family:'IBM Plex Mono'; font-size:26px; font-weight:600;}
+.stat-box .lbl{color:var(--text-faint); font-size:11px; letter-spacing:.06em; text-transform:uppercase; margin-top:4px;}
+
+.hot-list{padding:18px;}
+.hot-row{display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border-soft);}
+.hot-row:last-child{border-bottom:none;}
+.hot-row .date{font-family:'IBM Plex Mono'; font-size:12px; color:var(--red); width:78px; flex-shrink:0;}
+.hot-row .job{font-weight:600; font-size:13.5px;}
+.hot-row .meta{color:var(--text-faint); font-size:11.5px;}
+
+.qc-alert{padding:12px 14px; border-radius:8px; background:rgba(209,69,59,.1); border:1px solid rgba(209,69,59,.35); display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:10px;}
+.qc-alert .txt{font-size:12.5px;}
+.qc-alert .txt b{color:var(--red);}
+.badge-open{background:var(--red);color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;letter-spacing:.05em; text-transform:uppercase; font-weight:600;}
+.urgent-badge{display:inline-block;background:var(--red);color:#fff;font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-left:6px;vertical-align:middle;}
+.remake-badge{display:inline-block;background:var(--steel);color:#0d1418;font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-left:6px;vertical-align:middle;}
+.need-date{font-family:'IBM Plex Mono';font-weight:600;font-size:12.5px;}
+.need-date.overdue{color:var(--red);}
+.need-date.soon{color:var(--yellow);}
+.need-date.pending{color:var(--text-faint);font-family:'Inter';font-weight:400;font-style:italic;font-size:12px;}
+
+/* ---------- CALENDAR ---------- */
+.cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;}
+.cal-weekday{font-family:'Oswald';font-size:11px;color:var(--text-faint);text-transform:uppercase;text-align:center;padding-bottom:4px;letter-spacing:.06em;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+.cal-cell{background:var(--panel);border:1px solid var(--border);border-radius:8px;min-height:104px;padding:8px;overflow:hidden;}
+.cal-cell.other-month{opacity:.32;}
+.cal-cell.today{border-color:var(--steel-bright);box-shadow:0 0 0 1px var(--steel-bright) inset;}
+.cal-daynum{font-family:'IBM Plex Mono';font-size:11px;color:var(--text-faint);margin-bottom:6px;}
+.cal-chip{font-size:10.5px;padding:3px 6px;border-radius:5px;background:var(--panel-2);border-left:3px solid var(--steel);margin-bottom:4px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cal-chip:hover{background:var(--border-soft);}
+.cal-chip.urgent{border-left-color:var(--red);}
+.cal-more{font-size:10px;color:var(--text-faint);margin-top:2px;}
+@media(max-width:900px){
+  .cal-grid, .cal-weekdays{grid-template-columns:repeat(7,minmax(34px,1fr));}
+  .cal-cell{min-height:70px;padding:4px;}
+  .cal-chip{font-size:9px;padding:2px 4px;}
+}
+
+/* ---------- STATUS BADGES / SWATCHES ---------- */
+.status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;}
+.status::before{content:"";width:6px;height:6px;border-radius:50%;}
+.status.pending{background:rgba(147,160,172,.14);color:#b9c2cb;}
+.status.pending::before{background:#9aa4af;}
+.status.inshop{background:rgba(74,127,209,.15);color:#8db0ee;}
+.status.inshop::before{background:var(--blue);}
+.status.qchold{background:rgba(209,69,59,.15);color:#e88b83;}
+.status.qchold::before{background:var(--red);}
+.status.complete{background:rgba(79,157,105,.15);color:#8bd1a1;}
+.status.complete::before{background:var(--green);}
+.status.delivered{background:rgba(90,149,168,.16);color:var(--steel-bright);}
+.status.delivered::before{background:var(--steel-bright);}
+
+.swatch{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;}
+.swatch .chip{width:13px;height:13px;border-radius:3px;border:1px solid rgba(255,255,255,.25);}
+
+/* ---------- TABLE (Managers) ---------- */
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;justify-content:space-between;}
+.search-box{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;min-width:220px;}
+.filter-chips{display:flex;gap:6px;flex-wrap:wrap;}
+.filter-chips button{background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);font-size:11.5px;padding:6px 12px;border-radius:20px;letter-spacing:.03em;}
+.filter-chips button.active{background:var(--steel);border-color:var(--steel);color:#0d1418;font-weight:600;}
+.btn-primary{background:var(--steel-bright);color:#0d1418;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;letter-spacing:.02em;}
+.btn-primary:hover{background:#96cbdb;}
+.btn-ghost{background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:9px 14px;border-radius:8px;font-size:13px;}
+.btn-ghost:hover{border-color:var(--steel);}
+.btn-danger{background:rgba(209,69,59,.15);border:1px solid rgba(209,69,59,.4);color:#e88b83;padding:8px 13px;border-radius:8px;font-size:12.5px;}
+
+.table-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);}
+table{border-collapse:collapse;width:100%;min-width:1100px;background:var(--panel);}
+thead th{
+  text-align:left; font-family:'Oswald'; font-size:11px; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--text-faint); padding:12px 14px; background:var(--panel-2); border-bottom:1px solid var(--border); white-space:nowrap;
+}
+tbody td{padding:12px 14px; font-size:12.5px; border-bottom:1px solid var(--border-soft); white-space:nowrap;}
+tbody tr{cursor:pointer;transition:.1s;}
+tbody tr:hover{background:var(--panel-2);}
+tbody tr:last-child td{border-bottom:none;}
+.job-name-cell b{font-size:13px;}
+.job-name-cell .sub{color:var(--text-faint);font-size:11px;}
+.weight-cell{font-family:'IBM Plex Mono'; font-weight:600;}
+
+/* ---------- SHOP CARDS ---------- */
+.shop-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:16px;}
+.job-card{padding:16px; display:flex; flex-direction:column; gap:10px; position:relative;}
+.job-card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.job-card .jname{font-weight:700;font-size:14.5px;}
+.job-card .jnum{color:var(--text-faint); font-size:11px; font-family:'IBM Plex Mono';}
+.job-card .notes{font-size:12px; color:var(--text-dim); background:var(--panel-2); padding:8px 10px; border-radius:6px; border-left:3px solid var(--yellow);}
+.job-card .row2{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--text-faint);}
+.job-card .weight-tag{font-family:'IBM Plex Mono';color:var(--text);font-weight:600;}
+.card-actions{display:flex;gap:8px;flex-wrap:wrap;}
+.card-actions button{flex:1;font-size:11.5px;padding:8px;border-radius:7px;}
+
+/* ---------- FIELD VIEW ---------- */
+.field-list{display:flex;flex-direction:column;gap:10px;}
+.field-item{padding:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+.field-item .l b{font-size:15px;}
+.field-item .l .meta{color:var(--text-faint);font-size:12px;margin-top:2px;}
+.field-item .r{display:flex;gap:8px;align-items:center;}
+
+/* ---------- MODAL ---------- */
+.overlay{position:fixed;inset:0;background:rgba(8,10,13,.7);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;}
+.overlay.show{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:12px;width:100%;max-width:720px;max-height:88vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.modal-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px;background:var(--panel-2);}
+.modal-head h2{margin:0;font-size:18px;}
+.modal-head .sub{color:var(--text-faint);font-size:12px;margin-top:3px;}
+.modal-close{background:none;border:none;color:var(--text-faint);font-size:22px;line-height:1;}
+.modal-close:hover{color:var(--text);}
+.modal-tabs{display:flex;gap:2px;padding:0 22px;background:var(--panel-2);border-bottom:1px solid var(--border);}
+.modal-tabs button{background:none;border:none;color:var(--text-faint);padding:11px 4px;margin-right:20px;font-family:'Oswald';font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;border-bottom:2px solid transparent;}
+.modal-tabs button.active{color:var(--text);border-bottom:2px solid var(--steel-bright);}
+.modal-body{padding:22px;overflow-y:auto;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;}
+@media(max-width:560px){.form-grid{grid-template-columns:1fr;}}
+.form-grid.full{grid-template-columns:1fr;}
+.field label{display:block;font-size:11px;color:var(--text-faint);letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px;}
+.field input,.field select,.field textarea{
+  width:100%;background:var(--bg-2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:9px 11px;font-size:13px;
+}
+.field textarea{resize:vertical;min-height:60px;}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--steel-bright);}
+.modal-foot{padding:16px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;background:var(--panel-2);}
+
+.timeline{display:flex;flex-direction:column;gap:0;}
+.tl-item{display:flex;gap:14px;padding-bottom:18px;position:relative;}
+.tl-item::before{content:"";position:absolute;left:5px;top:16px;bottom:0;width:1px;background:var(--border);}
+.tl-item:last-child::before{display:none;}
+.tl-dot{width:11px;height:11px;border-radius:50%;background:var(--steel);margin-top:3px;flex-shrink:0;box-shadow:0 0 0 3px var(--panel);}
+.tl-content .when{font-size:10.5px;color:var(--text-faint);font-family:'IBM Plex Mono';}
+.tl-content .note{font-size:13px;margin-top:2px;}
+
+.qc-item{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;}
+.qc-item .qh{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-faint);margin-bottom:6px;}
+.qc-item .qd{font-size:13px;}
+.qc-item .resolve-btn{margin-top:8px;}
+
+.photo-zone{border:2px dashed var(--border);border-radius:10px;padding:26px;text-align:center;color:var(--text-faint);}
+.photo-zone img{max-width:100%;max-height:320px;border-radius:8px;}
+.photo-buttons{display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap;}
+
+.toast-wrap{position:fixed;bottom:20px;right:20px;z-index:200;display:flex;flex-direction:column;gap:8px;}
+.toast{background:var(--panel-2);border:1px solid var(--steel);color:var(--text);padding:12px 18px;border-radius:8px;font-size:13px;box-shadow:var(--shadow);animation:slidein .2s ease;}
+@keyframes slidein{from{transform:translateY(10px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+
+.empty{text-align:center;padding:50px 20px;color:var(--text-faint);}
+.empty .big{font-family:'Oswald';font-size:16px;color:var(--text-dim);margin-bottom:6px;}
+
+/* ---------- INLINE SKETCH THUMBNAILS ---------- */
+.thumb-cell{width:52px;height:52px;border-radius:6px;overflow:hidden;background:var(--panel-2);display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--border);flex-shrink:0;}
+.thumb-cell:hover{border-color:var(--steel);}
+.thumb-cell img{width:100%;height:100%;object-fit:cover;display:block;}
+.thumb-none{color:var(--text-faint);font-size:18px;}
+.thumb-loading{color:var(--text-faint);font-size:10px;}
+.sketch-thumb{width:100%;height:132px;border-radius:8px;overflow:hidden;background:var(--panel-2);display:flex;align-items:center;justify-content:center;border:1px solid var(--border-soft);cursor:pointer;margin:-16px -16px 2px -16px;width:calc(100% + 32px);}
+.sketch-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.sketch-thumb.empty{color:var(--text-faint);font-size:11px;letter-spacing:.05em;text-transform:uppercase;}
+.sketch-thumb.empty:hover{color:var(--text-dim);border-color:var(--steel);}
+
+@media(max-width:900px){
+  nav.tabs{display:none;}
+  header.topbar{flex-wrap:wrap;height:auto;padding:10px 14px;gap:8px;}
+  nav.tabs.mobile{display:flex;width:100%;overflow-x:auto;}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="brand-mark"><div class="bolt"></div><h1>GuardLine</h1></div>
+  <div class="brand-sub">Live Production Schedule</div>
+  <div class="role-grid">
+    <div class="role-card" data-role="master"><div class="tag" style="background:var(--steel-bright)"></div><span class="icon">◈</span><div class="name">Master</div><div class="desc">Full visibility. Every job, every view.</div></div>
+    <div class="role-card" data-role="manager"><div class="tag" style="background:var(--yellow)"></div><span class="icon">▤</span><div class="name">Managers</div><div class="desc">Manage the schedule, shop queue & field.</div></div>
+    <div class="role-card" data-role="shop"><div class="tag" style="background:var(--blue)"></div><span class="icon">⚙</span><div class="name">Shop</div><div class="desc">Work the queue. Log weight & photos.</div></div>
+    <div class="role-card" data-role="field"><div class="tag" style="background:var(--green)"></div><span class="icon">▲</span><div class="name">Field</div><div class="desc">Delivery & pickup status only.</div></div>
+  </div>
+  <div id="passcode-box" style="display:none;margin-top:26px;text-align:center;">
+    <div class="brand-sub" style="margin-bottom:12px;" id="passcode-label">Enter access code</div>
+    <input type="password" id="passcode-input" class="search-box" style="text-align:center;letter-spacing:.2em;width:180px;" maxlength="12" autocomplete="off">
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;">
+      <button class="btn-ghost" id="passcode-cancel">Cancel</button>
+      <button class="btn-primary" id="passcode-submit">Enter</button>
+    </div>
+    <div id="passcode-error" style="color:var(--red);font-size:12px;margin-top:10px;height:14px;"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="bolt"></div>
+      <h1 class="disp">GuardLine</h1>
+      <span class="role-pill" id="role-pill"></span>
+    </div>
+    <nav class="tabs" id="nav-tabs"></nav>
+    <div class="topbar-right">
+      <div class="live-dot"><span class="dot"></span><span id="sync-label">LIVE</span></div>
+      <button class="switch-role" id="new-order-btn" style="border-color:rgba(127,188,207,.5);color:var(--steel-bright);">+ New Duct Order</button>
+      <button class="switch-role" id="report-issue-btn" style="border-color:rgba(209,69,59,.5);color:#e88b83;">⚠ Report Issue</button>
+      <button class="switch-role" id="switch-role-btn">Switch Role</button>
+    </div>
+  </header>
+  <nav class="tabs mobile" id="nav-tabs-mobile" style="display:none;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--border);"></nav>
+  <main id="main"></main>
+</div>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<!-- JOB DETAIL MODAL -->
+<div class="overlay" id="job-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h2 id="jm-title">Job</h2>
+        <div class="sub" id="jm-sub"></div>
+      </div>
+      <button class="modal-close" data-close="job-modal">×</button>
+    </div>
+    <div class="modal-tabs" id="jm-tabs">
+      <button data-tab="info" class="active">Info</button>
+      <button data-tab="photo">Sketch Photo</button>
+      <button data-tab="history">Backlog History</button>
+      <button data-tab="qc">Quality Control</button>
+    </div>
+    <div class="modal-body" id="jm-body"></div>
+    <div class="modal-foot" id="jm-foot"></div>
+  </div>
+</div>
+
+<!-- ADD JOB MODAL -->
+<div class="overlay" id="add-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h2>New Duct Order</h2><div class="sub">Add a job to the production schedule</div></div>
+      <button class="modal-close" data-close="add-modal">×</button>
+    </div>
+    <div class="modal-body" id="add-body"></div>
+    <div class="modal-foot">
+      <button class="btn-ghost" data-close="add-modal">Cancel</button>
+      <button class="btn-primary" id="add-save-btn">Add Job</button>
+    </div>
+  </div>
+</div>
+
+<!-- QUICK QC / CALLBACK REPORT MODAL -->
+<div class="overlay" id="qc-report-modal">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head">
+      <div><h2>Report an Issue</h2><div class="sub">Flag a quality problem or callback on any job</div></div>
+      <button class="modal-close" data-close="qc-report-modal">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field" style="grid-column:1/-1;">
+          <label>Job Name</label>
+          <select id="qc-report-job"></select>
+        </div>
+        <div class="field">
+          <label>Sketch # / Order #</label>
+          <input id="qc-report-ref" placeholder="e.g. 534 or 25-10-0054">
+        </div>
+        <div class="field">
+          <label>Issue Type</label>
+          <select id="qc-report-type">${ISSUE_TYPES.map(t=>`<option>${t}</option>`).join('')}</select>
+        </div>
+        <div class="field">
+          <label>Priority</label>
+          <select id="qc-report-priority"><option>Normal</option><option>Urgent</option></select>
+        </div>
+        <div class="field" style="grid-column:1/-1;">
+          <label>Description</label>
+          <textarea id="qc-report-desc" placeholder="What happened, and where?"></textarea>
+        </div>
+        <div class="field" style="grid-column:1/-1;">
+          <label>Photo</label>
+          <div class="photo-zone" style="padding:16px;">
+            <div id="qc-report-photo-preview" style="color:var(--text-faint);font-size:12px;">No photo attached.</div>
+            <div class="photo-buttons">
+              <label class="btn-ghost">Take Photo<input type="file" accept="image/*" capture="environment" id="qc-report-camera" style="display:none;"></label>
+              <label class="btn-ghost">Upload Photo<input type="file" accept="image/*" id="qc-report-upload" style="display:none;"></label>
+            </div>
+          </div>
+        </div>
+        <div class="field" style="grid-column:1/-1;display:flex;align-items:center;gap:10px;background:var(--panel-2);padding:12px 14px;border-radius:8px;border:1px solid var(--border);">
+          <input type="checkbox" id="qc-report-remake" style="width:auto;flex-shrink:0;">
+          <label style="margin:0;text-transform:none;font-size:13px;color:var(--text);" for="qc-report-remake">This needs a remake — automatically add it to the production schedule as <b style="color:var(--red);">Urgent</b></label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" data-close="qc-report-modal">Cancel</button>
+      <button class="btn-primary" id="qc-report-submit">Submit Callback</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================ STATE ============================ */
+const STATUSES = ['Pending','In Shop','QC Hold','Complete','Delivered/Picked Up'];
+const ISSUE_TYPES = ['Wrong Dimensions','Fabrication Defect','Wrong Gauge / Material','Wrong Connection / Hardware','Damaged in Transit','Missing Item','Incorrect Liner / Insulation','Other'];
+const STATUS_CLASS = {'Pending':'pending','In Shop':'inshop','QC Hold':'qchold','Complete':'complete','Delivered/Picked Up':'delivered'};
+const COLOR_HEX = {'FL-Yellow':'#f0d33a','FL Green':'#4f9d69','FL Red':'#d1453b','FL Pink':'#e0559c','Blue':'#4a7fd1','Orange':'#df7a3d','Yellow':'#f0d33a','Green':'#5eb87f','Red':'#d1453b'};
+
+const ROLE_VIEWS = {
+  master:  ['dashboard','managers','shop','field','calendar','trailer'],
+  manager: ['dashboard','managers','shop','field','calendar','trailer'],
+  shop:    ['shop','dashboard','calendar','trailer'],
+  field:   ['field','calendar','trailer']
+};
+const ROLE_LABEL = {master:'Master',manager:'Managers',shop:'Shop',field:'Field'};
+
+/* Single shared access code for Master/Manager/Shop. Field needs no code.
+   Change this string to whatever code you want the team to use. */
+const ACCESS_CODE = 'GUARDLINE1';
+
+let pendingRole = null;
+function logIn(role){
+  state.role = role; state.userName = ROLE_LABEL[role];
+  state.view = ROLE_VIEWS[role][0];
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  render();
+}
+document.querySelectorAll('.role-card').forEach(card=>{
+  card.addEventListener('click', ()=>{
+    const role = card.dataset.role;
+    if(role==='field'){ logIn(role); return; }
+    pendingRole = role;
+    document.getElementById('passcode-label').textContent = `Enter access code for ${ROLE_LABEL[role]}`;
+    document.getElementById('passcode-error').textContent = '';
+    document.getElementById('passcode-input').value = '';
+    document.getElementById('passcode-box').style.display='block';
+    document.getElementById('passcode-input').focus();
+  });
+});
+document.getElementById('passcode-cancel').addEventListener('click', ()=>{
+  document.getElementById('passcode-box').style.display='none'; pendingRole=null;
+});
+function submitPasscode(){
+  const v = document.getElementById('passcode-input').value;
+  if(v === ACCESS_CODE){ document.getElementById('passcode-box').style.display='none'; logIn(pendingRole); }
+  else { document.getElementById('passcode-error').textContent = 'Incorrect code. Try again.'; }
+}
+document.getElementById('passcode-submit').addEventListener('click', submitPasscode);
+document.getElementById('passcode-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitPasscode(); });
+
+let state = {
+  role: null,
+  userName: null,
+  view: null,
+  jobs: [],
+  goal: 22000,
+  search: '',
+  statusFilter: 'All',
+  openJobId: null,
+  jmTab: 'info',
+  photoDraft: null,
+  photoCache: {},
+  calYear: new Date().getFullYear(),
+  calMonth: new Date().getMonth(),
+  calField: 'needDate'
+};
+
+function uid(){ return 'J' + Math.random().toString(36).slice(2,9); }
+function nowStr(){ return new Date().toLocaleString('en-US', {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+/* seed data reflecting the shop's real schedule shape */
+function seedJobs(){
+  const mk = (o)=>Object.assign({
+    id:uid(), area:'', notes:'', drawingType:'Field Drwg', sketchNumber:'', shippingMethod:'Deliver',
+    dateSubmitted:'', needDate:'', qty:1, weight:0, labelColor:'', secondaryColor:'', trailer:'Parking Area/Shop',
+    status:'Pending', priority:'Normal', hasPhoto:false, history:[{when:nowStr(),note:'Job created and added to schedule.'}], qc:[]
+  }, o);
+  return [
+    mk({jobName:'Pasco County J',jobNumber:'22-10-0027',customer:'RICH.LY...',system:'Outside Air',notes:'Waiting on e-mail / CAD',sketchNumber:'534 remake',shippingMethod:'Deliver',dateSubmitted:'2026-07-23',needDate:'2026-07-28',status:'Pending',weight:640,qty:1}),
+    mk({jobName:'JHACH BAT',jobNumber:'26-10-0002',customer:'JASON.S...',system:'O/A AHU 1-1 & 1-2',area:'1st Floor',notes:'Hot need tomorrow 7/28',shippingMethod:'Deliver',dateSubmitted:'2026-07-27',needDate:'2026-07-28',status:'In Shop',weight:1120,qty:6,labelColor:'FL-Yellow',trailer:'Parking Area/Shop'}),
+    mk({jobName:'JHACH BAT',jobNumber:'26-10-0002',customer:'JASON.S...',system:'O/A AHU 2-6',area:'2nd Floor',notes:'Hot need tomorrow 7/28',shippingMethod:'Deliver',dateSubmitted:'2026-07-27',needDate:'2026-07-28',status:'Pending',weight:210,qty:1,labelColor:'FL-Yellow'}),
+    mk({jobName:'STRAZ-CENTER',jobNumber:'25-41-1021',customer:'DAVID.C...',system:'3rd Floor',sketchNumber:'4',shippingMethod:'Pickup',dateSubmitted:'2026-07-27',needDate:'2026-07-28',status:'Complete',weight:980,qty:7,labelColor:'FL Green'}),
+    mk({jobName:'TGH-2E-DIALYSIS',jobNumber:'25-10-0056',customer:'STEPHEN...',system:'Duct',notes:'Field Drwg',shippingMethod:'Deliver',dateSubmitted:'2026-07-28',needDate:'2026-07-30',status:'Pending',weight:340,qty:1}),
+    mk({jobName:'TPA-AIRSIDE-D',jobNumber:'25-10-0054',customer:'MANUEL...',system:'SAM',shippingMethod:'Deliver',dateSubmitted:'2026-07-27',needDate:'2026-07-31',status:'In Shop',weight:1450,qty:5,labelColor:'Blue'}),
+    mk({jobName:'TPA-AIRSIDE-D',jobNumber:'25-10-0054',customer:'SBROWER...',system:'SALP',area:'Apron-S1/H3',notes:'Date-Pending',drawingType:'CAM Drwg',shippingMethod:'Deliver',dateSubmitted:'2026-07-16',status:'In Shop',weight:520,qty:3,labelColor:'FL Red'}),
+    mk({jobName:'TPA-AIRSIDE-D',jobNumber:'25-10-0054',customer:'SBROWER...',system:'SAM',area:'Apron-S1/H1',notes:'Date-Pending',drawingType:'CAM Drwg',shippingMethod:'Deliver',dateSubmitted:'2026-07-16',status:'Complete',weight:1380,qty:8,labelColor:'FL Pink'}),
+    mk({jobName:'TPA-AIRSIDE-D',jobNumber:'25-10-0054',customer:'SBROWER...',system:'RAMP',area:'Apron-S1/H4',notes:'Date-Pending',drawingType:'CAM Drwg',shippingMethod:'Deliver',dateSubmitted:'2026-07-16',status:'In Shop',weight:1180,qty:7,labelColor:'Orange',secondaryColor:'Yellow'}),
+    mk({jobName:'TPA-AIRSIDE-D',jobNumber:'25-10-0054',customer:'SBROWER...',system:'SALP',area:'Apron-S1/H4',notes:'Date-Pending',drawingType:'CAM Drwg',shippingMethod:'Deliver',dateSubmitted:'2026-07-16',status:'In Shop',weight:3020,qty:25,labelColor:'Blue',secondaryColor:'Yellow'}),
+    mk({jobName:'TPA-AIRSIDE-D',jobNumber:'25-10-0054',customer:'SBROWER...',system:'SAMP-RUN-1',area:'Apron-S1/H2',notes:'Date-Pending',drawingType:'CAM Drwg',shippingMethod:'Deliver',dateSubmitted:'2026-07-16',status:'In Shop',weight:940,qty:8,labelColor:'Orange',secondaryColor:'Red'}),
+    mk({jobName:'TPA-AIRSIDE-D',jobNumber:'25-10-0054',customer:'SBROWER...',system:'SAMP-RUN-2',area:'Apron-S1/H2',notes:'Date-Pending',drawingType:'CAM Drwg',shippingMethod:'Deliver',dateSubmitted:'2026-07-16',status:'In Shop',weight:1860,qty:16,labelColor:'Orange',secondaryColor:'Red'}),
+    mk({jobName:'TPA-AIRSIDE-D',jobNumber:'25-10-0054',customer:'SBROWER...',system:'RAM-RUN-1',area:'Apron-S1/H2',notes:'Date-Pending',drawingType:'CAM Drwg',shippingMethod:'Deliver',dateSubmitted:'2026-07-20',status:'In Shop',weight:4310,qty:38,labelColor:'Yellow',secondaryColor:'Red'}),
+    mk({jobName:'TPA-AIRSIDE-D',jobNumber:'25-10-0054',customer:'SBROWER...',system:'RAM-RUN-2',area:'Apron-S1/H2',notes:'Date-Pending',drawingType:'CAM Drwg',shippingMethod:'Deliver',dateSubmitted:'2026-07-20',status:'In Shop',weight:3540,qty:31,labelColor:'Yellow',secondaryColor:'Red'}),
+    mk({jobName:'TPA-AIRSIDE-D',jobNumber:'25-10-0054',customer:'SBROWER...',system:'SALP-RUN-1',area:'Apron-S1/H2',notes:'Date-Pending',drawingType:'CAM Drwg',shippingMethod:'Deliver',dateSubmitted:'2026-07-20',status:'In Shop',weight:2980,qty:26,labelColor:'Green',secondaryColor:'Red'}),
+    mk({jobName:'TPA-AIRSIDE-D',jobNumber:'25-10-0054',customer:'SBROWER...',system:'SALP-RUN-2',area:'Apron-S1/H2',notes:'Date-Pending',drawingType:'CAM Drwg',shippingMethod:'Deliver',dateSubmitted:'2026-07-20',status:'In Shop',weight:4780,qty:42,labelColor:'Green',secondaryColor:'Red'}),
+    mk({jobName:'TPA-AIRSIDE-D',jobNumber:'25-10-0054',customer:'SBROWER...',system:'OA-SW',area:'Apron-S1/H2',notes:'Date-Pending',drawingType:'CAM Drwg',shippingMethod:'Deliver',dateSubmitted:'2026-07-20',status:'In Shop',weight:920,qty:8,labelColor:'Blue',secondaryColor:'Red'}),
+  ];
+}
+
+/* ============================ FIREBASE / STORAGE ============================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyDCiv8kv71hmS0xIzFv87PMnckMzgqNfUQ",
+  authDomain: "guardline-e5cb4.firebaseapp.com",
+  projectId: "guardline-e5cb4",
+  storageBucket: "guardline-e5cb4.firebasestorage.app",
+  messagingSenderId: "629314336351",
+  appId: "1:629314336351:web:7bea45bc7b54eb074c8dea"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const stateDocRef = db.collection('guardline').doc('production-state');
+
+let saveTimer = null;
+let suppressNextSnapshot = false;
+let firestoreReady = false;
+
+function saveStateNow(){
+  suppressNextSnapshot = true;
+  stateDocRef.set({
+    jobsJson: JSON.stringify(state.jobs),
+    goal: state.goal,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(err=>{ console.error('Save failed', err); toast('Could not save — check connection.'); });
+}
+function saveState(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveStateNow, 350);
+}
+async function loadPhoto(jobId){
+  try{
+    const doc = await db.collection('guardline_photos').doc(jobId).get();
+    return doc.exists ? doc.data().dataUrl : null;
+  }catch(e){ return null; }
+}
+async function savePhoto(jobId, dataUrl){
+  await db.collection('guardline_photos').doc(jobId).set({dataUrl});
+}
+
+/* Real-time sync: any change anyone makes shows up immediately for everyone else */
+function startLiveSync(onFirstLoad){
+  stateDocRef.onSnapshot((doc)=>{
+    if(suppressNextSnapshot){ suppressNextSnapshot = false; return; }
+    if(doc.exists){
+      const data = doc.data();
+      state.jobs = JSON.parse(data.jobsJson || '[]');
+      state.goal = data.goal || 22000;
+      firestoreReady = true;
+      if(onFirstLoad){ onFirstLoad(true); onFirstLoad = null; }
+      else if(state.role){ render(); }
+    } else {
+      firestoreReady = true;
+      if(onFirstLoad){ onFirstLoad(false); onFirstLoad = null; }
+    }
+  }, (err)=>{
+    console.error('Sync error', err);
+    toast('Live sync lost connection — check your internet.');
+  });
+}
+
+/* ============================ HELPERS ============================ */
+function jobById(id){ return state.jobs.find(j=>j.id===id); }
+function fmt(n){ return Number(n||0).toLocaleString('en-US'); }
+function needDateClass(dateStr){
+  if(!dateStr) return 'pending';
+  const d = new Date(dateStr+'T00:00:00'); const today = new Date(todayISO()+'T00:00:00');
+  const diffDays = Math.round((d-today)/86400000);
+  if(diffDays<0) return 'overdue';
+  if(diffDays<=1) return 'soon';
+  return '';
+}
+function needDateLabel(dateStr){
+  if(!dateStr) return 'Date Pending';
+  const d = new Date(dateStr+'T00:00:00');
+  const thisYear = new Date().getFullYear();
+  const opts = d.getFullYear()===thisYear ? {month:'short',day:'numeric'} : {month:'short',day:'numeric',year:'numeric'};
+  return d.toLocaleDateString('en-US', opts);
+}
+function needDateSort(a,b){
+  const av = a.needDate ? new Date(a.needDate).getTime() : Infinity;
+  const bv = b.needDate ? new Date(b.needDate).getTime() : Infinity;
+  return av-bv;
+}
+function weekBounds(){
+  const d = new Date();
+  const day = d.getDay();
+  const monOffset = day===0? -6 : 1-day;
+  const mon = new Date(d); mon.setDate(d.getDate()+monOffset); mon.setHours(0,0,0,0);
+  const sun = new Date(mon); sun.setDate(mon.getDate()+6); sun.setHours(23,59,59,999);
+  return [mon,sun];
+}
+function isThisWeek(dateStr){
+  if(!dateStr) return false;
+  const [mon,sun] = weekBounds();
+  const d = new Date(dateStr);
+  return d>=mon && d<=sun;
+}
+function completedThisWeek(){
+  return state.jobs.filter(j=> (j.status==='Complete'||j.status==='Delivered/Picked Up') && isThisWeek(j.completedAt||j.dateSubmitted))
+    .reduce((s,j)=>s+Number(j.weight||0),0);
+}
+function priorityBadge(j){ return j.priority==='Urgent' ? '<span class="urgent-badge">Urgent</span>' : ''; }
+function toast(msg){
+  const wrap = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  el.className='toast'; el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>el.remove(), 3200);
+}
+function addHistory(job, note){
+  job.history = job.history || [];
+  job.history.unshift({when: nowStr(), note});
+}
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeModal(b.dataset.close)));
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',(e)=>{ if(e.target===o) o.classList.remove('show'); }));
+
+/* ============================ RENDER: SHELL ============================ */
+function renderNav(){
+  const views = ROLE_VIEWS[state.role];
+  const labelMap = {dashboard:'Master Dashboard',managers:'Managers',shop:'Shop',field:'Field',calendar:'Calendar',trailer:'Trailer Dashboard'};
+  const html = views.map(v=>`<button data-view="${v}" class="${state.view===v?'active':''}">${labelMap[v]}</button>`).join('');
+  document.getElementById('nav-tabs').innerHTML = html;
+  const mobileNav = document.getElementById('nav-tabs-mobile');
+  if(views.length>1){
+    mobileNav.style.display='flex';
+    mobileNav.innerHTML = html;
+  } else {
+    mobileNav.style.display='none';
+  }
+  document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{ state.view=b.dataset.view; render(); }));
+  document.getElementById('role-pill').textContent = state.userName + ' · ' + ROLE_LABEL[state.role];
+}
+
+function render(){
+  renderNav();
+  const main = document.getElementById('main');
+  if(state.view==='dashboard') main.innerHTML = viewDashboard();
+  else if(state.view==='managers') main.innerHTML = viewManagers();
+  else if(state.view==='shop') main.innerHTML = viewShop();
+  else if(state.view==='field') main.innerHTML = viewField();
+  else if(state.view==='calendar') main.innerHTML = viewCalendar();
+  else if(state.view==='trailer') main.innerHTML = viewTrailer();
+  bindMainEvents();
+  hydratePhotoThumbs();
+}
+function thumbHTML(job){
+  if(state.photoCache[job.id]) return `<img src="${state.photoCache[job.id]}">`;
+  if(job.hasPhoto) return `<span class="thumb-loading">loading…</span>`;
+  return `<span class="thumb-none">—</span>`;
+}
+function hydratePhotoThumbs(){
+  state.jobs.filter(j=>j.hasPhoto && !state.photoCache[j.id]).forEach(j=>{
+    loadPhoto(j.id).then(url=>{
+      if(!url) return;
+      state.photoCache[j.id] = url;
+      document.querySelectorAll(`[data-thumb="${j.id}"]`).forEach(el=>{ el.innerHTML = `<img src="${url}">`; el.classList.remove('empty'); });
+    });
+  });
+}
+function openJobPhoto(id){
+  state.openJobId = id; state.jmTab = 'photo';
+  renderJobModal(); openModal('job-modal');
+}
+
+/* ============================ GAUGE (signature element) ============================ */
+function gaugeSVG(pct){
+  const R = 100, CX=130, CY=130, C = 2*Math.PI*R;
+  const offset = C * (1-Math.min(pct,1));
+  const ticks = [];
+  for(let i=0;i<36;i++){
+    const a = (i/36)*2*Math.PI - Math.PI/2;
+    const inner = i%3===0 ? 82 : 90;
+    const x1 = CX + inner*Math.cos(a), y1 = CY + inner*Math.sin(a);
+    const x2 = CX + 96*Math.cos(a), y2 = CY + 96*Math.sin(a);
+    ticks.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#3a4552" stroke-width="${i%3===0?2:1}"/>`);
+  }
+  const rivets = [];
+  for(let i=0;i<8;i++){
+    const a = (i/8)*2*Math.PI;
+    const x = CX + 122*Math.cos(a), y = CY + 122*Math.sin(a);
+    rivets.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="#414d5a"/>`);
+  }
+  return `
+  <svg viewBox="0 0 260 260" width="260" height="260">
+    <circle cx="130" cy="130" r="126" fill="none" stroke="#2a323c" stroke-width="10"/>
+    ${rivets.join('')}
+    <circle cx="130" cy="130" r="112" fill="#151b21" stroke="#3a4552" stroke-width="1"/>
+    ${ticks.join('')}
+    <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="#252d36" stroke-width="14"/>
+    <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="url(#grad)" stroke-width="14" stroke-linecap="round"
+      stroke-dasharray="${C}" stroke-dashoffset="${offset}" transform="rotate(-90 ${CX} ${CY})"/>
+    <defs>
+      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#5a95a8"/>
+        <stop offset="100%" stop-color="#7fbccf"/>
+      </linearGradient>
+    </defs>
+  </svg>`;
+}
+
+/* ============================ DASHBOARD VIEW ============================ */
+function viewDashboard(){
+  const total = completedThisWeek();
+  const pct = total/state.goal;
+  const [mon,sun] = weekBounds();
+  const rangeStr = mon.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + sun.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+
+  const inShop = state.jobs.filter(j=>j.status==='In Shop').length;
+  const pending = state.jobs.filter(j=>j.status==='Pending').length;
+  const openQC = state.jobs.reduce((s,j)=>s+(j.qc||[]).filter(q=>q.status==='Open').length,0);
+  const totalBacklogWeight = state.jobs.filter(j=>j.status!=='Delivered/Picked Up').reduce((s,j)=>s+Number(j.weight||0),0);
+
+  const hot = state.jobs.filter(j=>j.priority==='Urgent' && j.status!=='Delivered/Picked Up')
+    .concat(state.jobs.filter(j=> j.status!=='Delivered/Picked Up' && (needDateClass(j.needDate)==='overdue'||needDateClass(j.needDate)==='soon')))
+    .concat(state.jobs.filter(j=> (j.notes||'').toLowerCase().includes('hot') || (j.notes||'').toLowerCase().includes('need') ))
+    .concat(state.jobs.filter(j=>j.shippingMethod==='Pickup' && j.status!=='Delivered/Picked Up'))
+    .filter((v,i,a)=>a.indexOf(v)===i).slice(0,6);
+
+  const qcAlerts = [];
+  state.jobs.forEach(j=> (j.qc||[]).forEach(q=>{ if(q.status==='Open') qcAlerts.push({job:j,q}); }));
+
+  return `
+  <div class="dash-grid">
+    <div>
+      <div class="card gauge-card">
+        <div class="section-title" style="align-self:flex-start;"><span class="bar"></span>Weekly Weight Goal</div>
+        <div class="gauge-wrap">
+          ${gaugeSVG(pct)}
+          <div class="gauge-readout">
+            <div class="num">${fmt(total)}</div>
+            <div class="goal">of ${fmt(state.goal)} lbs goal</div>
+            <div class="pct">${Math.round(pct*100)}% COMPLETE</div>
+          </div>
+        </div>
+        <div class="week-range">Week of ${rangeStr}</div>
+        ${state.role==='master'||state.role==='manager' ? `<div class="goal-edit"><button id="edit-goal-btn">Edit weekly goal</button></div>`:''}
+      </div>
+    </div>
+    <div>
+      <div class="stat-row">
+        <div class="card stat-box"><div class="val mono">${pending}</div><div class="lbl">Pending</div></div>
+        <div class="card stat-box"><div class="val mono">${inShop}</div><div class="lbl">In Shop</div></div>
+        <div class="card stat-box"><div class="val mono">${fmt(totalBacklogWeight)}</div><div class="lbl">Backlog Lbs</div></div>
+        <div class="card stat-box"><div class="val mono" style="color:${openQC>0?'var(--red)':'var(--text)'}">${openQC}</div><div class="lbl">Open Callbacks</div></div>
+      </div>
+
+      ${qcAlerts.length ? `
+      <div class="card" style="padding:16px;margin-bottom:16px;">
+        <div class="section-title"><span class="bar" style="background:var(--red)"></span>Quality Control Alerts</div>
+        ${qcAlerts.map(a=>`<div class="qc-alert"><div class="txt"><b>${a.job.jobName}</b> · ${a.job.jobNumber}${a.q.ref?' · Ref '+a.q.ref:''} — ${a.q.issueType?a.q.issueType+': ':''}${a.q.desc}${a.q.priority==='Urgent'?'<span class="urgent-badge">Urgent</span>':''}${a.q.remake?'<span class="remake-badge">Remake</span>':''}</div><span class="badge-open">Open</span></div>`).join('')}
+      </div>` : ''}
+
+      <div class="card hot-list">
+        <div class="section-title"><span class="bar"></span>Hot & Priority Jobs — Sorted by Need Date</div>
+        ${hot.length ? hot.sort(needDateSort).map(j=>`
+          <div class="hot-row">
+            <div class="date need-date ${needDateClass(j.needDate)}" style="width:78px;flex-shrink:0;">${needDateLabel(j.needDate)}</div>
+            <div style="flex:1;">
+              <div class="job">${j.jobName}${priorityBadge(j)} <span class="mono" style="color:var(--text-faint);font-size:11px;">${j.jobNumber}</span></div>
+              <div class="meta">${j.system||''} ${j.notes? '· '+j.notes:''}</div>
+            </div>
+            <span class="status ${STATUS_CLASS[j.status]}">${j.status}</span>
+          </div>`).join('') : `<div class="empty" style="padding:20px;">No hot jobs flagged right now.</div>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ============================ MANAGERS VIEW ============================ */
+function filteredJobs(){
+  return state.jobs.filter(j=>{
+    if(state.statusFilter!=='All' && j.status!==state.statusFilter) return false;
+    if(state.search){
+      const s = state.search.toLowerCase();
+      const hay = [j.jobName,j.jobNumber,j.customer,j.system,j.area].join(' ').toLowerCase();
+      if(!hay.includes(s)) return false;
+    }
+    return true;
+  }).sort(needDateSort);
+}
+function swatch(color, sec){
+  if(!color) return '<span style="color:var(--text-faint)">—</span>';
+  let html = `<span class="swatch"><span class="chip" style="background:${COLOR_HEX[color]||'#888'}"></span>${color}</span>`;
+  if(sec) html += `<br><span class="swatch"><span class="chip" style="background:${COLOR_HEX[sec]||'#888'}"></span>${sec}</span>`;
+  return html;
+}
+function viewManagers(){
+  const jobs = filteredJobs();
+  const canEdit = state.role==='master'||state.role==='manager';
+  const canDeliver = state.role==='master'||state.role==='manager';
+  return `
+  <div class="toolbar">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <input class="search-box" id="mgr-search" placeholder="Search job, number, customer…" value="${state.search}">
+      <div class="filter-chips">
+        <button data-filter="All" class="${state.statusFilter==='All'?'active':''}">All (${state.jobs.length})</button>
+        ${STATUSES.map(s=>`<button data-filter="${s}" class="${state.statusFilter===s?'active':''}">${s} (${state.jobs.filter(j=>j.status===s).length})</button>`).join('')}
+      </div>
+    </div>
+    ${canEdit ? `<button class="btn-primary" id="new-job-btn">+ New Duct Order</button>` : ''}
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Need Date</th><th>Job Name</th><th>Job #</th><th>Customer</th><th>System / Area</th>
+        <th>Notes</th><th>Ship</th><th>Status</th><th>Qty</th><th>Weight</th><th>Colors</th><th>Trailer</th><th>Sketch</th>${canDeliver?'<th>Delivery</th>':''}
+      </tr></thead>
+      <tbody>
+        ${jobs.length ? jobs.map(j=>`
+        <tr data-open="${j.id}">
+          <td class="need-date ${needDateClass(j.needDate)}">${needDateLabel(j.needDate)}</td>
+          <td class="job-name-cell"><b>${j.jobName}</b>${priorityBadge(j)}</td>
+          <td class="mono">${j.jobNumber}</td>
+          <td>${j.customer||'—'}</td>
+          <td>${j.system||''}${j.area?`<div class="sub" style="color:var(--text-faint);font-size:11px;">${j.area}</div>`:''}</td>
+          <td style="max-width:180px;white-space:normal;color:var(--text-dim);">${j.notes||''}</td>
+          <td>${j.shippingMethod}</td>
+          <td><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></td>
+          <td class="mono">${j.qty}</td>
+          <td class="weight-cell">${fmt(j.weight)}</td>
+          <td>${swatch(j.labelColor,j.secondaryColor)}</td>
+          <td>${j.trailer}</td>
+          <td><div class="thumb-cell" data-thumb="${j.id}" data-thumb-open="${j.id}">${thumbHTML(j)}</div></td>
+          ${canDeliver ? `<td>${j.status!=='Delivered/Picked Up' ? `<button class="btn-primary" data-mark-delivered="${j.id}">Mark ${j.shippingMethod==='Pickup'?'Picked Up':'Delivered'}</button>` : `<span class="status delivered">Done</span>`}</td>` : ''}
+        </tr>`).join('') : `<tr><td colspan="14"><div class="empty"><div class="big">No jobs match</div>Try clearing filters or search.</div></td></tr>`}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+/* ============================ SHOP VIEW ============================ */
+function viewShop(){
+  const active = state.jobs.filter(j=>j.status!=='Delivered/Picked Up')
+    .sort((a,b)=>{ const ah=a.status==='QC Hold'?0:1, bh=b.status==='QC Hold'?0:1; if(ah!==bh) return ah-bh; return needDateSort(a,b); });
+  return `
+  <div class="toolbar">
+    <div class="filter-chips">
+      <button data-filter="All" class="${state.statusFilter==='All'?'active':''}">All</button>
+      ${STATUSES.filter(s=>s!=='Delivered/Picked Up').map(s=>`<button data-filter="${s}" class="${state.statusFilter===s?'active':''}">${s}</button>`).join('')}
+    </div>
+  </div>
+  <div class="shop-grid">
+    ${active.filter(j=> state.statusFilter==='All'||j.status===state.statusFilter).map(j=>`
+    <div class="card job-card" data-open="${j.id}">
+      <div class="sketch-thumb ${j.hasPhoto?'':'empty'}" data-thumb="${j.id}" data-thumb-open="${j.id}">${j.hasPhoto?thumbHTML(j):'No sketch photo — tap to add'}</div>
+      <div class="top">
+        <div><div class="jname">${j.jobName}${priorityBadge(j)}</div><div class="jnum">${j.jobNumber} · ${j.system||''}</div></div>
+        <span class="status ${STATUS_CLASS[j.status]}">${j.status}</span>
+      </div>
+      <div class="row2"><span>Need Date</span><span class="need-date ${needDateClass(j.needDate)}">${needDateLabel(j.needDate)}</span></div>
+      ${j.notes?`<div class="notes">${j.notes}</div>`:''}
+      <div class="row2"><span>Qty ${j.qty}</span><span class="weight-tag">${fmt(j.weight)} lbs</span></div>
+      <div class="row2"><span>${j.shippingMethod}</span><span>${j.trailer}</span></div>
+      <div class="card-actions">
+        <button class="btn-ghost" data-quickstatus="${j.id}">Advance Status</button>
+        <button class="btn-primary" data-open="${j.id}">Open</button>
+      </div>
+    </div>`).join('') || `<div class="empty" style="grid-column:1/-1;"><div class="big">Queue is clear</div>No active jobs in this filter.</div>`}
+  </div>`;
+}
+
+/* ============================ FIELD VIEW ============================ */
+function viewField(){
+  const jobs = state.jobs.filter(j=>j.status==='Complete'||j.status==='In Shop'||j.status==='Delivered/Picked Up')
+    .sort((a,b)=>{ const ac=a.status==='Complete'?0:1, bc=b.status==='Complete'?0:1; if(ac!==bc) return ac-bc; return needDateSort(a,b); });
+  return `
+  <div class="section-title"><span class="bar"></span>Deliveries & Pickups — Sorted by Need Date</div>
+  <div class="field-list">
+  ${jobs.length ? jobs.map(j=>`
+    <div class="card field-item">
+      <div class="thumb-cell" style="width:44px;height:44px;" data-thumb="${j.id}" data-thumb-open="${j.id}">${thumbHTML(j)}</div>
+      <div class="l">
+        <b>${j.jobName}</b>${priorityBadge(j)} <span class="mono" style="color:var(--text-faint);font-size:12px;">${j.jobNumber}</span>
+        <div class="meta">Need: <span class="need-date ${needDateClass(j.needDate)}">${needDateLabel(j.needDate)}</span> · ${j.shippingMethod} · ${j.trailer} · ${fmt(j.weight)} lbs · ${j.system||''}</div>
+      </div>
+      <div class="r">
+        <span class="status ${STATUS_CLASS[j.status]}">${j.status}</span>
+        <button class="btn-ghost" data-open="${j.id}">Details</button>
+      </div>
+    </div>`).join('') : `<div class="empty card"><div class="big">Nothing staged</div>No jobs ready for delivery or pickup yet.</div>`}
+  </div>`;
+}
+
+/* ============================ CALENDAR VIEW ============================ */
+function viewCalendar(){
+  const y = state.calYear, m = state.calMonth, field = state.calField;
+  const first = new Date(y,m,1);
+  const startDow = first.getDay();
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  const daysInPrevMonth = new Date(y,m,0).getDate();
+  const totalCells = Math.ceil((startDow+daysInMonth)/7)*7;
+  const monthLabel = first.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  const today = todayISO();
+
+  const byDate = {};
+  state.jobs.forEach(j=>{
+    const dv = j[field];
+    if(!dv) return;
+    (byDate[dv] = byDate[dv]||[]).push(j);
+  });
+
+  let cells = '';
+  for(let i=0;i<totalCells;i++){
+    const dayNum = i - startDow + 1;
+    let cellDate, otherMonth=false;
+    if(dayNum<1){ cellDate = new Date(y,m-1,daysInPrevMonth+dayNum); otherMonth=true; }
+    else if(dayNum>daysInMonth){ cellDate = new Date(y,m+1,dayNum-daysInMonth); otherMonth=true; }
+    else { cellDate = new Date(y,m,dayNum); }
+    const iso = cellDate.getFullYear()+'-'+String(cellDate.getMonth()+1).padStart(2,'0')+'-'+String(cellDate.getDate()).padStart(2,'0');
+    const isToday = iso === today;
+    const jobsToday = (byDate[iso]||[]).sort((a,b)=> (a.priority==='Urgent'?0:1)-(b.priority==='Urgent'?0:1));
+    cells += `<div class="cal-cell ${otherMonth?'other-month':''} ${isToday?'today':''}">
+      <div class="cal-daynum">${cellDate.getDate()}</div>
+      ${jobsToday.slice(0,4).map(j=>`<div class="cal-chip ${j.priority==='Urgent'?'urgent':''}" data-open="${j.id}" title="${j.jobName} — ${j.jobNumber}">${j.jobName}</div>`).join('')}
+      ${jobsToday.length>4?`<div class="cal-more">+${jobsToday.length-4} more</div>`:''}
+    </div>`;
+  }
+
+  return `
+  <div class="toolbar">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn-ghost" id="cal-prev">‹</button>
+      <div class="section-title" style="margin:0;"><span class="bar"></span>${monthLabel}</div>
+      <button class="btn-ghost" id="cal-next">›</button>
+      <button class="btn-ghost" id="cal-today">Today</button>
+    </div>
+    <div class="filter-chips">
+      <button data-calfield="needDate" class="${field==='needDate'?'active':''}">Need Date</button>
+      <button data-calfield="dateSubmitted" class="${field==='dateSubmitted'?'active':''}">Date Submitted</button>
+    </div>
+  </div>
+  <div class="cal-weekdays">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="cal-weekday">${d}</div>`).join('')}</div>
+  <div class="cal-grid">${cells}</div>`;
+}
+
+/* ============================ TRAILER DASHBOARD ============================ */
+function viewTrailer(){
+  const groups = {};
+  state.jobs.filter(j=>j.status!=='Delivered/Picked Up').forEach(j=>{
+    const key = j.trailer && j.trailer.trim() ? j.trailer : 'Unassigned';
+    (groups[key]=groups[key]||[]).push(j);
+  });
+  const keys = Object.keys(groups).sort((a,b)=>{
+    if(a==='Parking Area/Shop'||a==='Unassigned') return 1;
+    if(b==='Parking Area/Shop'||b==='Unassigned') return -1;
+    const wa = groups[a].reduce((s,j)=>s+Number(j.weight||0),0);
+    const wb = groups[b].reduce((s,j)=>s+Number(j.weight||0),0);
+    return wb-wa;
+  });
+  const grandTotal = state.jobs.filter(j=>j.status!=='Delivered/Picked Up').reduce((s,j)=>s+Number(j.weight||0),0);
+
+  return `
+  <div class="section-title"><span class="bar"></span>Trailer Dashboard</div>
+  <div class="stat-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px;">
+    <div class="card stat-box"><div class="val mono">${keys.length}</div><div class="lbl">Active Locations</div></div>
+    <div class="card stat-box"><div class="val mono">${fmt(grandTotal)}</div><div class="lbl">Total Staged Lbs</div></div>
+    <div class="card stat-box"><div class="val mono">${state.jobs.filter(j=>j.status!=='Delivered/Picked Up').length}</div><div class="lbl">Jobs Staged</div></div>
+  </div>
+  <div class="shop-grid">
+    ${keys.length ? keys.map(k=>{
+      const jobs = groups[k].slice().sort(needDateSort);
+      const totalW = jobs.reduce((s,j)=>s+Number(j.weight||0),0);
+      return `
+      <div class="card" style="padding:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px;">
+          <div class="disp" style="font-size:15px;">${k}</div>
+          <div class="mono" style="font-weight:700;font-size:13px;">${fmt(totalW)} lbs</div>
+        </div>
+        <div style="color:var(--text-faint);font-size:11.5px;margin-bottom:10px;">${jobs.length} job${jobs.length!==1?'s':''} staged</div>
+        ${jobs.map(j=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border-soft);gap:8px;cursor:pointer;" data-open="${j.id}">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${j.jobName}${priorityBadge(j)}</div>
+              <div style="font-size:10.5px;color:var(--text-faint);">${j.jobNumber} · Need ${needDateLabel(j.needDate)} · <span class="status ${STATUS_CLASS[j.status]}" style="padding:1px 6px;font-size:9px;">${j.status}</span></div>
+            </div>
+            <div class="mono" style="font-size:12px;flex-shrink:0;">${fmt(j.weight)} lbs</div>
+          </div>`).join('')}
+      </div>`;
+    }).join('') : `<div class="empty" style="grid-column:1/-1;"><div class="big">Nothing staged</div>No jobs currently assigned to a trailer or staging area.</div>`}
+  </div>`;
+}
+
+
+function bindMainEvents(){
+  document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{ state.statusFilter=b.dataset.filter; render(); }));
+  document.querySelectorAll('[data-calfield]').forEach(b=>b.addEventListener('click',()=>{ state.calField=b.dataset.calfield; render(); }));
+  const calPrev = document.getElementById('cal-prev'); if(calPrev) calPrev.addEventListener('click', ()=>{ state.calMonth--; if(state.calMonth<0){state.calMonth=11;state.calYear--;} render(); });
+  const calNext = document.getElementById('cal-next'); if(calNext) calNext.addEventListener('click', ()=>{ state.calMonth++; if(state.calMonth>11){state.calMonth=0;state.calYear++;} render(); });
+  const calToday = document.getElementById('cal-today'); if(calToday) calToday.addEventListener('click', ()=>{ const n=new Date(); state.calYear=n.getFullYear(); state.calMonth=n.getMonth(); render(); });
+  const search = document.getElementById('mgr-search');
+  if(search) search.addEventListener('input', ()=>{ state.search = search.value; renderTableOnly(); });
+  document.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',(e)=>{ e.stopPropagation(); openJob(el.dataset.open); }));
+  document.querySelectorAll('[data-thumb-open]').forEach(el=>el.addEventListener('click',(e)=>{ e.stopPropagation(); openJobPhoto(el.dataset.thumbOpen); }));
+  document.querySelectorAll('tr[data-open]').forEach(tr=>tr.addEventListener('click',()=>openJob(tr.dataset.open)));
+  const newBtn = document.getElementById('new-job-btn'); if(newBtn) newBtn.addEventListener('click', openAddModal);
+  const goalBtn = document.getElementById('edit-goal-btn'); if(goalBtn) goalBtn.addEventListener('click', ()=>{
+    const v = prompt('Set weekly weight goal (lbs):', state.goal);
+    if(v && !isNaN(v)){ state.goal = Number(v); saveState(); render(); }
+  });
+  document.querySelectorAll('[data-quickstatus]').forEach(b=>b.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    const job = jobById(b.dataset.quickstatus);
+    const idx = STATUSES.indexOf(job.status);
+    const next = STATUSES[Math.min(idx+1, STATUSES.length-1)];
+    job.status = next;
+    if(next==='Complete') job.completedAt = todayISO();
+    addHistory(job, `Status advanced to "${next}" by ${state.userName}.`);
+    saveState(); toast(`${job.jobName} → ${next}`); render();
+  }));
+  document.querySelectorAll('[data-mark-delivered]').forEach(b=>b.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    const job = jobById(b.dataset.markDelivered);
+    job.status='Delivered/Picked Up'; job.completedAt = todayISO();
+    addHistory(job, `Marked as ${job.shippingMethod==='Pickup'?'picked up':'delivered'} by ${state.userName}.`);
+    saveState(); toast('Updated.'); render();
+  }));
+}
+function renderTableOnly(){
+  const main = document.getElementById('main');
+  if(state.view==='managers') main.innerHTML = viewManagers();
+  else if(state.view==='shop') main.innerHTML = viewShop();
+  bindMainEvents();
+  hydratePhotoThumbs();
+  const s = document.getElementById('mgr-search'); if(s){ s.focus(); s.setSelectionRange(s.value.length,s.value.length); }
+}
+
+/* ============================ JOB DETAIL MODAL ============================ */
+async function openJob(id){
+  state.openJobId = id; state.jmTab='info';
+  await renderJobModal();
+  openModal('job-modal');
+}
+document.getElementById('jm-tabs').addEventListener('click',(e)=>{
+  const b = e.target.closest('button[data-tab]'); if(!b) return;
+  state.jmTab = b.dataset.tab;
+  renderJobModal();
+});
+async function renderJobModal(){
+  const job = jobById(state.openJobId); if(!job) return;
+  document.querySelectorAll('#jm-tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===state.jmTab));
+  document.getElementById('jm-title').textContent = job.jobName;
+  document.getElementById('jm-sub').textContent = `${job.jobNumber} · ${job.customer||'No customer listed'}`;
+  const body = document.getElementById('jm-body');
+  const foot = document.getElementById('jm-foot');
+  const canEdit = state.role==='master'||state.role==='manager'||state.role==='shop';
+
+  if(state.jmTab==='info'){
+    body.innerHTML = `
+    <div class="form-grid">
+      <div class="field"><label>Job Name</label><input id="f-jobName" value="${job.jobName}" ${canEdit?'':'disabled'}></div>
+      <div class="field"><label>Job Number</label><input id="f-jobNumber" value="${job.jobNumber}" ${canEdit?'':'disabled'}></div>
+      <div class="field"><label>Customer</label><input id="f-customer" value="${job.customer||''}" ${canEdit?'':'disabled'}></div>
+      <div class="field"><label>System</label><input id="f-system" value="${job.system||''}" ${canEdit?'':'disabled'}></div>
+      <div class="field"><label>Area</label><input id="f-area" value="${job.area||''}" ${canEdit?'':'disabled'}></div>
+      <div class="field"><label>Trailer / Location</label><input id="f-trailer" value="${job.trailer||''}" ${canEdit?'':'disabled'}></div>
+      <div class="field"><label>Need Date</label><input id="f-needdate" type="date" value="${job.needDate||''}" ${canEdit?'':'disabled'}></div>
+      <div class="field"><label>Order Qty</label><input id="f-qty" type="number" value="${job.qty}" ${canEdit?'':'disabled'}></div>
+      <div class="field"><label>Weight (lbs)</label><input id="f-weight" type="number" value="${job.weight}" ${canEdit?'':'disabled'}></div>
+      <div class="field"><label>Shipping Method</label>
+        <select id="f-shipping" ${canEdit?'':'disabled'}><option ${job.shippingMethod==='Deliver'?'selected':''}>Deliver</option><option ${job.shippingMethod==='Pickup'?'selected':''}>Pickup</option></select>
+      </div>
+      <div class="field"><label>Status</label>
+        <select id="f-status" ${canEdit?'':'disabled'}>${STATUSES.map(s=>`<option ${job.status===s?'selected':''}>${s}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Priority</label>
+        <select id="f-priority" ${canEdit?'':'disabled'}><option ${job.priority==='Normal'?'selected':''}>Normal</option><option ${job.priority==='Urgent'?'selected':''}>Urgent</option></select>
+      </div>
+      <div class="field"><label>Label Color</label>
+        <select id="f-color" ${canEdit?'':'disabled'}><option value="">—</option>${Object.keys(COLOR_HEX).map(c=>`<option ${job.labelColor===c?'selected':''}>${c}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Secondary Color</label>
+        <select id="f-color2" ${canEdit?'':'disabled'}><option value="">—</option>${Object.keys(COLOR_HEX).map(c=>`<option ${job.secondaryColor===c?'selected':''}>${c}</option>`).join('')}</select>
+      </div>
+      <div class="field" style="grid-column:1/-1;"><label>Notes / Duct Sections</label><textarea id="f-notes" ${canEdit?'':'disabled'}>${job.notes||''}</textarea></div>
+    </div>`;
+    foot.innerHTML = canEdit ? `<button class="btn-danger" id="delete-job-btn">Delete Job</button><button class="btn-primary" id="save-job-btn">Save Changes</button>` : '';
+    if(canEdit){
+      document.getElementById('save-job-btn').onclick = ()=>{
+        const patch = {
+          jobName: val('f-jobName'), jobNumber: val('f-jobNumber'), customer: val('f-customer'),
+          system: val('f-system'), area: val('f-area'), trailer: val('f-trailer'), needDate: val('f-needdate'),
+          qty: Number(val('f-qty')), weight: Number(val('f-weight')), shippingMethod: val('f-shipping'),
+          labelColor: val('f-color'), secondaryColor: val('f-color2'), notes: val('f-notes'), priority: val('f-priority')
+        };
+        const oldStatus = job.status;
+        const newStatus = val('f-status');
+        Object.assign(job, patch);
+        if(newStatus !== oldStatus){
+          job.status = newStatus;
+          if(newStatus==='Complete') job.completedAt = todayISO();
+          addHistory(job, `Status changed from "${oldStatus}" to "${newStatus}" by ${state.userName}.`);
+        } else {
+          addHistory(job, `Details updated by ${state.userName}.`);
+        }
+        saveState(); toast('Job saved.'); closeModal('job-modal'); render();
+      };
+      document.getElementById('delete-job-btn').onclick = ()=>{
+        if(confirm('Delete this job permanently?')){
+          state.jobs = state.jobs.filter(j=>j.id!==job.id);
+          saveState(); closeModal('job-modal'); render(); toast('Job deleted.');
+        }
+      };
+    }
+  }
+
+  else if(state.jmTab==='photo'){
+    let photoUrl = null;
+    if(job.hasPhoto) photoUrl = await loadPhoto(job.id);
+    body.innerHTML = `
+    <div class="photo-zone">
+      ${photoUrl ? `<img src="${photoUrl}">` : `<div>No sketch photo attached yet.</div>`}
+      ${canEdit ? `
+      <div class="photo-buttons">
+        <label class="btn-ghost">Take Photo<input type="file" accept="image/*" capture="environment" id="camera-input" style="display:none;"></label>
+        <label class="btn-ghost">Upload Photo<input type="file" accept="image/*" id="upload-input" style="display:none;"></label>
+      </div>` : ''}
+    </div>`;
+    foot.innerHTML = '';
+    if(canEdit){
+      const handle = (inputId)=>{
+        const inp = document.getElementById(inputId);
+        inp.addEventListener('change', async ()=>{
+          const file = inp.files[0]; if(!file) return;
+          const dataUrl = await compressImage(file);
+          await savePhoto(job.id, dataUrl);
+          job.hasPhoto = true;
+          addHistory(job, `Sketch photo attached by ${state.userName}.`);
+          saveState(); toast('Photo saved.'); renderJobModal();
+        });
+      };
+      handle('camera-input'); handle('upload-input');
+    }
+  }
+
+  else if(state.jmTab==='history'){
+    body.innerHTML = `<div class="timeline">${(job.history||[]).map(h=>`
+      <div class="tl-item"><div class="tl-dot"></div><div class="tl-content"><div class="when">${h.when}</div><div class="note">${h.note}</div></div></div>
+    `).join('') || '<div class="empty">No history yet.</div>'}</div>`;
+    foot.innerHTML = '';
+  }
+
+  else if(state.jmTab==='qc'){
+    body.innerHTML = `
+    <div id="qc-list">${(job.qc||[]).length ? job.qc.map(q=>`
+      <div class="qc-item">
+        <div class="qh"><span>${q.when} · reported by ${q.by}${q.ref?' · Ref '+q.ref:''}</span><span class="badge-open" style="background:${q.status==='Open'?'var(--red)':'var(--green)'}">${q.status}</span></div>
+        <div class="qd"><b>${q.issueType||'Issue'}</b>${q.priority==='Urgent'?'<span class="urgent-badge">Urgent</span>':''}${q.remake?'<span class="remake-badge">Remake</span>':''}</div>
+        <div class="qd" style="margin-top:4px;">${q.desc}</div>
+        ${q.hasPhoto?`<div class="thumb-cell" style="width:78px;height:78px;margin-top:8px;" id="qc-thumb-${q.id}"><span class="thumb-loading">loading…</span></div>`:''}
+        ${q.status==='Open' ? `<button class="btn-ghost resolve-btn" data-resolve="${q.id}">Mark Resolved</button>`:''}
+      </div>`).join('') : '<div class="empty" style="padding:16px 0;">No callbacks reported.</div>'}
+    </div>
+    <div class="form-grid" style="margin-top:16px;">
+      <div class="field"><label>Sketch # / Order #</label><input id="qc-ref" placeholder="e.g. ${job.sketchNumber||job.jobNumber}"></div>
+      <div class="field"><label>Issue Type</label><select id="qc-type">${ISSUE_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
+      <div class="field"><label>Priority</label><select id="qc-priority"><option>Normal</option><option>Urgent</option></select></div>
+      <div class="field" style="grid-column:1/-1;"><label>Description</label><textarea id="qc-desc" placeholder="Describe the issue…"></textarea></div>
+      <div class="field" style="grid-column:1/-1;">
+        <label>Photo</label>
+        <div class="photo-zone" style="padding:14px;">
+          <div id="qc-photo-preview" style="color:var(--text-faint);font-size:12px;">No photo attached.</div>
+          <div class="photo-buttons">
+            <label class="btn-ghost">Take Photo<input type="file" accept="image/*" capture="environment" id="qc-camera" style="display:none;"></label>
+            <label class="btn-ghost">Upload Photo<input type="file" accept="image/*" id="qc-upload" style="display:none;"></label>
+          </div>
+        </div>
+      </div>
+      <div class="field" style="grid-column:1/-1;display:flex;align-items:center;gap:10px;background:var(--bg-2);padding:12px 14px;border-radius:8px;border:1px solid var(--border);">
+        <input type="checkbox" id="qc-remake" style="width:auto;flex-shrink:0;">
+        <label style="margin:0;text-transform:none;font-size:13px;color:var(--text);" for="qc-remake">This needs a remake — automatically add it to the production schedule as <b style="color:var(--red);">Urgent</b></label>
+      </div>
+    </div>`;
+    foot.innerHTML = `<button class="btn-primary" id="qc-submit-btn">Submit Callback</button>`;
+    let jmQcPhotoDraft = null;
+    wirePhotoInput('qc-camera','qc-photo-preview', (url)=>{ jmQcPhotoDraft = url; });
+    wirePhotoInput('qc-upload','qc-photo-preview', (url)=>{ jmQcPhotoDraft = url; });
+    document.getElementById('qc-submit-btn').onclick = async ()=>{
+      const desc = val('qc-desc'); if(!desc.trim()){ toast('Describe the issue first.'); return; }
+      await fileQcReport(job, {
+        ref: val('qc-ref'), issueType: val('qc-type'), priority: val('qc-priority'),
+        desc, photoDataUrl: jmQcPhotoDraft, remake: document.getElementById('qc-remake').checked
+      });
+      toast('Callback submitted.'); renderJobModal();
+    };
+    body.querySelectorAll('[data-resolve]').forEach(b=>b.addEventListener('click',()=>{
+      const q = (job.qc||[]).find(x=>x.id===b.dataset.resolve); if(!q) return;
+      q.status='Resolved';
+      addHistory(job, `Callback resolved by ${state.userName}.`);
+      saveState(); renderJobModal();
+    }));
+    (job.qc||[]).filter(q=>q.hasPhoto).forEach(q=>{
+      loadPhoto('qc-'+q.id).then(url=>{
+        if(!url) return;
+        const el = document.getElementById('qc-thumb-'+q.id);
+        if(el) el.innerHTML = `<img src="${url}">`;
+      });
+    });
+  }
+}
+function val(id){ const el=document.getElementById(id); return el? el.value : ''; }
+
+function compressImage(file){
+  return new Promise((resolve)=>{
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = ()=>{ img.src = reader.result; };
+    img.onload = ()=>{
+      const maxW = 900;
+      const scale = Math.min(1, maxW/img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width*scale; canvas.height = img.height*scale;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.6));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ============================ ADD JOB MODAL ============================ */
+function openAddModal(){
+  document.getElementById('add-body').innerHTML = `
+  <div class="form-grid">
+    <div class="field"><label>Job Name</label><input id="n-jobName" placeholder="e.g. TPA-AIRSIDE-D"></div>
+    <div class="field"><label>Job Number</label><input id="n-jobNumber" placeholder="e.g. 25-10-0054"></div>
+    <div class="field"><label>Customer</label><input id="n-customer"></div>
+    <div class="field"><label>System</label><input id="n-system"></div>
+    <div class="field"><label>Area</label><input id="n-area"></div>
+    <div class="field"><label>Trailer / Location</label><input id="n-trailer" value="Parking Area/Shop"></div>
+    <div class="field"><label>Date Submitted</label><input id="n-date" type="date" value="${todayISO()}"></div>
+    <div class="field"><label>Need Date <span style="color:var(--red);">*</span></label><input id="n-needdate" type="date"></div>
+    <div class="field"><label>Shipping Method</label><select id="n-shipping"><option>Deliver</option><option>Pickup</option></select></div>
+    <div class="field"><label>Order Qty</label><input id="n-qty" type="number" value="1"></div>
+    <div class="field"><label>Weight (lbs)</label><input id="n-weight" type="number" value="0"></div>
+    <div class="field"><label>Priority</label><select id="n-priority"><option>Normal</option><option>Urgent</option></select></div>
+    <div class="field"><label>Label Color</label><select id="n-color"><option value="">—</option>${Object.keys(COLOR_HEX).map(c=>`<option>${c}</option>`).join('')}</select></div>
+    <div class="field"><label>Secondary Color</label><select id="n-color2"><option value="">—</option>${Object.keys(COLOR_HEX).map(c=>`<option>${c}</option>`).join('')}</select></div>
+    <div class="field" style="grid-column:1/-1;"><label>Notes / Duct Sections</label><textarea id="n-notes"></textarea></div>
+  </div>`;
+  openModal('add-modal');
+}
+document.getElementById('add-save-btn').addEventListener('click', ()=>{
+  const name = val('n-jobName'); const num = val('n-jobNumber');
+  if(!name || !num){ toast('Job name and number are required.'); return; }
+  const job = {
+    id: uid(), jobName:name, jobNumber:num, customer:val('n-customer'), system:val('n-system'), area:val('n-area'),
+    trailer:val('n-trailer'), dateSubmitted:val('n-date'), needDate:val('n-needdate'), shippingMethod:val('n-shipping'),
+    qty:Number(val('n-qty')), weight:Number(val('n-weight')), priority:val('n-priority'), labelColor:val('n-color'), secondaryColor:val('n-color2'),
+    notes:val('n-notes'), status:'Pending', hasPhoto:false, drawingType:'Field Drwg', sketchNumber:'',
+    history:[{when:nowStr(), note:`Job created by ${state.userName}.`}], qc:[]
+  };
+  state.jobs.unshift(job);
+  saveState(); closeModal('add-modal'); render(); toast('Job added to schedule.');
+});
+
+/* ============================ GLOBAL QC / CALLBACK REPORT ============================ */
+let qcReportPhotoDraft = null;
+function resetQcReportForm(){
+  qcReportPhotoDraft = null;
+  document.getElementById('qc-report-ref').value = '';
+  document.getElementById('qc-report-desc').value = '';
+  document.getElementById('qc-report-remake').checked = false;
+  document.getElementById('qc-report-photo-preview').innerHTML = 'No photo attached.';
+  document.getElementById('qc-report-camera').value = '';
+  document.getElementById('qc-report-upload').value = '';
+}
+document.getElementById('new-order-btn').addEventListener('click', openAddModal);
+document.getElementById('report-issue-btn').addEventListener('click', ()=>{
+  const sel = document.getElementById('qc-report-job');
+  const sorted = [...state.jobs].sort((a,b)=> a.jobName.localeCompare(b.jobName));
+  sel.innerHTML = sorted.map(j=>`<option value="${j.id}">${j.jobName} — ${j.jobNumber}${j.system?' ('+j.system+')':''}</option>`).join('') || `<option value="">No jobs on the schedule yet</option>`;
+  resetQcReportForm();
+  openModal('qc-report-modal');
+});
+function wirePhotoInput(inputId, previewId, onCapture){
+  document.getElementById(inputId).addEventListener('change', async (e)=>{
+    const file = e.target.files[0]; if(!file) return;
+    const dataUrl = await compressImage(file);
+    onCapture(dataUrl);
+    document.getElementById(previewId).innerHTML = `<img src="${dataUrl}" style="max-width:100%;max-height:220px;border-radius:8px;">`;
+  });
+}
+wirePhotoInput('qc-report-camera','qc-report-photo-preview', (url)=>{ qcReportPhotoDraft = url; });
+wirePhotoInput('qc-report-upload','qc-report-photo-preview', (url)=>{ qcReportPhotoDraft = url; });
+
+async function fileQcReport(job, opts){
+  const qcId = uid();
+  const entry = {
+    id: qcId, when: nowStr(), by: state.userName, ref: opts.ref, issueType: opts.issueType,
+    priority: opts.priority, desc: opts.desc, hasPhoto: !!opts.photoDataUrl, status:'Open', remake: opts.remake
+  };
+  job.qc = job.qc || [];
+  job.qc.unshift(entry);
+  job.status = 'QC Hold';
+  if(opts.photoDataUrl) await savePhoto('qc-'+qcId, opts.photoDataUrl);
+  addHistory(job, `Quality issue reported by ${state.userName} (${opts.priority}${opts.remake?', remake requested':''}): "${opts.desc}"`);
+
+  if(opts.remake){
+    const remakeJob = {
+      id: uid(), jobName: `${job.jobName} (Remake)`, jobNumber: job.jobNumber + '-RM', customer: job.customer,
+      system: job.system, area: job.area, trailer: job.trailer, dateSubmitted: todayISO(), shippingMethod: job.shippingMethod,
+      qty: job.qty, weight: 0, priority:'Urgent', labelColor:'', secondaryColor:'', drawingType: job.drawingType,
+      sketchNumber: opts.ref || job.sketchNumber, notes: `REMAKE — ${opts.issueType}: ${opts.desc}`, status:'Pending',
+      hasPhoto:false, history:[{when:nowStr(), note:`Remake job created automatically from a callback reported by ${state.userName} on ${job.jobName} (${job.jobNumber}).`}], qc:[]
+    };
+    state.jobs.unshift(remakeJob);
+    addHistory(job, `Remake job ${remakeJob.jobNumber} created automatically and added to the schedule as Urgent.`);
+  }
+  saveState();
+}
+document.getElementById('qc-report-submit').addEventListener('click', async ()=>{
+  const jobId = document.getElementById('qc-report-job').value;
+  const desc = document.getElementById('qc-report-desc').value.trim();
+  const job = jobById(jobId);
+  if(!job || !desc){ toast('Pick a job and describe the issue.'); return; }
+  await fileQcReport(job, {
+    ref: document.getElementById('qc-report-ref').value.trim(),
+    issueType: document.getElementById('qc-report-type').value,
+    priority: document.getElementById('qc-report-priority').value,
+    desc, photoDataUrl: qcReportPhotoDraft, remake: document.getElementById('qc-report-remake').checked
+  });
+  closeModal('qc-report-modal'); toast('Callback submitted.'); render();
+});
+
+/* ============================ ROLE SELECT / BOOT ============================ */
+document.getElementById('switch-role-btn').addEventListener('click', ()=>{
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  state.role=null; state.view=null; state.userName=null;
+});
+
+function boot(){
+  startLiveSync((found)=>{
+    if(!found){
+      state.jobs = seedJobs();
+      saveStateNow();
+    }
+  });
+}
+boot();
+</script>
+</body>
+</html>
