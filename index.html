@@ -322,8 +322,7 @@ tbody tr:last-child td{border-bottom:none;}
   <div class="brand-sub">Live Production Schedule</div>
   <div class="role-grid">
     <div class="role-card" data-role="master"><div class="tag" style="background:var(--steel-bright)"></div><span class="icon">◈</span><div class="name">Executive</div><div class="desc">Full visibility. Every job, every view.</div></div>
-    <div class="role-card" data-role="manager"><div class="tag" style="background:var(--yellow)"></div><span class="icon">▤</span><div class="name">Managers</div><div class="desc">Manage the schedule, shop queue & field.</div></div>
-    <div class="role-card" data-role="shop"><div class="tag" style="background:var(--blue)"></div><span class="icon">⚙</span><div class="name">Shop</div><div class="desc">Work the queue. Log weight & photos.</div></div>
+    <div class="role-card" data-role="manager"><div class="tag" style="background:var(--yellow)"></div><span class="icon">▤</span><div class="name">Managers</div><div class="desc">Manage the schedule, shop floor & field.</div></div>
     <div class="role-card" data-role="field"><div class="tag" style="background:var(--green)"></div><span class="icon">▲</span><div class="name">Field</div><div class="desc">Delivery & pickup status only.</div></div>
   </div>
   <div id="passcode-box" style="display:none;margin-top:26px;text-align:center;">
@@ -530,10 +529,9 @@ const COLOR_HEX = {'FL-Yellow':'#f0d33a','FL Green':'#4f9d69','FL Red':'#d1453b'
 const ROLE_VIEWS = {
   master:  ['dashboard','managers','completed','delivered','field','calendar','trailer'],
   manager: ['dashboard','managers','completed','delivered','field','calendar','trailer'],
-  shop:    ['managers','completed','calendar','trailer'],
   field:   ['field','delivered','calendar','trailer']
 };
-const ROLE_LABEL = {master:'Executive',manager:'Managers',shop:'Shop',field:'Field'};
+const ROLE_LABEL = {master:'Executive',manager:'Managers',field:'Field'};
 
 /* Single shared access code for Executive/Manager/Shop. Field needs no code.
    Change this string to whatever code you want the team to use. */
@@ -930,6 +928,8 @@ function renderNav(){
   }
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{ state.view=b.dataset.view; render(); }));
   document.getElementById('role-pill').textContent = state.userName + ' · ' + ROLE_LABEL[state.role];
+  const metalBtn = document.getElementById('new-metal-btn-global');
+  if(metalBtn) metalBtn.style.display = (state.role==='master'||state.role==='manager') ? '' : 'none';
 }
 
 function render(){
@@ -1617,11 +1617,17 @@ document.getElementById('jm-tabs').addEventListener('click',(e)=>{
 async function renderJobModal(){
   const job = jobById(state.openJobId); if(!job) return;
   document.querySelectorAll('#jm-tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===state.jmTab));
+  const metalTabBtn = document.querySelector('#jm-tabs [data-tab="metalUsage"]');
+  if(metalTabBtn){
+    const canSeeMetal = state.role==='master'||state.role==='manager';
+    metalTabBtn.style.display = canSeeMetal ? '' : 'none';
+    if(!canSeeMetal && state.jmTab==='metalUsage') state.jmTab = 'info';
+  }
   document.getElementById('jm-title').textContent = job.jobName;
   document.getElementById('jm-sub').textContent = `${job.jobNumber} · ${job.customer||'No customer listed'}`;
   const body = document.getElementById('jm-body');
   const foot = document.getElementById('jm-foot');
-  const canEdit = state.role==='master'||state.role==='manager'||state.role==='shop';
+  const canEdit = state.role==='master'||state.role==='manager';
 
   if(state.jmTab==='info'){
     body.innerHTML = `
