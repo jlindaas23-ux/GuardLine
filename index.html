@@ -501,12 +501,13 @@ const MATERIAL_ITEMS = [
   ['toolsEquipment','Tools and Equipment']
 ];
 const STATUS_CLASS = {'Pending':'pending','In Shop':'inshop','QC Hold':'qchold','Complete':'complete','Delivered/Picked Up':'delivered'};
+const ADVANCE_MAP = {'Pending':'In Shop','In Shop':'Complete','QC Hold':'In Shop'};
 const COLOR_HEX = {'FL-Yellow':'#f0d33a','FL Green':'#4f9d69','FL Red':'#d1453b','FL Pink':'#e0559c','Blue':'#4a7fd1','Orange':'#df7a3d','Yellow':'#f0d33a','Green':'#5eb87f','Red':'#d1453b'};
 
 const ROLE_VIEWS = {
-  master:  ['dashboard','managers','shop','field','calendar','trailer'],
-  manager: ['dashboard','managers','shop','field','calendar','trailer'],
-  shop:    ['shop','dashboard','calendar','trailer'],
+  master:  ['dashboard','managers','completed','delivered','field','calendar','trailer'],
+  manager: ['dashboard','managers','completed','delivered','field','calendar','trailer'],
+  shop:    ['managers','completed','calendar','trailer'],
   field:   ['field','calendar','trailer']
 };
 const ROLE_LABEL = {master:'Executive',manager:'Managers',shop:'Shop',field:'Field'};
@@ -566,7 +567,10 @@ let state = {
   trailers: [],
   deletedJobs: [],
   materials: [],
+  hoursLog: {},
   search: '',
+  completedSearch: '',
+  deliveredSearch: '',
   statusFilter: 'All',
   openJobId: null,
   jmTab: 'info',
@@ -664,6 +668,7 @@ function saveStateNow(){
     trailersJson: JSON.stringify(state.trailers),
     deletedJobsJson: JSON.stringify(state.deletedJobs),
     materialsJson: JSON.stringify(state.materials),
+    hoursLogJson: JSON.stringify(state.hoursLog),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).catch(err=>{ console.error('Save failed', err); toast('Could not save — check connection.'); });
 }
@@ -692,6 +697,7 @@ function startLiveSync(onFirstLoad){
       state.trailers = JSON.parse(data.trailersJson || '[]');
       state.deletedJobs = JSON.parse(data.deletedJobsJson || '[]');
       state.materials = JSON.parse(data.materialsJson || '[]');
+      state.hoursLog = JSON.parse(data.hoursLogJson || '{}');
       firestoreReady = true;
       if(onFirstLoad){ onFirstLoad(true); onFirstLoad = null; }
       else if(state.role){ render(); }
@@ -746,6 +752,85 @@ function completedThisWeek(){
   return state.jobs.filter(j=> (j.status==='Complete'||j.status==='Delivered/Picked Up') && isThisWeek(j.completedAt||j.dateSubmitted))
     .reduce((s,j)=>s+Number(j.weight||0),0);
 }
+
+/* ---- Productivity / analytics helpers ---- */
+function mondayISO(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  const day = d.getDay();
+  d.setDate(d.getDate() + (day===0?-6:1-day));
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function jobsCompletedInRange(start,end){
+  return state.jobs.filter(j=>{
+    if(!j.completedAt) return false;
+    const d = new Date(j.completedAt+'T00:00:00');
+    return d>=start && d<=end;
+  });
+}
+function weekLbs(weekStartISO){
+  const start = new Date(weekStartISO+'T00:00:00');
+  const end = new Date(start); end.setDate(end.getDate()+6); end.setHours(23,59,59,999);
+  return jobsCompletedInRange(start,end).reduce((s,j)=>s+Number(j.weight||0),0);
+}
+function monthLbs(year,month){
+  const start = new Date(year,month,1);
+  const end = new Date(year,month+1,0,23,59,59,999);
+  return jobsCompletedInRange(start,end).reduce((s,j)=>s+Number(j.weight||0),0);
+}
+function yearLbs(year){
+  const start = new Date(year,0,1);
+  const end = new Date(year,11,31,23,59,59,999);
+  return jobsCompletedInRange(start,end).reduce((s,j)=>s+Number(j.weight||0),0);
+}
+function mondaysInMonth(year,month){
+  const days = new Date(year,month+1,0).getDate();
+  let count=0;
+  for(let d=1; d<=days; d++){ if(new Date(year,month,d).getDay()===1) count++; }
+  return count;
+}
+function hoursForWeek(weekKey){ return Number((state.hoursLog||{})[weekKey]||0); }
+function hoursForMonth(year,month){
+  let total=0;
+  Object.keys(state.hoursLog||{}).forEach(wk=>{
+    const d = new Date(wk+'T00:00:00');
+    if(d.getFullYear()===year && d.getMonth()===month) total += Number(state.hoursLog[wk]||0);
+  });
+  return total;
+}
+function hoursForYear(year){
+  let total=0;
+  Object.keys(state.hoursLog||{}).forEach(wk=>{
+    if(new Date(wk+'T00:00:00').getFullYear()===year) total += Number(state.hoursLog[wk]||0);
+  });
+  return total;
+}
+function lbsPerHr(lbs,hours){ return hours>0 ? Math.round(lbs/hours) : null; }
+function lastNWeeks(n){
+  const weeks=[];
+  const cur = new Date(mondayISO(todayISO())+'T00:00:00');
+  for(let i=0;i<n;i++){
+    const d = new Date(cur); d.setDate(d.getDate()-7*i);
+    weeks.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+  }
+  return weeks;
+}
+function leadTimeDays(job){
+  if(!job.dateSubmitted || !job.needDate) return null;
+  const a = new Date(job.dateSubmitted+'T00:00:00');
+  const b = new Date(job.needDate+'T00:00:00');
+  return Math.round((b-a)/86400000);
+}
+function isShortOrder(job){ const lt = leadTimeDays(job); return lt!==null && lt<7; }
+function isOnTime(job){
+  if(!job.completedAt || !job.needDate) return null;
+  return new Date(job.completedAt+'T00:00:00') <= new Date(job.needDate+'T00:00:00');
+}
+function onTimeRate(list){
+  const withCompletion = list.filter(j=>j.completedAt);
+  if(!withCompletion.length) return null;
+  return Math.round(withCompletion.filter(isOnTime).length/withCompletion.length*100);
+}
+
 function priorityBadge(j){ return j.priority==='Urgent' ? '<span class="urgent-badge">Urgent</span>' : ''; }
 function trailerOptionsHTML(selected){
   const names = ['Parking Area/Shop', ...(state.trailers||[]).map(t=>t.name)];
@@ -778,7 +863,7 @@ document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',(e)=
 /* ============================ RENDER: SHELL ============================ */
 function renderNav(){
   const views = ROLE_VIEWS[state.role];
-  const labelMap = {dashboard:'Executive Dashboard',managers:'Managers',shop:'Shop',field:'Field',calendar:'Delivery Calendar',trailer:'Trailer Dashboard'};
+  const labelMap = {dashboard:'Executive Dashboard',managers:'Production Schedule',completed:'Completed',delivered:'Delivered / Picked Up',field:'Field',calendar:'Delivery Calendar',trailer:'Trailer Dashboard'};
   const html = views.map(v=>`<button data-view="${v}" class="${state.view===v?'active':''}">${labelMap[v]}</button>`).join('');
   document.getElementById('nav-tabs').innerHTML = html;
   const mobileNav = document.getElementById('nav-tabs-mobile');
@@ -797,7 +882,8 @@ function render(){
   const main = document.getElementById('main');
   if(state.view==='dashboard') main.innerHTML = viewDashboard();
   else if(state.view==='managers') main.innerHTML = viewManagers();
-  else if(state.view==='shop') main.innerHTML = viewShop();
+  else if(state.view==='completed') main.innerHTML = viewCompleted();
+  else if(state.view==='delivered') main.innerHTML = viewDelivered();
   else if(state.view==='field') main.innerHTML = viewField();
   else if(state.view==='calendar') main.innerHTML = viewCalendar();
   else if(state.view==='trailer') main.innerHTML = viewTrailer();
@@ -865,20 +951,48 @@ function viewDashboard(){
   const pct = total/state.goal;
   const [mon,sun] = weekBounds();
   const rangeStr = mon.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + sun.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const now = new Date();
+  const thisYear = now.getFullYear();
+  const thisMonth = now.getMonth();
+  const canEdit = state.role==='master'||state.role==='manager';
 
   const inShop = state.jobs.filter(j=>j.status==='In Shop').length;
   const pending = state.jobs.filter(j=>j.status==='Pending').length;
   const openQC = state.jobs.reduce((s,j)=>s+(j.qc||[]).filter(q=>q.status==='Open').length,0);
-  const totalBacklogWeight = state.jobs.filter(j=>j.status!=='Delivered/Picked Up').reduce((s,j)=>s+Number(j.weight||0),0);
-
-  const hot = state.jobs.filter(j=>j.priority==='Urgent' && j.status!=='Delivered/Picked Up')
-    .concat(state.jobs.filter(j=> j.status!=='Delivered/Picked Up' && (needDateClass(j.needDate)==='overdue'||needDateClass(j.needDate)==='soon')))
-    .concat(state.jobs.filter(j=> (j.notes||'').toLowerCase().includes('hot') || (j.notes||'').toLowerCase().includes('need') ))
-    .concat(state.jobs.filter(j=>j.shippingMethod==='Pickup' && j.status!=='Delivered/Picked Up'))
-    .filter((v,i,a)=>a.indexOf(v)===i).slice(0,6);
+  const totalBacklogWeight = state.jobs.filter(j=>j.status!=='Delivered/Picked Up'&&j.status!=='Complete').reduce((s,j)=>s+Number(j.weight||0),0);
 
   const qcAlerts = [];
   state.jobs.forEach(j=> (j.qc||[]).forEach(q=>{ if(q.status==='Open') qcAlerts.push({job:j,q}); }));
+
+  const annualLbs = yearLbs(thisYear);
+  const annualHrs = hoursForYear(thisYear);
+  const monthlyLbsVal = monthLbs(thisYear, thisMonth);
+  const monthlyHrs = hoursForMonth(thisYear, thisMonth);
+  const weekKey = mondayISO(todayISO());
+  const weeklyHrs = hoursForWeek(weekKey);
+
+  const monthCards = [];
+  for(let i=0;i<6;i++){
+    const d = new Date(thisYear, thisMonth-i, 1);
+    const y=d.getFullYear(), m=d.getMonth();
+    const lbs = monthLbs(y,m);
+    const weeks = mondaysInMonth(y,m);
+    const target = weeks*state.goal;
+    monthCards.push({label: d.toLocaleDateString('en-US',{month:'short',year:'numeric'}), lbs, target, hit: lbs>=target});
+  }
+
+  const weekRows = lastNWeeks(8).map(wk=>{
+    const lbs = weekLbs(wk); const hrs = hoursForWeek(wk);
+    return {wk, lbs, hrs, rate: lbsPerHr(lbs,hrs)};
+  });
+
+  const allWithLead = state.jobs.filter(j=>leadTimeDays(j)!==null);
+  const shortOrders = allWithLead.filter(isShortOrder);
+  const normalOrders = allWithLead.filter(j=>!isShortOrder(j));
+  const shortOnTime = onTimeRate(shortOrders);
+  const normalOnTime = onTimeRate(normalOrders);
+
+  const recentlyCompleted = state.jobs.filter(j=>j.completedAt).sort((a,b)=> b.completedAt.localeCompare(a.completedAt)).slice(0,8);
 
   return `
   <div class="dash-grid">
@@ -894,42 +1008,110 @@ function viewDashboard(){
           </div>
         </div>
         <div class="week-range">Week of ${rangeStr}</div>
-        ${state.role==='master'||state.role==='manager' ? `<div class="goal-edit"><button id="edit-goal-btn">Edit weekly goal</button></div>`:''}
+        ${canEdit ? `<div class="goal-edit"><button id="edit-goal-btn">Edit weekly goal</button></div>`:''}
       </div>
     </div>
     <div>
       <div class="stat-row">
         <div class="card stat-box"><div class="val mono">${pending}</div><div class="lbl">Pending</div></div>
         <div class="card stat-box"><div class="val mono">${inShop}</div><div class="lbl">In Shop</div></div>
-        <div class="card stat-box"><div class="val mono">${fmt(totalBacklogWeight)}</div><div class="lbl">Backlog Lbs</div></div>
+        <div class="card stat-box"><div class="val mono">${fmt(totalBacklogWeight)}</div><div class="lbl">Active Backlog Lbs</div></div>
         <div class="card stat-box"><div class="val mono" style="color:${openQC>0?'var(--red)':'var(--text)'}">${openQC}</div><div class="lbl">Open Callbacks</div></div>
       </div>
-
       ${qcAlerts.length ? `
-      <div class="card" style="padding:16px;margin-bottom:16px;">
+      <div class="card" style="padding:16px;">
         <div class="section-title"><span class="bar" style="background:var(--red)"></span>Quality Control Alerts</div>
         ${qcAlerts.map(a=>`<div class="qc-alert"><div class="txt"><b>${a.job.jobName}</b> · ${a.job.jobNumber}${a.q.ref?' · Ref '+a.q.ref:''} — ${a.q.issueType?a.q.issueType+': ':''}${a.q.desc}${a.q.priority==='Urgent'?'<span class="urgent-badge">Urgent</span>':''}${a.q.remake?'<span class="remake-badge">Remake</span>':''}</div><span class="badge-open">Open</span></div>`).join('')}
       </div>` : ''}
-
-      <div class="card hot-list">
-        <div class="section-title"><span class="bar"></span>Hot & Priority Jobs — Sorted by Need Date</div>
-        ${hot.length ? hot.sort(needDateSort).map(j=>`
-          <div class="hot-row">
-            <div class="date need-date ${needDateClass(j.needDate)}" style="width:78px;flex-shrink:0;">${needDateLabel(j.needDate)}</div>
-            <div style="flex:1;">
-              <div class="job">${j.jobName}${priorityBadge(j)} <span class="mono" style="color:var(--text-faint);font-size:11px;">${j.jobNumber}</span></div>
-              <div class="meta">${j.system||''} ${j.notes? '· '+j.notes:''}</div>
-            </div>
-            <span class="status ${STATUS_CLASS[j.status]}">${j.status}</span>
-          </div>`).join('') : `<div class="empty" style="padding:20px;">No hot jobs flagged right now.</div>`}
-      </div>
     </div>
-  </div>`;
+  </div>
+
+  <div class="toolbar" style="margin-top:26px;">
+    <div class="section-title" style="margin:0;"><span class="bar"></span>Productivity Snapshot</div>
+    ${canEdit?`<button id="log-hours-btn" class="btn-ghost">Log Hours This Week</button>`:''}
+  </div>
+  <div class="stat-row">
+    <div class="card stat-box"><div class="val mono">${fmt(annualLbs)}</div><div class="lbl">Annual Output (Lbs)</div></div>
+    <div class="card stat-box"><div class="val mono">${lbsPerHr(annualLbs,annualHrs)!==null?fmt(lbsPerHr(annualLbs,annualHrs)):'—'}</div><div class="lbl">Annual Lbs / Hr</div></div>
+    <div class="card stat-box"><div class="val mono">${lbsPerHr(monthlyLbsVal,monthlyHrs)!==null?fmt(lbsPerHr(monthlyLbsVal,monthlyHrs)):'—'}</div><div class="lbl">Monthly Lbs / Hr</div></div>
+    <div class="card stat-box"><div class="val mono">${lbsPerHr(total,weeklyHrs)!==null?fmt(lbsPerHr(total,weeklyHrs)):'—'}</div><div class="lbl">Weekly Lbs / Hr</div></div>
+  </div>
+
+  <div class="section-title" style="margin-top:22px;"><span class="bar"></span>Monthly Goal Tracker</div>
+  <div class="shop-grid" style="margin-bottom:26px;">
+    ${monthCards.map(m=>`
+      <div class="card" style="padding:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;">
+          <div class="disp" style="font-size:14px;">${m.label}</div>
+          <span class="status ${m.hit?'complete':'pending'}">${m.hit?'Goal Hit':'Below Goal'}</span>
+        </div>
+        <div class="mono" style="font-size:20px;font-weight:700;">${fmt(m.lbs)} <span style="font-size:11px;color:var(--text-faint);font-weight:400;">/ ${fmt(m.target)} target</span></div>
+      </div>`).join('')}
+  </div>
+
+  <div class="section-title"><span class="bar"></span>Weekly Productivity — Last 8 Weeks</div>
+  <div class="table-wrap" style="margin-bottom:26px;">
+    <table>
+      <thead><tr><th>Week Of</th><th>Lbs Out</th><th>Hours</th><th>Lbs / Hr</th>${canEdit?'<th>Edit</th>':''}</tr></thead>
+      <tbody>
+        ${weekRows.map(w=>`
+        <tr>
+          <td class="mono">${needDateLabel(w.wk)}</td>
+          <td class="weight-cell">${fmt(w.lbs)}</td>
+          <td class="mono">${w.hrs||'—'}</td>
+          <td class="mono">${w.rate!==null?fmt(w.rate):'—'}</td>
+          ${canEdit?`<td><button class="btn-ghost" data-edit-hours="${w.wk}">Edit</button></td>`:''}
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-title"><span class="bar"></span>Short Orders — On Time vs. Short Order</div>
+  <div class="stat-row">
+    <div class="card stat-box"><div class="val mono">${shortOrders.length}</div><div class="lbl">Short Orders (&lt; 1 Wk Lead)</div></div>
+    <div class="card stat-box"><div class="val mono">${normalOrders.length}</div><div class="lbl">Normal Lead Time Orders</div></div>
+    <div class="card stat-box"><div class="val mono">${shortOnTime!==null?shortOnTime+'%':'—'}</div><div class="lbl">Short Orders On Time</div></div>
+    <div class="card stat-box"><div class="val mono">${normalOnTime!==null?normalOnTime+'%':'—'}</div><div class="lbl">Normal Orders On Time</div></div>
+  </div>
+  <div class="table-wrap" style="margin-bottom:26px;">
+    <table>
+      <thead><tr><th>Job Name</th><th>Job #</th><th>Submitted</th><th>Need Date</th><th>Lead Time</th><th>Status</th><th>On Time</th></tr></thead>
+      <tbody>
+        ${shortOrders.length ? shortOrders.slice().sort(needDateSort).map(j=>{
+          const ot = isOnTime(j);
+          return `<tr data-open="${j.id}">
+          <td class="job-name-cell"><b>${j.jobName}</b></td>
+          <td class="mono">${j.jobNumber}</td>
+          <td class="mono">${j.dateSubmitted||'—'}</td>
+          <td class="need-date ${needDateClass(j.needDate)}">${needDateLabel(j.needDate)}</td>
+          <td class="mono">${leadTimeDays(j)} days</td>
+          <td><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></td>
+          <td>${ot===null?'—':(ot?'<span class="status complete">On Time</span>':'<span class="status qchold">Late</span>')}</td>
+        </tr>`;
+        }).join('') : `<tr><td colspan="7"><div class="empty">No short-lead-time orders on record.</div></td></tr>`}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-title"><span class="bar"></span>Recently Completed</div>
+  <div class="card hot-list">
+    ${recentlyCompleted.length ? recentlyCompleted.map(j=>`
+      <div class="hot-row" data-open="${j.id}" style="cursor:pointer;">
+        <div class="date need-date" style="width:88px;flex-shrink:0;">${j.completedAt}</div>
+        <div style="flex:1;">
+          <div class="job">${j.jobName} <span class="mono" style="color:var(--text-faint);font-size:11px;">${j.jobNumber}</span></div>
+          <div class="meta">${fmt(j.weight)} lbs · ${j.system||''}</div>
+        </div>
+        <span class="status ${STATUS_CLASS[j.status]}">${j.status}</span>
+      </div>`).join('') : `<div class="empty" style="padding:20px;">Nothing completed yet.</div>`}
+  </div>
+  `;
 }
 
 /* ============================ MANAGERS VIEW ============================ */
 function filteredJobs(){
   return state.jobs.filter(j=>{
+    if(j.status==='Complete' || j.status==='Delivered/Picked Up') return false;
     if(state.statusFilter!=='All' && j.status!==state.statusFilter) return false;
     if(state.search){
       const s = state.search.toLowerCase();
@@ -974,7 +1156,7 @@ function renderJobsTable(jobs, opts){
           <td>${swatch(j.labelColor,j.secondaryColor)}</td>
           <td>${j.trailer}</td>
           <td><div class="thumb-cell" data-thumb="${j.id}" data-thumb-open="${j.id}">${thumbHTML(j)}</div></td>
-          ${opts.showAdvance ? `<td>${j.status!=='Delivered/Picked Up' ? `<button class="btn-ghost" data-quickstatus="${j.id}">Advance</button>` : '—'}</td>` : ''}
+          ${opts.showAdvance ? `<td>${ADVANCE_MAP[j.status] ? `<button class="btn-ghost" data-quickstatus="${j.id}">Advance → ${ADVANCE_MAP[j.status]}</button>` : '—'}</td>` : ''}
           ${opts.showDelivery ? `<td>${j.status!=='Delivered/Picked Up' ? `<button class="btn-primary" data-mark-delivered="${j.id}">Mark ${j.shippingMethod==='Pickup'?'Picked Up':'Delivered'}</button>` : `<span class="status delivered">Done</span>`}</td>` : ''}
         </tr>`).join('') : `<tr><td colspan="${colCount}"><div class="empty"><div class="big">No jobs match</div>${opts.emptyText||'Try clearing filters or search.'}</div></td></tr>`}
       </tbody>
@@ -985,33 +1167,49 @@ function renderJobsTable(jobs, opts){
 function viewManagers(){
   const jobs = filteredJobs();
   const canEdit = state.role==='master'||state.role==='manager';
-  const canDeliver = state.role==='master'||state.role==='manager';
+  const canAdvance = state.role!=='field';
+  const activeStatuses = STATUSES.filter(s=>s!=='Complete'&&s!=='Delivered/Picked Up');
   return `
   <div class="toolbar">
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
       <input class="search-box" id="mgr-search" placeholder="Search job, number, customer…" value="${state.search}">
       <div class="filter-chips">
-        <button data-filter="All" class="${state.statusFilter==='All'?'active':''}">All (${state.jobs.length})</button>
-        ${STATUSES.map(s=>`<button data-filter="${s}" class="${state.statusFilter===s?'active':''}">${s} (${state.jobs.filter(j=>j.status===s).length})</button>`).join('')}
+        <button data-filter="All" class="${state.statusFilter==='All'?'active':''}">All (${state.jobs.filter(j=>j.status!=='Complete'&&j.status!=='Delivered/Picked Up').length})</button>
+        ${activeStatuses.map(s=>`<button data-filter="${s}" class="${state.statusFilter===s?'active':''}">${s} (${state.jobs.filter(j=>j.status===s).length})</button>`).join('')}
       </div>
     </div>
     ${canEdit ? `<div style="display:flex;gap:8px;"><button class="btn-ghost" id="view-deleted-btn">🗑 Deleted Jobs (${(state.deletedJobs||[]).length})</button><button class="btn-primary" id="new-job-btn">+ New Duct Order</button></div>` : ''}
   </div>
-  ${renderJobsTable(jobs, {showDelivery: canDeliver})}`;
+  ${renderJobsTable(jobs, {showAdvance: canAdvance, emptyText:'Nothing pending — completed jobs move to the Completed tab automatically.'})}`;
 }
 
-/* ============================ SHOP VIEW ============================ */
-function viewShop(){
-  const active = state.jobs.filter(j=>j.status!=='Delivered/Picked Up' && (state.statusFilter==='All'||j.status===state.statusFilter))
-    .sort((a,b)=>{ const ah=a.status==='QC Hold'?0:1, bh=b.status==='QC Hold'?0:1; if(ah!==bh) return ah-bh; return needDateSort(a,b); });
+function viewCompleted(){
+  const canDeliver = state.role==='master'||state.role==='manager';
+  const s = (state.completedSearch||'').toLowerCase();
+  const jobs = state.jobs.filter(j=>j.status==='Complete').filter(j=>{
+    if(!s) return true;
+    return [j.jobName,j.jobNumber,j.customer].join(' ').toLowerCase().includes(s);
+  }).sort((a,b)=> (b.completedAt||'').localeCompare(a.completedAt||''));
   return `
   <div class="toolbar">
-    <div class="filter-chips">
-      <button data-filter="All" class="${state.statusFilter==='All'?'active':''}">All</button>
-      ${STATUSES.filter(s=>s!=='Delivered/Picked Up').map(s=>`<button data-filter="${s}" class="${state.statusFilter===s?'active':''}">${s}</button>`).join('')}
-    </div>
+    <div class="section-title" style="margin:0;"><span class="bar" style="background:var(--green)"></span>Completed — ready to deliver or pick up</div>
+    <input class="search-box" id="completed-search" placeholder="Search completed jobs…" value="${state.completedSearch||''}">
   </div>
-  ${renderJobsTable(active, {showAdvance:true, emptyText:'No active jobs in this filter.'})}`;
+  ${renderJobsTable(jobs, {showDelivery: canDeliver, emptyText:'No completed jobs right now.'})}`;
+}
+
+function viewDelivered(){
+  const s = (state.deliveredSearch||'').toLowerCase();
+  const jobs = state.jobs.filter(j=>j.status==='Delivered/Picked Up').filter(j=>{
+    if(!s) return true;
+    return [j.jobName,j.jobNumber,j.customer].join(' ').toLowerCase().includes(s);
+  }).sort((a,b)=> (b.deliveredAt||b.completedAt||'').localeCompare(a.deliveredAt||a.completedAt||''));
+  return `
+  <div class="toolbar">
+    <div class="section-title" style="margin:0;"><span class="bar" style="background:var(--steel-bright)"></span>Delivered / Picked Up — permanent record</div>
+    <input class="search-box" id="delivered-search" placeholder="Search delivery history…" value="${state.deliveredSearch||''}">
+  </div>
+  ${renderJobsTable(jobs, {emptyText:'Nothing delivered or picked up yet.'})}`;
 }
 
 /* ============================ FIELD VIEW ============================ */
@@ -1201,6 +1399,10 @@ function bindMainEvents(){
   }));
   const search = document.getElementById('mgr-search');
   if(search) search.addEventListener('input', ()=>{ state.search = search.value; renderTableOnly(); });
+  const completedSearch = document.getElementById('completed-search');
+  if(completedSearch) completedSearch.addEventListener('input', ()=>{ state.completedSearch = completedSearch.value; renderTableOnly(); });
+  const deliveredSearch = document.getElementById('delivered-search');
+  if(deliveredSearch) deliveredSearch.addEventListener('input', ()=>{ state.deliveredSearch = deliveredSearch.value; renderTableOnly(); });
   document.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',(e)=>{ e.stopPropagation(); openJob(el.dataset.open); }));
   document.querySelectorAll('[data-thumb-open]').forEach(el=>el.addEventListener('click',(e)=>{ e.stopPropagation(); openJobPhoto(el.dataset.thumbOpen); }));
   document.querySelectorAll('tr[data-open]').forEach(tr=>tr.addEventListener('click',()=>openJob(tr.dataset.open)));
@@ -1248,12 +1450,33 @@ function bindMainEvents(){
     const v = prompt('Set weekly weight goal (lbs):', state.goal);
     if(v && !isNaN(v)){ state.goal = Number(v); saveState(); render(); }
   });
+  const logHoursBtn = document.getElementById('log-hours-btn');
+  if(logHoursBtn) logHoursBtn.addEventListener('click', ()=>{
+    const wk = mondayISO(todayISO());
+    const cur = hoursForWeek(wk);
+    const v = prompt(`Hours worked for the week of ${needDateLabel(wk)}:`, cur||'');
+    if(v!==null && v!=='' && !isNaN(v)){
+      state.hoursLog = state.hoursLog || {};
+      state.hoursLog[wk] = Number(v);
+      saveState(); toast('Hours logged.'); render();
+    }
+  });
+  document.querySelectorAll('[data-edit-hours]').forEach(b=>b.addEventListener('click', ()=>{
+    const wk = b.dataset.editHours;
+    const cur = hoursForWeek(wk);
+    const v = prompt(`Hours worked for the week of ${needDateLabel(wk)}:`, cur||'');
+    if(v!==null && v!=='' && !isNaN(v)){
+      state.hoursLog = state.hoursLog || {};
+      state.hoursLog[wk] = Number(v);
+      saveState(); toast('Hours updated.'); render();
+    }
+  }));
   document.querySelectorAll('[data-quickstatus]').forEach(b=>b.addEventListener('click',(e)=>{
     e.stopPropagation();
     const job = jobById(b.dataset.quickstatus);
-    const idx = STATUSES.indexOf(job.status);
+    const next = ADVANCE_MAP[job.status];
+    if(!next) return;
     const wasComplete = job.status==='Complete';
-    const next = STATUSES[Math.min(idx+1, STATUSES.length-1)];
     job.status = next;
     if(next==='Complete') job.completedAt = todayISO();
     addHistory(job, `Status advanced to "${next}" by ${state.userName}.`);
@@ -1263,7 +1486,7 @@ function bindMainEvents(){
   document.querySelectorAll('[data-mark-delivered]').forEach(b=>b.addEventListener('click',(e)=>{
     e.stopPropagation();
     const job = jobById(b.dataset.markDelivered);
-    job.status='Delivered/Picked Up'; job.completedAt = todayISO();
+    job.status='Delivered/Picked Up'; job.deliveredAt = todayISO();
     addHistory(job, `Marked as ${job.shippingMethod==='Pickup'?'picked up':'delivered'} by ${state.userName}.`);
     saveState(); toast('Updated.'); render();
   }));
@@ -1271,10 +1494,12 @@ function bindMainEvents(){
 function renderTableOnly(){
   const main = document.getElementById('main');
   if(state.view==='managers') main.innerHTML = viewManagers();
-  else if(state.view==='shop') main.innerHTML = viewShop();
+  else if(state.view==='completed') main.innerHTML = viewCompleted();
+  else if(state.view==='delivered') main.innerHTML = viewDelivered();
   bindMainEvents();
   hydratePhotoThumbs();
-  const s = document.getElementById('mgr-search'); if(s){ s.focus(); s.setSelectionRange(s.value.length,s.value.length); }
+  const activeId = state.view==='completed' ? 'completed-search' : state.view==='delivered' ? 'delivered-search' : 'mgr-search';
+  const s = document.getElementById(activeId); if(s){ s.focus(); s.setSelectionRange(s.value.length,s.value.length); }
 }
 
 /* ============================ JOB DETAIL MODAL ============================ */
@@ -1342,6 +1567,7 @@ async function renderJobModal(){
         if(newStatus !== oldStatus){
           job.status = newStatus;
           if(newStatus==='Complete') job.completedAt = todayISO();
+          if(newStatus==='Delivered/Picked Up') job.deliveredAt = todayISO();
           addHistory(job, `Status changed from "${oldStatus}" to "${newStatus}" by ${state.userName}.`);
           if(newStatus==='Complete' && oldStatus!=='Complete'){ notifyJobComplete(job); }
         } else {
