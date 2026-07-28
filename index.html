@@ -90,7 +90,7 @@ input,select,textarea{font-family:inherit;}
 header.topbar{
   background:linear-gradient(180deg, #171d24, #131820);
   border-bottom:1px solid var(--border);
-  display:flex; align-items:center; justify-content:space-between;
+  display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:16px;
   padding:0 20px; height:60px; position:sticky; top:0; z-index:40;
   box-shadow:0 2px 12px rgba(0,0,0,.3);
 }
@@ -101,11 +101,11 @@ header.topbar{
   font-size:10.5px; padding:3px 9px; border-radius:20px; background:var(--panel-2);
   border:1px solid var(--border); color:var(--text-dim); letter-spacing:.08em; text-transform:uppercase;
 }
-nav.tabs{display:flex; gap:4px;}
+nav.tabs{display:flex; gap:4px; justify-content:center; overflow-x:auto;}
 nav.tabs button{
   background:none;border:none;color:var(--text-dim); font-family:'Oswald'; letter-spacing:.05em;
   font-size:13px; text-transform:uppercase; padding:10px 14px; border-radius:8px; font-weight:500;
-  border-bottom:2px solid transparent;
+  border-bottom:2px solid transparent; white-space:nowrap; flex-shrink:0;
 }
 nav.tabs button.active{color:var(--text); background:var(--panel-2); border-bottom:2px solid var(--steel-bright);}
 nav.tabs button:hover:not(.active){color:var(--text);}
@@ -160,8 +160,10 @@ main{flex:1; padding:24px; max-width:1500px; margin:0 auto; width:100%;}
 .remake-badge{display:inline-block;background:var(--steel);color:#0d1418;font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-left:6px;vertical-align:middle;}
 .material-badge{display:inline-block;background:rgba(90,149,168,.18);color:var(--steel-bright);border:1px solid rgba(127,188,207,.35);font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.04em;font-weight:600;margin-left:6px;vertical-align:middle;}
 .need-date{font-family:'IBM Plex Mono';font-weight:600;font-size:12.5px;}
-.need-date.overdue{color:var(--red);}
-.need-date.soon{color:var(--yellow);}
+.need-date.nd-urgent{color:var(--red);}
+.need-date.nd-short{color:var(--yellow);}
+.need-date.nd-normal{color:var(--green);}
+.need-date.nd-incoming{color:var(--steel-bright);}
 .need-date.pending{color:var(--text-faint);font-family:'Inter';font-weight:400;font-style:italic;font-size:12px;}
 
 /* ---------- CALENDAR ---------- */
@@ -308,9 +310,10 @@ tbody tr:last-child td{border-bottom:none;}
 .sketch-thumb.empty:hover{color:var(--text-dim);border-color:var(--steel);}
 
 @media(max-width:900px){
-  nav.tabs{display:none;}
-  header.topbar{flex-wrap:wrap;height:auto;padding:10px 14px;gap:8px;}
-  nav.tabs.mobile{display:flex;width:100%;overflow-x:auto;}
+  header.topbar{grid-template-columns:1fr; height:auto; padding:10px 14px; row-gap:8px;}
+  .topbar-left{justify-content:center;}
+  nav.tabs{justify-content:flex-start;}
+  .topbar-right{justify-content:center; flex-wrap:wrap;}
 }
 </style>
 </head>
@@ -356,7 +359,6 @@ tbody tr:last-child td{border-bottom:none;}
       <button class="switch-role" id="switch-role-btn">Switch Role</button>
     </div>
   </header>
-  <nav class="tabs mobile" id="nav-tabs-mobile" style="display:none;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--border);"></nav>
   <main id="main"></main>
 </div>
 
@@ -524,6 +526,10 @@ const GAUGE_TYPES = [
   ['g26','26 Ga'],['g24','24 Ga'],['g22','22 Ga'],['g20','20 Ga'],
   ['g18','18 Ga'],['g16','16 Ga'],['perforated','Perforated Metal'],['stainless','Stainless Steel Coil']
 ];
+const SEARCH_FIELDS = [
+  ['jobName','Job Name'],['jobNumber','Job Number'],['needDate','Date Needed'],
+  ['dateSubmitted','Date Required'],['sketchNumber','Sketch #'],['drawingType','Drawing Type'],['trailer','Trailer #']
+];
 const COLOR_HEX = {'FL-Yellow':'#f0d33a','FL Green':'#4f9d69','FL Red':'#d1453b','FL Pink':'#e0559c','Blue':'#4a7fd1','Orange':'#df7a3d','Yellow':'#f0d33a','Green':'#5eb87f','Red':'#d1453b'};
 
 const ROLE_VIEWS = {
@@ -591,8 +597,11 @@ let state = {
   hoursLog: {},
   metalUsage: [],
   search: '',
+  searchField: 'jobName',
   completedSearch: '',
+  completedSearchField: 'jobName',
   deliveredSearch: '',
+  deliveredSearchField: 'jobName',
   statusFilter: 'All',
   openJobId: null,
   jmTab: 'info',
@@ -738,13 +747,13 @@ function startLiveSync(onFirstLoad){
 /* ============================ HELPERS ============================ */
 function jobById(id){ return state.jobs.find(j=>j.id===id); }
 function fmt(n){ return Number(n||0).toLocaleString('en-US'); }
-function needDateClass(dateStr){
-  if(!dateStr) return 'pending';
-  const d = new Date(dateStr+'T00:00:00'); const today = new Date(todayISO()+'T00:00:00');
-  const diffDays = Math.round((d-today)/86400000);
-  if(diffDays<0) return 'overdue';
-  if(diffDays<=1) return 'soon';
-  return '';
+function needDateClass(job){
+  if(!job || !job.needDate) return 'pending';
+  if(job.priority==='Urgent') return 'nd-urgent';
+  const lt = leadTimeDays(job);
+  if(lt===null) return 'nd-incoming';
+  if(lt<7) return 'nd-short';
+  return 'nd-normal';
 }
 function needDateLabel(dateStr){
   if(!dateStr) return 'Date Pending';
@@ -919,13 +928,6 @@ function renderNav(){
   const labelMap = {dashboard:'Executive Dashboard',managers:'Production Schedule',completed:'Completed',delivered:'Delivered / Picked Up',field:'Field',calendar:'Delivery Calendar',trailer:'Trailer Dashboard'};
   const html = views.map(v=>`<button data-view="${v}" class="${state.view===v?'active':''}">${labelMap[v]}</button>`).join('');
   document.getElementById('nav-tabs').innerHTML = html;
-  const mobileNav = document.getElementById('nav-tabs-mobile');
-  if(views.length>1){
-    mobileNav.style.display='flex';
-    mobileNav.innerHTML = html;
-  } else {
-    mobileNav.style.display='none';
-  }
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{ state.view=b.dataset.view; render(); }));
   document.getElementById('role-pill').textContent = state.userName + ' · ' + ROLE_LABEL[state.role];
   const metalBtn = document.getElementById('new-metal-btn-global');
@@ -1141,7 +1143,7 @@ function viewDashboard(){
           <td class="job-name-cell"><b>${j.jobName}</b></td>
           <td class="mono">${j.jobNumber}</td>
           <td class="mono">${j.dateSubmitted||'—'}</td>
-          <td class="need-date ${needDateClass(j.needDate)}">${needDateLabel(j.needDate)}</td>
+          <td class="need-date ${needDateClass(j)}">${needDateLabel(j.needDate)}</td>
           <td class="mono">${leadTimeDays(j)} days</td>
           <td><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></td>
           <td>${ot===null?'—':(ot?'<span class="status complete">On Time</span>':'<span class="status qchold">Late</span>')}</td>
@@ -1214,8 +1216,8 @@ function filteredJobs(){
     if(state.statusFilter!=='All' && j.status!==state.statusFilter) return false;
     if(state.search){
       const s = state.search.toLowerCase();
-      const hay = [j.jobName,j.jobNumber,j.customer,j.system,j.area].join(' ').toLowerCase();
-      if(!hay.includes(s)) return false;
+      const val = (j[state.searchField]||'').toString().toLowerCase();
+      if(!val.includes(s)) return false;
     }
     return true;
   }).sort(needDateSort);
@@ -1242,7 +1244,7 @@ function renderJobsTable(jobs, opts){
       <tbody>
         ${jobs.length ? jobs.map(j=>`
         <tr data-open="${j.id}">
-          <td class="need-date ${needDateClass(j.needDate)}">${needDateLabel(j.needDate)}</td>
+          <td class="need-date ${needDateClass(j)}">${needDateLabel(j.needDate)}</td>
           <td class="job-name-cell"><b>${j.jobName}</b>${priorityBadge(j)}${materialBadge(j)}</td>
           <td class="mono">${j.jobNumber}</td>
           <td>${j.customer||'—'}</td>
@@ -1263,6 +1265,9 @@ function renderJobsTable(jobs, opts){
   </div>`;
 }
 
+function searchFieldSelectHTML(id, selected){
+  return `<select id="${id}" class="search-box" style="min-width:130px;">${SEARCH_FIELDS.map(([k,label])=>`<option value="${k}" ${selected===k?'selected':''}>${label}</option>`).join('')}</select>`;
+}
 function viewManagers(){
   const jobs = filteredJobs();
   const canEdit = state.role==='master'||state.role==='manager';
@@ -1271,7 +1276,8 @@ function viewManagers(){
   return `
   <div class="toolbar">
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      <input class="search-box" id="mgr-search" placeholder="Search job, number, customer…" value="${state.search}">
+      ${searchFieldSelectHTML('mgr-search-field', state.searchField)}
+      <input class="search-box" id="mgr-search" placeholder="Search…" value="${state.search}">
       <div class="filter-chips">
         <button data-filter="All" class="${state.statusFilter==='All'?'active':''}">All (${state.jobs.filter(j=>j.status!=='Complete'&&j.status!=='Delivered/Picked Up').length})</button>
         ${activeStatuses.map(s=>`<button data-filter="${s}" class="${state.statusFilter===s?'active':''}">${s} (${state.jobs.filter(j=>j.status===s).length})</button>`).join('')}
@@ -1285,28 +1291,36 @@ function viewManagers(){
 function viewCompleted(){
   const canDeliver = state.role==='master'||state.role==='manager';
   const s = (state.completedSearch||'').toLowerCase();
+  const field = state.completedSearchField;
   const jobs = state.jobs.filter(j=>j.status==='Complete').filter(j=>{
     if(!s) return true;
-    return [j.jobName,j.jobNumber,j.customer].join(' ').toLowerCase().includes(s);
+    return (j[field]||'').toString().toLowerCase().includes(s);
   }).sort((a,b)=> (b.completedAt||'').localeCompare(a.completedAt||''));
   return `
   <div class="toolbar">
     <div class="section-title" style="margin:0;"><span class="bar" style="background:var(--green)"></span>Completed — ready to deliver or pick up</div>
-    <input class="search-box" id="completed-search" placeholder="Search completed jobs…" value="${state.completedSearch||''}">
+    <div style="display:flex;gap:10px;">
+      ${searchFieldSelectHTML('completed-search-field', field)}
+      <input class="search-box" id="completed-search" placeholder="Search…" value="${state.completedSearch||''}">
+    </div>
   </div>
   ${renderJobsTable(jobs, {showDelivery: canDeliver, emptyText:'No completed jobs right now.'})}`;
 }
 
 function viewDelivered(){
   const s = (state.deliveredSearch||'').toLowerCase();
+  const field = state.deliveredSearchField;
   const jobs = state.jobs.filter(j=>j.status==='Delivered/Picked Up').filter(j=>{
     if(!s) return true;
-    return [j.jobName,j.jobNumber,j.customer].join(' ').toLowerCase().includes(s);
+    return (j[field]||'').toString().toLowerCase().includes(s);
   }).sort((a,b)=> (b.deliveredAt||b.completedAt||'').localeCompare(a.deliveredAt||a.completedAt||''));
   return `
   <div class="toolbar">
     <div class="section-title" style="margin:0;"><span class="bar" style="background:var(--steel-bright)"></span>Delivered / Picked Up — permanent record</div>
-    <input class="search-box" id="delivered-search" placeholder="Search delivery history…" value="${state.deliveredSearch||''}">
+    <div style="display:flex;gap:10px;">
+      ${searchFieldSelectHTML('delivered-search-field', field)}
+      <input class="search-box" id="delivered-search" placeholder="Search…" value="${state.deliveredSearch||''}">
+    </div>
   </div>
   ${renderJobsTable(jobs, {emptyText:'Nothing delivered or picked up yet.'})}`;
 }
@@ -1498,10 +1512,16 @@ function bindMainEvents(){
   }));
   const search = document.getElementById('mgr-search');
   if(search) search.addEventListener('input', ()=>{ state.search = search.value; renderTableOnly(); });
+  const searchField = document.getElementById('mgr-search-field');
+  if(searchField) searchField.addEventListener('change', ()=>{ state.searchField = searchField.value; renderTableOnly(); });
   const completedSearch = document.getElementById('completed-search');
   if(completedSearch) completedSearch.addEventListener('input', ()=>{ state.completedSearch = completedSearch.value; renderTableOnly(); });
+  const completedSearchField = document.getElementById('completed-search-field');
+  if(completedSearchField) completedSearchField.addEventListener('change', ()=>{ state.completedSearchField = completedSearchField.value; renderTableOnly(); });
   const deliveredSearch = document.getElementById('delivered-search');
   if(deliveredSearch) deliveredSearch.addEventListener('input', ()=>{ state.deliveredSearch = deliveredSearch.value; renderTableOnly(); });
+  const deliveredSearchField = document.getElementById('delivered-search-field');
+  if(deliveredSearchField) deliveredSearchField.addEventListener('change', ()=>{ state.deliveredSearchField = deliveredSearchField.value; renderTableOnly(); });
   document.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',(e)=>{ e.stopPropagation(); openJob(el.dataset.open); }));
   document.querySelectorAll('[data-thumb-open]').forEach(el=>el.addEventListener('click',(e)=>{ e.stopPropagation(); openJobPhoto(el.dataset.thumbOpen); }));
   document.querySelectorAll('tr[data-open]').forEach(tr=>tr.addEventListener('click',()=>openJob(tr.dataset.open)));
