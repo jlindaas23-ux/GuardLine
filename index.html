@@ -222,7 +222,28 @@ table{border-collapse:collapse;width:100%;min-width:1100px;background:var(--pane
 thead th{
   text-align:left; font-family:'Oswald'; font-size:11px; letter-spacing:.05em; text-transform:uppercase;
   color:var(--text-faint); padding:12px 14px; background:var(--panel-2); border-bottom:1px solid var(--border); white-space:nowrap;
+  position:relative;
 }
+.sortable-th{cursor:pointer; user-select:none;}
+.sortable-th:hover{color:var(--text);}
+.sort-arrow{color:var(--steel-bright); font-size:9px; margin-left:2px;}
+.col-filter{display:inline-block; position:relative;}
+.col-filter summary{cursor:pointer; list-style:none; user-select:none;}
+.col-filter summary::-webkit-details-marker{display:none;}
+.col-filter summary:hover{color:var(--text);}
+.col-filter summary::after{content:"▾"; margin-left:4px; font-size:9px; color:var(--text-faint);}
+.cf-dot{display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--steel-bright); vertical-align:middle;}
+.col-filter-menu{
+  position:absolute; top:100%; left:0; z-index:60; margin-top:6px; min-width:160px; max-height:260px; overflow-y:auto;
+  background:var(--panel); border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow); padding:6px;
+}
+.col-filter-menu button{
+  display:block; width:100%; text-align:left; background:none; border:none; color:var(--text-dim);
+  font-family:'Inter'; font-size:12.5px; text-transform:none; letter-spacing:normal; font-weight:400;
+  padding:7px 10px; border-radius:6px; white-space:nowrap;
+}
+.col-filter-menu button:hover{background:var(--panel-2); color:var(--text);}
+.col-filter-menu button.active{background:var(--steel); color:#0d1418; font-weight:600;}
 tbody td{padding:12px 14px; font-size:12.5px; border-bottom:1px solid var(--border-soft); white-space:nowrap;}
 tbody tr{cursor:pointer;transition:.1s;}
 tbody tr:hover{background:var(--panel-2);}
@@ -1222,19 +1243,53 @@ function swatch(color, sec){
 }
 
 /* Shared schedule table — used by Managers, Shop, and Field so every role sees the same layout */
+const FILTERABLE_COLS = [['jobName','Job Name'],['jobNumber','Job #'],['customer','Customer'],['system','System / Area'],['trailer','Trailer']];
+function colFilterHeader(tableId, key, label, jobs){
+  state.colFilters = state.colFilters || {};
+  state.colFilters[tableId] = state.colFilters[tableId] || {};
+  const active = state.colFilters[tableId][key];
+  const vals = Array.from(new Set(jobs.map(j=> (j[key]||'').toString().trim()).filter(Boolean))).sort();
+  return `<th><details class="col-filter">
+    <summary>${label}${active?' <span class="cf-dot"></span>':''}</summary>
+    <div class="col-filter-menu">
+      <button data-colfilter="${tableId}|${key}|">All ${label}</button>
+      ${vals.map(v=>`<button data-colfilter="${tableId}|${key}|${v.replace(/"/g,'&quot;')}" class="${active===v?'active':''}">${v}</button>`).join('')}
+    </div>
+  </details></th>`;
+}
 function renderJobsTable(jobs, opts){
   opts = opts || {};
+  const tableId = opts.tableId || 'default';
+  state.colFilters = state.colFilters || {};
+  state.colFilters[tableId] = state.colFilters[tableId] || {};
+  state.sortDir = state.sortDir || {};
+  const sortDir = state.sortDir[tableId] || 'asc';
+  const cf = state.colFilters[tableId];
+
+  const filtered = jobs.filter(j=> FILTERABLE_COLS.every(([k])=>{
+    const fv = cf[k];
+    if(!fv) return true;
+    return (j[k]||'').toString().trim() === fv;
+  }));
+  const rows = filtered.slice().sort((a,b)=> sortDir==='asc' ? needDateSort(a,b) : needDateSort(b,a));
+
   const extraCols = (opts.showAdvance?1:0) + (opts.showDelivery?1:0);
   const colCount = 13 + extraCols;
   return `
   <div class="table-wrap">
     <table>
       <thead><tr>
-        <th>Need Date</th><th>Job Name</th><th>Job #</th><th>Customer</th><th>System / Area</th>
-        <th>Notes</th><th>Ship</th><th>Status</th><th>Qty</th><th>Weight</th><th>Colors</th><th>Trailer</th><th>Sketch</th>${opts.showAdvance?'<th>Action</th>':''}${opts.showDelivery?'<th>Delivery</th>':''}
+        <th class="sortable-th" data-sort="${tableId}">Need Date <span class="sort-arrow">${sortDir==='asc'?'▲':'▼'}</span></th>
+        ${colFilterHeader(tableId,'jobName','Job Name',jobs)}
+        ${colFilterHeader(tableId,'jobNumber','Job #',jobs)}
+        ${colFilterHeader(tableId,'customer','Customer',jobs)}
+        ${colFilterHeader(tableId,'system','System / Area',jobs)}
+        <th>Notes</th><th>Ship</th><th>Status</th><th>Qty</th><th>Weight</th><th>Colors</th>
+        ${colFilterHeader(tableId,'trailer','Trailer',jobs)}
+        <th>Sketch</th>${opts.showAdvance?'<th>Action</th>':''}${opts.showDelivery?'<th>Delivery</th>':''}
       </tr></thead>
       <tbody>
-        ${jobs.length ? jobs.map(j=>`
+        ${rows.length ? rows.map(j=>`
         <tr data-open="${j.id}">
           <td class="need-date ${needDateClass(j)}">${needDateLabel(j.needDate)}</td>
           <td class="job-name-cell">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}</td>
@@ -1277,7 +1332,7 @@ function viewManagers(){
     </div>
     ${canEdit ? `<div style="display:flex;gap:8px;"><button class="btn-ghost" id="view-deleted-btn">🗑 Deleted Jobs (${(state.deletedJobs||[]).length})</button><button class="btn-primary" id="new-job-btn">+ New Duct Order</button></div>` : ''}
   </div>
-  ${renderJobsTable(jobs, {showAdvance: canAdvance, emptyText:'Nothing pending — completed jobs move to the Completed tab automatically.'})}`;
+  ${renderJobsTable(jobs, {tableId:'managers', showAdvance: canAdvance, emptyText:'Nothing pending — completed jobs move to the Completed tab automatically.'})}`;
 }
 
 function viewCompleted(){
@@ -1296,7 +1351,7 @@ function viewCompleted(){
       <input class="search-box" id="completed-search" placeholder="Search…" value="${state.completedSearch||''}">
     </div>
   </div>
-  ${renderJobsTable(jobs, {showDelivery: canDeliver, emptyText:'No completed jobs right now.'})}`;
+  ${renderJobsTable(jobs, {tableId:'completed', showDelivery: canDeliver, emptyText:'No completed jobs right now.'})}`;
 }
 
 function viewDelivered(){
@@ -1314,7 +1369,7 @@ function viewDelivered(){
       <input class="search-box" id="delivered-search" placeholder="Search…" value="${state.deliveredSearch||''}">
     </div>
   </div>
-  ${renderJobsTable(jobs, {emptyText:'Nothing delivered or picked up yet.'})}`;
+  ${renderJobsTable(jobs, {tableId:'delivered', emptyText:'Nothing delivered or picked up yet.'})}`;
 }
 
 /* ============================ CALENDAR VIEW ============================ */
@@ -1368,16 +1423,16 @@ function viewCalendar(){
 
 /* ============================ TRAILER DASHBOARD ============================ */
 function trailerCard(t, isMaster){
-  const jobs = state.jobs.filter(j=> j.trailer===t.name && j.status==='Complete');
-  const totalW = jobs.reduce((s,j)=>s+Number(j.weight||0),0);
   const loc = t.location || 'At Shop';
+  const jobs = loc==='On Site' ? state.jobs.filter(j=> j.trailer===t.name && j.status==='Complete') : [];
+  const totalW = jobs.reduce((s,j)=>s+Number(j.weight||0),0);
   return `
   <div class="card" style="padding:18px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;">
       <div class="disp" style="font-size:15px;">${t.name}</div>
       <div class="mono" style="font-weight:700;font-size:13px;">${fmt(totalW)} lbs</div>
     </div>
-    <div style="color:var(--text-faint);font-size:11.5px;margin-bottom:12px;">${jobs.length} completed job${jobs.length!==1?'s':''} loaded</div>
+    <div style="color:var(--text-faint);font-size:11.5px;margin-bottom:12px;">${loc==='At Shop' ? 'Empty — available to load' : `${jobs.length} completed job${jobs.length!==1?'s':''} loaded`}</div>
     ${jobs.length ? jobs.map(j=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft);gap:8px;cursor:pointer;" data-open="${j.id}">
         <div style="flex:1;min-width:0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${j.jobName}${priorityBadge(j)}</div>
@@ -1449,8 +1504,14 @@ function bindMainEvents(){
   }));
   document.querySelectorAll('[data-trailer-tosite]').forEach(b=>b.addEventListener('click', ()=>{
     const t = (state.trailers||[]).find(x=>x.id===b.dataset.trailerTosite); if(!t) return;
+    const loaded = state.jobs.filter(j=> j.trailer===t.name && j.status==='Complete');
+    const totalW = loaded.reduce((s,j)=>s+Number(j.weight||0),0);
     t.location = 'On Site';
-    t.history = t.history || []; t.history.unshift({when:nowStr(), note:`Sent on site by ${state.userName}.`});
+    t.history = t.history || [];
+    const loadNote = loaded.length
+      ? `Sent on site by ${state.userName} with ${loaded.length} job${loaded.length!==1?'s':''} (${fmt(totalW)} lbs): ${loaded.map(j=>j.jobName).join(', ')}.`
+      : `Sent on site by ${state.userName} (no completed jobs assigned).`;
+    t.history.unshift({when:nowStr(), note:loadNote});
     saveState(); toast(`${t.name} marked on site.`); render();
   }));
   document.querySelectorAll('[data-trailer-toshop]').forEach(b=>b.addEventListener('click', ()=>{
@@ -1467,6 +1528,20 @@ function bindMainEvents(){
       <div class="tl-item"><div class="tl-dot"></div><div class="tl-content"><div class="when">${h.when}</div><div class="note">${h.note}</div></div></div>
     `).join('')}</div>` : '<div class="empty">No history yet.</div>';
     openModal('trailer-history-modal');
+  }));
+  document.querySelectorAll('[data-sort]').forEach(th=>th.addEventListener('click', ()=>{
+    const t = th.dataset.sort;
+    state.sortDir = state.sortDir || {};
+    state.sortDir[t] = state.sortDir[t]==='asc' ? 'desc' : 'asc';
+    renderTableOnly();
+  }));
+  document.querySelectorAll('[data-colfilter]').forEach(b=>b.addEventListener('click', ()=>{
+    const parts = b.dataset.colfilter.split('|');
+    const t = parts[0], key = parts[1], val = parts.slice(2).join('|');
+    state.colFilters = state.colFilters || {};
+    state.colFilters[t] = state.colFilters[t] || {};
+    state.colFilters[t][key] = val || null;
+    renderTableOnly();
   }));
   const search = document.getElementById('mgr-search');
   if(search) search.addEventListener('input', ()=>{ state.search = search.value; renderTableOnly(); });
