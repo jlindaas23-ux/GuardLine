@@ -158,7 +158,7 @@ main{flex:1; padding:24px; max-width:1500px; margin:0 auto; width:100%;}
 .badge-open{background:var(--red);color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;letter-spacing:.05em; text-transform:uppercase; font-weight:600;}
 .urgent-badge{display:inline-block;background:var(--red);color:#fff;font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-left:6px;vertical-align:middle;}
 .remake-badge{display:inline-block;background:var(--steel);color:#0d1418;font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-left:6px;vertical-align:middle;}
-.material-badge{display:inline-block;background:rgba(90,149,168,.18);color:var(--steel-bright);border:1px solid rgba(127,188,207,.35);font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.04em;font-weight:600;margin-left:6px;vertical-align:middle;}
+.order-type-icon{display:inline-block;margin-right:6px;font-size:13px;vertical-align:middle;}
 .need-date{font-family:'IBM Plex Mono';font-weight:600;font-size:12.5px;}
 .need-date.nd-urgent{color:var(--red);}
 .need-date.nd-short{color:var(--yellow);}
@@ -593,7 +593,6 @@ let state = {
   goal: 22000,
   trailers: [],
   deletedJobs: [],
-  materials: [],
   hoursLog: {},
   metalUsage: [],
   search: '',
@@ -618,7 +617,7 @@ function todayISO(){ return new Date().toISOString().slice(0,10); }
 /* seed data reflecting the shop's real schedule shape */
 function seedJobs(){
   const mk = (o)=>Object.assign({
-    id:uid(), area:'', notes:'', drawingType:'Field Drwg', sketchNumber:'', shippingMethod:'Deliver',
+    id:uid(), orderType:'Duct', area:'', notes:'', drawingType:'Field Drwg', sketchNumber:'', shippingMethod:'Deliver',
     dateSubmitted:'', needDate:'', qty:1, weight:0, labelColor:'', secondaryColor:'', trailer:'Parking Area/Shop',
     status:'Pending', priority:'Normal', hasPhoto:false, history:[{when:nowStr(),note:'Job created and added to schedule.'}], qc:[]
   }, o);
@@ -698,7 +697,6 @@ function saveStateNow(){
     goal: state.goal,
     trailersJson: JSON.stringify(state.trailers),
     deletedJobsJson: JSON.stringify(state.deletedJobs),
-    materialsJson: JSON.stringify(state.materials),
     hoursLogJson: JSON.stringify(state.hoursLog),
     metalUsageJson: JSON.stringify(state.metalUsage),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -728,7 +726,6 @@ function startLiveSync(onFirstLoad){
       state.goal = data.goal || 22000;
       state.trailers = JSON.parse(data.trailersJson || '[]');
       state.deletedJobs = JSON.parse(data.deletedJobsJson || '[]');
-      state.materials = JSON.parse(data.materialsJson || '[]');
       state.hoursLog = JSON.parse(data.hoursLogJson || '{}');
       state.metalUsage = JSON.parse(data.metalUsageJson || '[]');
       firestoreReady = true;
@@ -869,13 +866,9 @@ function trailerOptionsHTML(selected){
   const names = ['Parking Area/Shop', ...(state.trailers||[]).map(t=>t.name)];
   return names.map(n=>`<option ${selected===n?'selected':''}>${n}</option>`).join('');
 }
-function materialsForJob(job){
-  if(!job.jobNumber) return [];
-  return (state.materials||[]).filter(m => m.jobNumber && m.jobNumber.trim().toLowerCase()===job.jobNumber.trim().toLowerCase() && m.status!=='Fulfilled');
-}
-function materialBadge(job){
-  const n = materialsForJob(job).length;
-  return n ? `<span class="material-badge" title="${n} open material request${n>1?'s':''} for this job">📦 Materials</span>` : '';
+function orderTypeIcon(job){
+  const isMat = job.orderType==='Material';
+  return `<span class="order-type-icon" title="${isMat?'Material Order':'Duct Order'}">${isMat?'📦':'🌀'}</span>`;
 }
 function gaugeSqftTotal(entry){
   return GAUGE_TYPES.reduce((s,[k])=> s+Number((entry.gauges||{})[k]||0), 0);
@@ -1244,7 +1237,7 @@ function renderJobsTable(jobs, opts){
         ${jobs.length ? jobs.map(j=>`
         <tr data-open="${j.id}">
           <td class="need-date ${needDateClass(j)}">${needDateLabel(j.needDate)}</td>
-          <td class="job-name-cell"><b>${j.jobName}</b>${priorityBadge(j)}${materialBadge(j)}</td>
+          <td class="job-name-cell">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}</td>
           <td class="mono">${j.jobNumber}</td>
           <td>${j.customer||'—'}</td>
           <td>${j.system||''}${j.area?`<div class="sub" style="color:var(--text-faint);font-size:11px;">${j.area}</div>`:''}</td>
@@ -1433,31 +1426,6 @@ function materialSummary(m){
   if(m.otherItems) checked.push(m.otherItems);
   return checked.length ? checked.join(', ') : 'No items selected';
 }
-function viewMaterials(){
-  const list = (state.materials||[]).slice().sort((a,b)=>{
-    const av = a.dateNeeded? new Date(a.dateNeeded).getTime(): Infinity;
-    const bv = b.dateNeeded? new Date(b.dateNeeded).getTime(): Infinity;
-    return av-bv;
-  });
-  return `
-  <div class="toolbar">
-    <div class="section-title" style="margin:0;"><span class="bar"></span>Material List</div>
-    <button class="btn-primary" id="new-material-btn">+ New Material Request</button>
-  </div>
-  <div class="shop-grid">
-    ${list.length ? list.map(m=>`
-    <div class="card job-card" data-open-material="${m.id}">
-      <div class="top">
-        <div><div class="jname">${m.jobName}${m.leadTime==='Urgent Order'?'<span class="urgent-badge">Urgent</span>':''}</div><div class="jnum">${m.jobNumber||''}</div></div>
-        <span class="status ${m.status==='Fulfilled'?'complete':'pending'}">${m.status||'Requested'}</span>
-      </div>
-      <div class="notes" style="border-left-color:var(--steel);">${materialSummary(m)}</div>
-      <div class="row2"><span>Need ${m.dateNeeded? needDateLabel(m.dateNeeded):'—'}</span><span>${m.shippingMethod||''}</span></div>
-      ${m.notes?`<div class="row2" style="color:var(--text-faint);">${m.notes}</div>`:''}
-    </div>`).join('') : `<div class="empty" style="grid-column:1/-1;"><div class="big">No material requests yet</div>Click "+ New Material Request" to add one.</div>`}
-  </div>`;
-}
-
 
 function bindMainEvents(){
   document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{ state.statusFilter=b.dataset.filter; render(); }));
@@ -1517,8 +1485,6 @@ function bindMainEvents(){
   document.querySelectorAll('tr[data-open]').forEach(tr=>tr.addEventListener('click',()=>openJob(tr.dataset.open)));
   const newBtn = document.getElementById('new-job-btn'); if(newBtn) newBtn.addEventListener('click', openAddModal);
   const viewDeletedBtn = document.getElementById('view-deleted-btn'); if(viewDeletedBtn) viewDeletedBtn.addEventListener('click', ()=>{ renderDeletedJobsModal(); openModal('deleted-jobs-modal'); });
-  const newMaterialBtn = document.getElementById('new-material-btn'); if(newMaterialBtn) newMaterialBtn.addEventListener('click', ()=> openMaterialModal(null));
-  document.querySelectorAll('[data-open-material]').forEach(el=>el.addEventListener('click',()=> openMaterialModal(el.dataset.openMaterial)));
   const dashLogMetalBtn = document.getElementById('dash-log-metal-btn'); if(dashLogMetalBtn) dashLogMetalBtn.addEventListener('click', ()=> openMetalModal(null));
   document.querySelectorAll('[data-edit-metal-log]').forEach(el=>el.addEventListener('click',()=> openMetalModal(el.dataset.editMetalLog)));
 
@@ -1627,11 +1593,17 @@ document.getElementById('jm-tabs').addEventListener('click',(e)=>{
 async function renderJobModal(){
   const job = jobById(state.openJobId); if(!job) return;
   document.querySelectorAll('#jm-tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===state.jmTab));
+  const isMaterialOrder = job.orderType==='Material';
   const metalTabBtn = document.querySelector('#jm-tabs [data-tab="metalUsage"]');
   if(metalTabBtn){
-    const canSeeMetal = state.role==='master'||state.role==='manager';
+    const canSeeMetal = (state.role==='master'||state.role==='manager') && !isMaterialOrder;
     metalTabBtn.style.display = canSeeMetal ? '' : 'none';
     if(!canSeeMetal && state.jmTab==='metalUsage') state.jmTab = 'info';
+  }
+  const materialsTabBtn = document.querySelector('#jm-tabs [data-tab="materials"]');
+  if(materialsTabBtn){
+    materialsTabBtn.style.display = isMaterialOrder ? '' : 'none';
+    if(!isMaterialOrder && state.jmTab==='materials') state.jmTab = 'info';
   }
   document.getElementById('jm-title').textContent = job.jobName;
   document.getElementById('jm-sub').textContent = `${job.jobNumber} · ${job.customer||'No customer listed'}`;
@@ -1742,18 +1714,33 @@ async function renderJobModal(){
   }
 
   else if(state.jmTab==='materials'){
-    const reqs = (state.materials||[]).filter(m=> m.jobNumber && job.jobNumber && m.jobNumber.trim().toLowerCase()===job.jobNumber.trim().toLowerCase());
+    const mat = job.materials || {};
     body.innerHTML = `
-    <div id="jm-materials-list">${reqs.length ? reqs.map(m=>`
-      <div class="qc-item" data-edit-material="${m.id}" style="cursor:pointer;">
-        <div class="qh"><span>${m.createdAt||''} · requested by ${m.createdBy||''}</span><span class="badge-open" style="background:${m.status==='Fulfilled'?'var(--green)':'var(--red)'}">${m.status||'Requested'}</span></div>
-        <div class="qd">${materialSummary(m)}</div>
-        <div class="qd" style="margin-top:4px;color:var(--text-faint);font-size:11.5px;">${m.leadTime||''} · Need ${m.dateNeeded?needDateLabel(m.dateNeeded):'—'} · ${m.shippingMethod||''}</div>
-      </div>`).join('') : '<div class="empty" style="padding:16px 0;">No material requests for this job yet.</div>'}
-    </div>`;
-    foot.innerHTML = `<button class="btn-primary" id="jm-add-material-btn">+ New Material Request</button>`;
-    document.getElementById('jm-add-material-btn').onclick = ()=>{ openMaterialModal(null, job); };
-    body.querySelectorAll('[data-edit-material]').forEach(el=>el.addEventListener('click',()=> openMaterialModal(el.dataset.editMaterial)));
+    <div class="form-grid">
+      ${MATERIAL_ITEMS.map(([k,label])=>`
+        <div class="field" style="display:flex;align-items:center;gap:8px;flex-direction:row;">
+          <input type="checkbox" id="jm-mat-chk-${k}" style="width:auto;" ${mat[k]&&mat[k].checked?'checked':''} ${canEdit?'':'disabled'}>
+          <label style="margin:0;text-transform:none;font-size:13px;flex:1;">${label}</label>
+          <input id="jm-mat-qty-${k}" placeholder="qty" value="${mat[k]?mat[k].qty||'':''}" style="width:70px;" ${canEdit?'':'disabled'}>
+        </div>`).join('')}
+    </div>
+    <div class="field" style="margin-top:14px;"><label>Other Items Required</label><textarea id="jm-mat-other" ${canEdit?'':'disabled'}>${job.otherItems||''}</textarea></div>
+    `;
+    foot.innerHTML = canEdit ? `<button class="btn-primary" id="jm-mat-save-btn">Save Materials</button>` : '';
+    if(canEdit){
+      document.getElementById('jm-mat-save-btn').onclick = ()=>{
+        const materials = {};
+        MATERIAL_ITEMS.forEach(([k])=>{
+          const checked = document.getElementById('jm-mat-chk-'+k).checked;
+          const qty = val('jm-mat-qty-'+k);
+          if(checked || qty) materials[k] = {checked, qty};
+        });
+        job.materials = materials;
+        job.otherItems = val('jm-mat-other');
+        addHistory(job, `Material checklist updated by ${state.userName}.`);
+        saveState(); toast('Materials updated.'); renderJobModal();
+      };
+    }
   }
 
   else if(state.jmTab==='metalUsage'){
@@ -1852,56 +1839,37 @@ function compressImage(file){
 /* ============================ ADD JOB MODAL ============================ */
 /* ============================ DELETED JOBS ARCHIVE ============================ */
 /* ============================ MATERIAL REQUEST MODAL ============================ */
-let editingMaterialId = null;
-function openMaterialModal(existingId, prefillJob){
-  editingMaterialId = existingId || null;
-  const existing = existingId ? (state.materials||[]).find(m=>m.id===existingId) : null;
-  const lockJob = !existing && prefillJob;
-  document.getElementById('material-modal-title').textContent = existing ? 'Edit Material Request' : 'New Material Request';
-  const mat = existing ? existing.materials||{} : {};
+function openMaterialModal(){
+  document.getElementById('material-modal-title').textContent = 'New Material Request';
   document.getElementById('material-modal-body').innerHTML = `
     <div class="form-grid">
-      <div class="field"><label>Job Name</label><input id="mat-jobName" value="${existing?existing.jobName:(prefillJob?prefillJob.jobName:'')}" placeholder="e.g. TPA-AIRSIDE-D" ${lockJob?'disabled':''}></div>
-      <div class="field"><label>Job Number</label><input id="mat-jobNumber" value="${existing?existing.jobNumber||'':(prefillJob?prefillJob.jobNumber||'':'')}" placeholder="e.g. 25-10-0054" ${lockJob?'disabled':''}></div>
+      <div class="field"><label>Job Name</label><input id="mat-jobName" placeholder="e.g. Site Material Order"></div>
+      <div class="field"><label>Job Number</label><input id="mat-jobNumber" placeholder="optional"></div>
     </div>
     <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Materials Needed</div>
     <div class="form-grid">
       ${MATERIAL_ITEMS.map(([k,label])=>`
         <div class="field" style="display:flex;align-items:center;gap:8px;flex-direction:row;">
-          <input type="checkbox" id="mat-chk-${k}" style="width:auto;" ${mat[k]&&mat[k].checked?'checked':''}>
+          <input type="checkbox" id="mat-chk-${k}" style="width:auto;">
           <label style="margin:0;text-transform:none;font-size:13px;flex:1;">${label}</label>
-          <input id="mat-qty-${k}" placeholder="qty" value="${mat[k]?mat[k].qty||'':''}" style="width:70px;">
+          <input id="mat-qty-${k}" placeholder="qty" style="width:70px;">
         </div>`).join('')}
     </div>
     <div class="form-grid" style="margin-top:6px;">
-      <div class="field" style="grid-column:1/-1;"><label>Other Items Required</label><textarea id="mat-other">${existing?existing.otherItems||'':''}</textarea></div>
-      <div class="field" style="grid-column:1/-1;"><label>Notes</label><textarea id="mat-notes">${existing?existing.notes||'':''}</textarea></div>
+      <div class="field" style="grid-column:1/-1;"><label>Other Items Required</label><textarea id="mat-other"></textarea></div>
+      <div class="field" style="grid-column:1/-1;"><label>Notes</label><textarea id="mat-notes"></textarea></div>
     </div>
     <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Lead Time</div>
     <div class="form-grid">
       <div class="field"><label>Order Type</label>
-        <select id="mat-leadtime"><option ${existing&&existing.leadTime==='Regular Order'?'selected':''}>Regular Order</option><option ${existing&&existing.leadTime==='Urgent Order'?'selected':''}>Urgent Order</option></select>
+        <select id="mat-leadtime"><option>Regular Order</option><option>Urgent Order</option></select>
       </div>
-      <div class="field"><label>Date Needed</label><input id="mat-dateneeded" type="date" value="${existing?existing.dateNeeded||'':''}"></div>
+      <div class="field"><label>Date Needed</label><input id="mat-dateneeded" type="date"></div>
       <div class="field"><label>Shipping Method</label>
-        <select id="mat-shipping"><option ${existing&&existing.shippingMethod==='Pickup'?'selected':''}>Pickup</option><option ${!existing||existing.shippingMethod==='Delivery'?'selected':''}>Delivery</option></select>
+        <select id="mat-shipping"><option>Delivery</option><option>Pickup</option></select>
       </div>
     </div>
-    ${existing ? `
-    <div class="field" style="margin-top:14px;display:flex;align-items:center;gap:10px;background:var(--panel-2);padding:12px 14px;border-radius:8px;border:1px solid var(--border);">
-      <input type="checkbox" id="mat-fulfilled" style="width:auto;" ${existing.status==='Fulfilled'?'checked':''}>
-      <label style="margin:0;text-transform:none;font-size:13px;color:var(--text);" for="mat-fulfilled">Mark as Fulfilled</label>
-    </div>
-    <button class="btn-danger" id="material-delete-btn" style="margin-top:12px;">Delete Request</button>` : ''}
   `;
-  const delBtn = document.getElementById('material-delete-btn');
-  if(delBtn) delBtn.onclick = ()=>{
-    if(confirm('Delete this material request?')){
-      state.materials = state.materials.filter(m=>m.id!==existingId);
-      saveState(); closeModal('material-modal'); toast('Material request deleted.'); render();
-      if(state.openJobId && state.jmTab==='materials'){ renderJobModal(); }
-    }
-  };
   openModal('material-modal');
 }
 document.getElementById('material-save-btn').addEventListener('click', ()=>{
@@ -1913,22 +1881,19 @@ document.getElementById('material-save-btn').addEventListener('click', ()=>{
     const qty = val('mat-qty-'+k);
     if(checked || qty) materials[k] = {checked, qty};
   });
-  const existing = editingMaterialId ? (state.materials||[]).find(m=>m.id===editingMaterialId) : null;
-  const fulfilledEl = document.getElementById('mat-fulfilled');
-  const record = {
-    id: existing ? existing.id : uid(),
-    jobName, jobNumber: val('mat-jobNumber'), materials,
-    otherItems: val('mat-other'), notes: val('mat-notes'),
-    leadTime: val('mat-leadtime'), dateNeeded: val('mat-dateneeded'), shippingMethod: val('mat-shipping'),
-    status: fulfilledEl && fulfilledEl.checked ? 'Fulfilled' : 'Requested',
-    createdBy: existing ? existing.createdBy : state.userName,
-    createdAt: existing ? existing.createdAt : nowStr()
+  const jobNumber = val('mat-jobNumber').trim() || ('MAT-'+uid().slice(1,6).toUpperCase());
+  const leadTime = val('mat-leadtime');
+  const job = {
+    id: uid(), orderType:'Material', jobName, jobNumber, customer:'', requesterEmail:'',
+    system:'', area:'', trailer:'Parking Area/Shop', dateSubmitted: todayISO(),
+    needDate: val('mat-dateneeded'), shippingMethod: val('mat-shipping'),
+    qty:1, weight:0, priority: leadTime==='Urgent Order' ? 'Urgent' : 'Normal',
+    labelColor:'', secondaryColor:'', notes: val('mat-notes'), status:'Pending', hasPhoto:false,
+    drawingType:'', sketchNumber:'', materials, otherItems: val('mat-other'),
+    history:[{when:nowStr(), note:`Material order created by ${state.userName}.`}], qc:[]
   };
-  state.materials = state.materials || [];
-  if(existing){ state.materials = state.materials.map(m=> m.id===existing.id ? record : m); }
-  else { state.materials.unshift(record); }
-  saveState(); closeModal('material-modal'); toast('Material request saved.'); render();
-  if(state.openJobId && state.jmTab==='materials'){ renderJobModal(); }
+  state.jobs.unshift(job);
+  saveState(); closeModal('material-modal'); toast('Material request added to the production schedule.'); render();
 });
 
 let editingMetalId = null;
@@ -2029,7 +1994,7 @@ document.getElementById('add-save-btn').addEventListener('click', ()=>{
   const name = val('n-jobName'); const num = val('n-jobNumber');
   if(!name || !num){ toast('Job name and number are required.'); return; }
   const job = {
-    id: uid(), jobName:name, jobNumber:num, customer:val('n-customer'), requesterEmail:val('n-email'), system:val('n-system'), area:val('n-area'),
+    id: uid(), orderType:'Duct', jobName:name, jobNumber:num, customer:val('n-customer'), requesterEmail:val('n-email'), system:val('n-system'), area:val('n-area'),
     trailer:val('n-trailer'), dateSubmitted:val('n-date'), needDate:val('n-needdate'), shippingMethod:val('n-shipping'),
     qty:Number(val('n-qty')), weight:Number(val('n-weight')), priority:val('n-priority'), labelColor:val('n-color'), secondaryColor:val('n-color2'),
     notes:val('n-notes'), status:'Pending', hasPhoto:false, drawingType:'Field Drwg', sketchNumber:'',
@@ -2052,7 +2017,7 @@ function resetQcReportForm(){
   document.getElementById('qc-report-upload').value = '';
 }
 document.getElementById('new-order-btn').addEventListener('click', openAddModal);
-document.getElementById('new-material-btn-global').addEventListener('click', ()=> openMaterialModal(null));
+document.getElementById('new-material-btn-global').addEventListener('click', ()=> openMaterialModal());
 document.getElementById('new-metal-btn-global').addEventListener('click', ()=> openMetalModal(null));
 document.getElementById('report-issue-btn').addEventListener('click', ()=>{
   const sel = document.getElementById('qc-report-job');
