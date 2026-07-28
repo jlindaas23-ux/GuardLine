@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-app-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-firestore-compat.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
 :root{
   --bg:#12161b;
@@ -157,6 +158,7 @@ main{flex:1; padding:24px; max-width:1500px; margin:0 auto; width:100%;}
 .badge-open{background:var(--red);color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;letter-spacing:.05em; text-transform:uppercase; font-weight:600;}
 .urgent-badge{display:inline-block;background:var(--red);color:#fff;font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-left:6px;vertical-align:middle;}
 .remake-badge{display:inline-block;background:var(--steel);color:#0d1418;font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-left:6px;vertical-align:middle;}
+.material-badge{display:inline-block;background:rgba(90,149,168,.18);color:var(--steel-bright);border:1px solid rgba(127,188,207,.35);font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.04em;font-weight:600;margin-left:6px;vertical-align:middle;}
 .need-date{font-family:'IBM Plex Mono';font-weight:600;font-size:12.5px;}
 .need-date.overdue{color:var(--red);}
 .need-date.soon{color:var(--yellow);}
@@ -606,6 +608,37 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const stateDocRef = db.collection('guardline').doc('production-state');
 
+/* ============================ EMAIL NOTIFICATIONS ============================ */
+/* Fill these in once EmailJS is set up (see setup instructions). Leave EMAIL_ENABLED
+   false until all three values below are real — otherwise emails will silently fail. */
+const EMAIL_ENABLED = false;
+const EMAILJS_SERVICE_ID = 'YOUR_SERVICE_ID';
+const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';
+const EMAILJS_PUBLIC_KEY = 'YOUR_PUBLIC_KEY';
+const OWNER_EMAIL = 'YOUR_EMAIL_HERE';
+if(EMAIL_ENABLED && window.emailjs){ emailjs.init({publicKey: EMAILJS_PUBLIC_KEY}); }
+
+function sendEmail(toEmail, subject, heading, message){
+  if(!EMAIL_ENABLED || !toEmail || !window.emailjs) return;
+  emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+    to_email: toEmail, subject, heading, message
+  }).catch(err=> console.error('Email failed', err));
+}
+function notifyNewJob(job){
+  sendEmail(OWNER_EMAIL, `New Job Added: ${job.jobName}`, 'New Job Added to GuardLine',
+    `${job.jobName} (${job.jobNumber}) was just added to the production schedule by ${state.userName}.\nCustomer: ${job.customer||'—'}\nNeed Date: ${needDateLabel(job.needDate)}\nShipping: ${job.shippingMethod}`);
+  if(job.requesterEmail){
+    sendEmail(job.requesterEmail, `Order Received — ${job.jobName}`, 'Your Order Has Been Received',
+      `Hi, this confirms your order for ${job.jobName} (${job.jobNumber}) has been received and added to the production schedule.\nNeed Date: ${needDateLabel(job.needDate)}\nWe'll notify you again once it's complete.`);
+  }
+}
+function notifyJobComplete(job){
+  if(job.requesterEmail){
+    sendEmail(job.requesterEmail, `Order Complete — ${job.jobName}`, 'Your Order Is Complete',
+      `Good news — your order for ${job.jobName} (${job.jobNumber}) is now complete and ready for ${job.shippingMethod==='Pickup'?'pickup':'delivery'}.`);
+  }
+}
+
 let saveTimer = null;
 let suppressNextSnapshot = false;
 let firestoreReady = false;
@@ -701,6 +734,14 @@ function completedThisWeek(){
     .reduce((s,j)=>s+Number(j.weight||0),0);
 }
 function priorityBadge(j){ return j.priority==='Urgent' ? '<span class="urgent-badge">Urgent</span>' : ''; }
+function materialsForJob(job){
+  if(!job.jobNumber) return [];
+  return (state.materials||[]).filter(m => m.jobNumber && m.jobNumber.trim().toLowerCase()===job.jobNumber.trim().toLowerCase() && m.status!=='Fulfilled');
+}
+function materialBadge(job){
+  const n = materialsForJob(job).length;
+  return n ? `<span class="material-badge" title="${n} open material request${n>1?'s':''} for this job">📦 Materials</span>` : '';
+}
 function toast(msg){
   const wrap = document.getElementById('toast-wrap');
   const el = document.createElement('div');
@@ -888,6 +929,43 @@ function swatch(color, sec){
   if(sec) html += `<br><span class="swatch"><span class="chip" style="background:${COLOR_HEX[sec]||'#888'}"></span>${sec}</span>`;
   return html;
 }
+
+/* Shared schedule table — used by Managers, Shop, and Field so every role sees the same layout */
+function renderJobsTable(jobs, opts){
+  opts = opts || {};
+  const extraCols = (opts.showAdvance?1:0) + (opts.showDelivery?1:0);
+  const colCount = 13 + extraCols;
+  return `
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Need Date</th><th>Job Name</th><th>Job #</th><th>Customer</th><th>System / Area</th>
+        <th>Notes</th><th>Ship</th><th>Status</th><th>Qty</th><th>Weight</th><th>Colors</th><th>Trailer</th><th>Sketch</th>${opts.showAdvance?'<th>Action</th>':''}${opts.showDelivery?'<th>Delivery</th>':''}
+      </tr></thead>
+      <tbody>
+        ${jobs.length ? jobs.map(j=>`
+        <tr data-open="${j.id}">
+          <td class="need-date ${needDateClass(j.needDate)}">${needDateLabel(j.needDate)}</td>
+          <td class="job-name-cell"><b>${j.jobName}</b>${priorityBadge(j)}${materialBadge(j)}</td>
+          <td class="mono">${j.jobNumber}</td>
+          <td>${j.customer||'—'}</td>
+          <td>${j.system||''}${j.area?`<div class="sub" style="color:var(--text-faint);font-size:11px;">${j.area}</div>`:''}</td>
+          <td style="max-width:180px;white-space:normal;color:var(--text-dim);">${j.notes||''}</td>
+          <td>${j.shippingMethod}</td>
+          <td><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></td>
+          <td class="mono">${j.qty}</td>
+          <td class="weight-cell">${fmt(j.weight)}</td>
+          <td>${swatch(j.labelColor,j.secondaryColor)}</td>
+          <td>${j.trailer}</td>
+          <td><div class="thumb-cell" data-thumb="${j.id}" data-thumb-open="${j.id}">${thumbHTML(j)}</div></td>
+          ${opts.showAdvance ? `<td>${j.status!=='Delivered/Picked Up' ? `<button class="btn-ghost" data-quickstatus="${j.id}">Advance</button>` : '—'}</td>` : ''}
+          ${opts.showDelivery ? `<td>${j.status!=='Delivered/Picked Up' ? `<button class="btn-primary" data-mark-delivered="${j.id}">Mark ${j.shippingMethod==='Pickup'?'Picked Up':'Delivered'}</button>` : `<span class="status delivered">Done</span>`}</td>` : ''}
+        </tr>`).join('') : `<tr><td colspan="${colCount}"><div class="empty"><div class="big">No jobs match</div>${opts.emptyText||'Try clearing filters or search.'}</div></td></tr>`}
+      </tbody>
+    </table>
+  </div>`;
+}
+
 function viewManagers(){
   const jobs = filteredJobs();
   const canEdit = state.role==='master'||state.role==='manager';
@@ -903,38 +981,12 @@ function viewManagers(){
     </div>
     ${canEdit ? `<div style="display:flex;gap:8px;"><button class="btn-ghost" id="view-deleted-btn">🗑 Deleted Jobs (${(state.deletedJobs||[]).length})</button><button class="btn-primary" id="new-job-btn">+ New Duct Order</button></div>` : ''}
   </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr>
-        <th>Need Date</th><th>Job Name</th><th>Job #</th><th>Customer</th><th>System / Area</th>
-        <th>Notes</th><th>Ship</th><th>Status</th><th>Qty</th><th>Weight</th><th>Colors</th><th>Trailer</th><th>Sketch</th>${canDeliver?'<th>Delivery</th>':''}
-      </tr></thead>
-      <tbody>
-        ${jobs.length ? jobs.map(j=>`
-        <tr data-open="${j.id}">
-          <td class="need-date ${needDateClass(j.needDate)}">${needDateLabel(j.needDate)}</td>
-          <td class="job-name-cell"><b>${j.jobName}</b>${priorityBadge(j)}</td>
-          <td class="mono">${j.jobNumber}</td>
-          <td>${j.customer||'—'}</td>
-          <td>${j.system||''}${j.area?`<div class="sub" style="color:var(--text-faint);font-size:11px;">${j.area}</div>`:''}</td>
-          <td style="max-width:180px;white-space:normal;color:var(--text-dim);">${j.notes||''}</td>
-          <td>${j.shippingMethod}</td>
-          <td><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></td>
-          <td class="mono">${j.qty}</td>
-          <td class="weight-cell">${fmt(j.weight)}</td>
-          <td>${swatch(j.labelColor,j.secondaryColor)}</td>
-          <td>${j.trailer}</td>
-          <td><div class="thumb-cell" data-thumb="${j.id}" data-thumb-open="${j.id}">${thumbHTML(j)}</div></td>
-          ${canDeliver ? `<td>${j.status!=='Delivered/Picked Up' ? `<button class="btn-primary" data-mark-delivered="${j.id}">Mark ${j.shippingMethod==='Pickup'?'Picked Up':'Delivered'}</button>` : `<span class="status delivered">Done</span>`}</td>` : ''}
-        </tr>`).join('') : `<tr><td colspan="14"><div class="empty"><div class="big">No jobs match</div>Try clearing filters or search.</div></td></tr>`}
-      </tbody>
-    </table>
-  </div>`;
+  ${renderJobsTable(jobs, {showDelivery: canDeliver})}`;
 }
 
 /* ============================ SHOP VIEW ============================ */
 function viewShop(){
-  const active = state.jobs.filter(j=>j.status!=='Delivered/Picked Up')
+  const active = state.jobs.filter(j=>j.status!=='Delivered/Picked Up' && (state.statusFilter==='All'||j.status===state.statusFilter))
     .sort((a,b)=>{ const ah=a.status==='QC Hold'?0:1, bh=b.status==='QC Hold'?0:1; if(ah!==bh) return ah-bh; return needDateSort(a,b); });
   return `
   <div class="toolbar">
@@ -943,24 +995,7 @@ function viewShop(){
       ${STATUSES.filter(s=>s!=='Delivered/Picked Up').map(s=>`<button data-filter="${s}" class="${state.statusFilter===s?'active':''}">${s}</button>`).join('')}
     </div>
   </div>
-  <div class="shop-grid">
-    ${active.filter(j=> state.statusFilter==='All'||j.status===state.statusFilter).map(j=>`
-    <div class="card job-card" data-open="${j.id}">
-      <div class="sketch-thumb ${j.hasPhoto?'':'empty'}" data-thumb="${j.id}" data-thumb-open="${j.id}">${j.hasPhoto?thumbHTML(j):'No sketch photo — tap to add'}</div>
-      <div class="top">
-        <div><div class="jname">${j.jobName}${priorityBadge(j)}</div><div class="jnum">${j.jobNumber} · ${j.system||''}</div></div>
-        <span class="status ${STATUS_CLASS[j.status]}">${j.status}</span>
-      </div>
-      <div class="row2"><span>Need Date</span><span class="need-date ${needDateClass(j.needDate)}">${needDateLabel(j.needDate)}</span></div>
-      ${j.notes?`<div class="notes">${j.notes}</div>`:''}
-      <div class="row2"><span>Qty ${j.qty}</span><span class="weight-tag">${fmt(j.weight)} lbs</span></div>
-      <div class="row2"><span>${j.shippingMethod}</span><span>${j.trailer}</span></div>
-      <div class="card-actions">
-        <button class="btn-ghost" data-quickstatus="${j.id}">Advance Status</button>
-        <button class="btn-primary" data-open="${j.id}">Open</button>
-      </div>
-    </div>`).join('') || `<div class="empty" style="grid-column:1/-1;"><div class="big">Queue is clear</div>No active jobs in this filter.</div>`}
-  </div>`;
+  ${renderJobsTable(active, {showAdvance:true, emptyText:'No active jobs in this filter.'})}`;
 }
 
 /* ============================ FIELD VIEW ============================ */
@@ -969,20 +1004,7 @@ function viewField(){
     .sort((a,b)=>{ const ac=a.status==='Complete'?0:1, bc=b.status==='Complete'?0:1; if(ac!==bc) return ac-bc; return needDateSort(a,b); });
   return `
   <div class="section-title"><span class="bar"></span>Deliveries & Pickups — Sorted by Need Date</div>
-  <div class="field-list">
-  ${jobs.length ? jobs.map(j=>`
-    <div class="card field-item">
-      <div class="thumb-cell" style="width:44px;height:44px;" data-thumb="${j.id}" data-thumb-open="${j.id}">${thumbHTML(j)}</div>
-      <div class="l">
-        <b>${j.jobName}</b>${priorityBadge(j)} <span class="mono" style="color:var(--text-faint);font-size:12px;">${j.jobNumber}</span>
-        <div class="meta">Need: <span class="need-date ${needDateClass(j.needDate)}">${needDateLabel(j.needDate)}</span> · ${j.shippingMethod} · ${j.trailer} · ${fmt(j.weight)} lbs · ${j.system||''}</div>
-      </div>
-      <div class="r">
-        <span class="status ${STATUS_CLASS[j.status]}">${j.status}</span>
-        <button class="btn-ghost" data-open="${j.id}">Details</button>
-      </div>
-    </div>`).join('') : `<div class="empty card"><div class="big">Nothing staged</div>No jobs ready for delivery or pickup yet.</div>`}
-  </div>`;
+  ${renderJobsTable(jobs, {emptyText:'No jobs ready for delivery or pickup yet.'})}`;
 }
 
 /* ============================ CALENDAR VIEW ============================ */
@@ -1003,6 +1025,7 @@ function viewCalendar(){
     (byDate[dv] = byDate[dv]||[]).push(j);
   });
 
+  const canDrag = state.role !== 'field';
   let cells = '';
   for(let i=0;i<totalCells;i++){
     const dayNum = i - startDow + 1;
@@ -1015,7 +1038,7 @@ function viewCalendar(){
     const jobsToday = (byDate[iso]||[]).sort((a,b)=> (a.priority==='Urgent'?0:1)-(b.priority==='Urgent'?0:1));
     cells += `<div class="cal-cell ${otherMonth?'other-month':''} ${isToday?'today':''}" data-cal-date="${iso}">
       <div class="cal-daynum">${cellDate.getDate()}</div>
-      ${jobsToday.slice(0,4).map(j=>`<div class="cal-chip ${j.priority==='Urgent'?'urgent':''}" data-open="${j.id}" draggable="true" data-drag-job="${j.id}" title="${j.jobName} — ${j.jobNumber} (${j.shippingMethod}) — drag to reschedule">${j.shippingMethod==='Pickup'?'📦':'🚚'} ${j.jobName}</div>`).join('')}
+      ${jobsToday.slice(0,4).map(j=>`<div class="cal-chip ${j.priority==='Urgent'?'urgent':''}" data-open="${j.id}" ${canDrag?`draggable="true" data-drag-job="${j.id}"`:''} title="${j.jobName} — ${j.jobNumber} (${j.shippingMethod})${canDrag?' — drag to reschedule':''}">${j.shippingMethod==='Pickup'?'📦':'🚚'} ${j.jobName}</div>`).join('')}
       ${jobsToday.length>4?`<div class="cal-more">+${jobsToday.length-4} more</div>`:''}
     </div>`;
   }
@@ -1138,6 +1161,7 @@ function bindMainEvents(){
     cell.addEventListener('drop', (e)=>{
       e.preventDefault();
       cell.classList.remove('drag-over');
+      if(state.role==='field') return;
       const jobId = draggedJobId || (e.dataTransfer ? e.dataTransfer.getData('text/plain') : null);
       draggedJobId = null;
       if(!jobId) return;
@@ -1158,10 +1182,12 @@ function bindMainEvents(){
     e.stopPropagation();
     const job = jobById(b.dataset.quickstatus);
     const idx = STATUSES.indexOf(job.status);
+    const wasComplete = job.status==='Complete';
     const next = STATUSES[Math.min(idx+1, STATUSES.length-1)];
     job.status = next;
     if(next==='Complete') job.completedAt = todayISO();
     addHistory(job, `Status advanced to "${next}" by ${state.userName}.`);
+    if(next==='Complete' && !wasComplete){ notifyJobComplete(job); }
     saveState(); toast(`${job.jobName} → ${next}`); render();
   }));
   document.querySelectorAll('[data-mark-delivered]').forEach(b=>b.addEventListener('click',(e)=>{
@@ -1207,6 +1233,7 @@ async function renderJobModal(){
       <div class="field"><label>Job Name</label><input id="f-jobName" value="${job.jobName}" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>Job Number</label><input id="f-jobNumber" value="${job.jobNumber}" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>Customer</label><input id="f-customer" value="${job.customer||''}" ${canEdit?'':'disabled'}></div>
+      <div class="field"><label>Requester Email</label><input id="f-email" type="email" value="${job.requesterEmail||''}" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>System</label><input id="f-system" value="${job.system||''}" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>Area</label><input id="f-area" value="${job.area||''}" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>Trailer / Location</label><input id="f-trailer" value="${job.trailer||''}" ${canEdit?'':'disabled'}></div>
@@ -1234,7 +1261,7 @@ async function renderJobModal(){
     if(canEdit){
       document.getElementById('save-job-btn').onclick = ()=>{
         const patch = {
-          jobName: val('f-jobName'), jobNumber: val('f-jobNumber'), customer: val('f-customer'),
+          jobName: val('f-jobName'), jobNumber: val('f-jobNumber'), customer: val('f-customer'), requesterEmail: val('f-email'),
           system: val('f-system'), area: val('f-area'), trailer: val('f-trailer'), needDate: val('f-needdate'),
           qty: Number(val('f-qty')), weight: Number(val('f-weight')), shippingMethod: val('f-shipping'),
           labelColor: val('f-color'), secondaryColor: val('f-color2'), notes: val('f-notes'), priority: val('f-priority')
@@ -1246,6 +1273,7 @@ async function renderJobModal(){
           job.status = newStatus;
           if(newStatus==='Complete') job.completedAt = todayISO();
           addHistory(job, `Status changed from "${oldStatus}" to "${newStatus}" by ${state.userName}.`);
+          if(newStatus==='Complete' && oldStatus!=='Complete'){ notifyJobComplete(job); }
         } else {
           addHistory(job, `Details updated by ${state.userName}.`);
         }
@@ -1483,6 +1511,7 @@ function openAddModal(){
     <div class="field"><label>Job Name</label><input id="n-jobName" placeholder="e.g. TPA-AIRSIDE-D"></div>
     <div class="field"><label>Job Number</label><input id="n-jobNumber" placeholder="e.g. 25-10-0054"></div>
     <div class="field"><label>Customer</label><input id="n-customer"></div>
+    <div class="field"><label>Requester Email <span style="color:var(--text-faint);font-size:10px;">(for order emails)</span></label><input id="n-email" type="email" placeholder="name@example.com"></div>
     <div class="field"><label>System</label><input id="n-system"></div>
     <div class="field"><label>Area</label><input id="n-area"></div>
     <div class="field"><label>Trailer / Location</label><input id="n-trailer" value="Parking Area/Shop"></div>
@@ -1502,7 +1531,7 @@ document.getElementById('add-save-btn').addEventListener('click', ()=>{
   const name = val('n-jobName'); const num = val('n-jobNumber');
   if(!name || !num){ toast('Job name and number are required.'); return; }
   const job = {
-    id: uid(), jobName:name, jobNumber:num, customer:val('n-customer'), system:val('n-system'), area:val('n-area'),
+    id: uid(), jobName:name, jobNumber:num, customer:val('n-customer'), requesterEmail:val('n-email'), system:val('n-system'), area:val('n-area'),
     trailer:val('n-trailer'), dateSubmitted:val('n-date'), needDate:val('n-needdate'), shippingMethod:val('n-shipping'),
     qty:Number(val('n-qty')), weight:Number(val('n-weight')), priority:val('n-priority'), labelColor:val('n-color'), secondaryColor:val('n-color2'),
     notes:val('n-notes'), status:'Pending', hasPhoto:false, drawingType:'Field Drwg', sketchNumber:'',
@@ -1510,6 +1539,7 @@ document.getElementById('add-save-btn').addEventListener('click', ()=>{
   };
   state.jobs.unshift(job);
   saveState(); closeModal('add-modal'); render(); toast('Job added to schedule.');
+  notifyNewJob(job);
 });
 
 /* ============================ GLOBAL QC / CALLBACK REPORT ============================ */
