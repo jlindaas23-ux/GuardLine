@@ -550,7 +550,7 @@ tbody tr:last-child td{border-bottom:none;}
 <div class="overlay" id="metal-modal">
   <div class="modal" style="max-width:640px;">
     <div class="modal-head">
-      <div><h2 id="metal-modal-title">Log Metal Usage</h2><div class="sub">Track square footage of metal used on a job</div></div>
+      <div><h2 id="metal-modal-title">Log Metal Usage</h2><div class="sub">Track weight of metal used on a job</div></div>
       <button class="modal-close" data-close="metal-modal">×</button>
     </div>
     <div class="modal-body" id="metal-modal-body"></div>
@@ -692,7 +692,7 @@ function todayISO(){ return new Date().toISOString().slice(0,10); }
 function seedJobs(){
   const mk = (o)=>Object.assign({
     id:uid(), orderType:'Duct', division:'', area:'', notes:'', drawingType:'Field Drwg', sketchNumber:'', shippingMethod:'Deliver',
-    dateSubmitted:'', needDate:'', qty:1, weight:0, labelColor:'', secondaryColor:'', trailer:'Parking Area/Shop',
+    dateSubmitted:'', needDate:'', qty:1, weight:0, labelColor:'', secondaryColor:'', trailer:'',
     status:'Pending', priority:'Normal', hasPhoto:false, photoKeys:[], history:[{when:nowStr(),note:'Job created and added to schedule.'}], qc:[]
   }, o);
   return [
@@ -938,13 +938,13 @@ function onTimeRate(list){
 function priorityBadge(j){ return j.priority==='Urgent' ? '<span class="urgent-badge">Urgent</span>' : ''; }
 function trailerOptionsHTML(selected){
   const names = ['Parking Area/Shop', ...(state.trailers||[]).map(t=>t.name)];
-  return names.map(n=>`<option ${selected===n?'selected':''}>${n}</option>`).join('');
+  return `<option value="" ${!selected?'selected':''}>— Unassigned —</option>` + names.map(n=>`<option ${selected===n?'selected':''}>${n}</option>`).join('');
 }
 function orderTypeIcon(job){
   const isMat = job.orderType==='Material';
   return `<span class="order-type-icon" title="${isMat?'Material Order':'Duct Order'}">${isMat?'📦':'🌀'}</span>`;
 }
-function gaugeSqftTotal(entry){
+function gaugeWeightTotal(entry){
   return GAUGE_TYPES.reduce((s,[k])=> s+Number((entry.gauges||{})[k]||0), 0);
 }
 function metalUsageForJobNumber(jobNumber){
@@ -994,14 +994,14 @@ function jobAnalysisRows(){
   state.jobs.forEach(j=>{
     if(!j.jobNumber) return;
     const key = j.jobNumber.trim().toLowerCase();
-    if(!byNumber[key]) byNumber[key] = {jobName:j.jobName, jobNumber:j.jobNumber, lbs:0, sqft:0};
+    if(!byNumber[key]) byNumber[key] = {jobName:j.jobName, jobNumber:j.jobNumber, lbs:0, metalWeight:0};
     byNumber[key].lbs += Number(j.weight||0);
   });
   (state.metalUsage||[]).forEach(e=>{
     if(!e.jobNumber) return;
     const key = e.jobNumber.trim().toLowerCase();
-    if(!byNumber[key]) byNumber[key] = {jobName:e.jobName, jobNumber:e.jobNumber, lbs:0, sqft:0};
-    byNumber[key].sqft += gaugeSqftTotal(e);
+    if(!byNumber[key]) byNumber[key] = {jobName:e.jobName, jobNumber:e.jobNumber, lbs:0, metalWeight:0};
+    byNumber[key].metalWeight += gaugeWeightTotal(e);
   });
   return Object.values(byNumber).sort((a,b)=> b.lbs-a.lbs);
 }
@@ -1026,7 +1026,7 @@ function weeklyMetalByJob(weekStartISO){
       const v = Number((e.gauges||{})[k]||0);
       if(v) byJob[key].gauges[k] = (byJob[key].gauges[k]||0) + v;
     });
-    byJob[key].total += gaugeSqftTotal(e);
+    byJob[key].total += gaugeWeightTotal(e);
   });
   return Object.values(byJob).sort((a,b)=> b.total-a.total);
 }
@@ -1061,7 +1061,7 @@ function printMetalReport(){
 
     <div class="pr-section-label">Usage by Job &amp; Gauge</div>
     <table class="pr-table">
-      <thead><tr><th>Job Name</th><th>Job #</th><th>Company</th>${GAUGE_TYPES.map(([k,label])=>`<th>${label}</th>`).join('')}<th>Job Total (Sq Ft)</th></tr></thead>
+      <thead><tr><th>Job Name</th><th>Job #</th><th>Company</th>${GAUGE_TYPES.map(([k,label])=>`<th>${label}</th>`).join('')}<th>Job Total (Lbs)</th></tr></thead>
       <tbody>
         ${rows.length ? rows.map(r=>`
         <tr>
@@ -1075,14 +1075,14 @@ function printMetalReport(){
     <div class="pr-section-label" style="margin-top:24px;">Summary</div>
     <div class="pr-summary-wrap">
       <table class="pr-summary-table">
-        <thead><tr><th>Gauge / Material</th><th>Total Sq Ft Used (All Jobs)</th></tr></thead>
+        <thead><tr><th>Gauge / Material</th><th>Total Weight Used (All Jobs, Lbs)</th></tr></thead>
         <tbody>
           ${usedGauges.length ? usedGauges.map(([k,label])=>`<tr><td>${label}</td><td>${fmt(totals[k])}</td></tr>`).join('') : `<tr><td colspan="2">No usage recorded.</td></tr>`}
         </tbody>
       </table>
       <div class="pr-grand-total">
         <div class="pr-gt-label">Grand Total — All Gauges, All Jobs</div>
-        <div class="pr-gt-value">${fmt(grandTotal)} <span>sq ft</span></div>
+        <div class="pr-gt-value">${fmt(grandTotal)} <span>lbs</span></div>
       </div>
     </div>
 
@@ -1355,32 +1355,32 @@ function viewDashboard(){
     </table>
   </div>
 
-  <div class="section-title"><span class="bar"></span>Job Analysis — Lbs & Sq Ft by Job</div>
+  <div class="section-title"><span class="bar"></span>Job Analysis — Production Lbs &amp; Metal Weight by Job</div>
   <div class="table-wrap" style="margin-bottom:26px;">
     <table>
-      <thead><tr><th>Job Name</th><th>Job #</th><th>Lbs</th><th>Sq Ft</th></tr></thead>
+      <thead><tr><th>Job Name</th><th>Job #</th><th>Production Lbs</th><th>Metal Weight (Lbs)</th></tr></thead>
       <tbody>
         ${jobRows.length ? jobRows.map(r=>`
         <tr>
           <td class="job-name-cell"><b>${r.jobName}</b></td>
           <td class="mono">${r.jobNumber}</td>
           <td class="weight-cell">${fmt(r.lbs)}</td>
-          <td class="mono">${r.sqft?fmt(r.sqft):'—'}</td>
+          <td class="mono">${r.metalWeight?fmt(r.metalWeight):'—'}</td>
         </tr>`).join('') : `<tr><td colspan="4"><div class="empty">No job data yet.</div></td></tr>`}
       </tbody>
     </table>
   </div>
 
   <div class="toolbar">
-    <div class="section-title" style="margin:0;"><span class="bar"></span>Metal Inventory — Sq Ft Usage</div>
+    <div class="section-title" style="margin:0;"><span class="bar"></span>Metal Inventory — Weight Usage (Lbs)</div>
     <button class="btn-primary" id="dash-log-metal-btn">🧱 Log Metal Usage</button>
   </div>
   <div class="stat-row" style="grid-template-columns:repeat(4,1fr);">
-    ${GAUGE_TYPES.map(([k,label])=>`<div class="card stat-box"><div class="val mono">${fmt(gaugeTotals[k])}</div><div class="lbl">${label} (Sq Ft)</div></div>`).join('')}
+    ${GAUGE_TYPES.map(([k,label])=>`<div class="card stat-box"><div class="val mono">${fmt(gaugeTotals[k])}</div><div class="lbl">${label} (Lbs)</div></div>`).join('')}
   </div>
   <div class="table-wrap" style="margin-top:14px;margin-bottom:26px;">
     <table>
-      <thead><tr><th>Date</th><th>Job Name</th><th>Job #</th><th>Company</th><th>Employee</th><th>Machine</th><th>Total Sq Ft</th></tr></thead>
+      <thead><tr><th>Date</th><th>Job Name</th><th>Job #</th><th>Company</th><th>Employee</th><th>Machine</th><th>Total Weight (Lbs)</th></tr></thead>
       <tbody>
         ${metalLog.length ? metalLog.map(e=>`
         <tr data-edit-metal-log="${e.id}" style="cursor:pointer;">
@@ -1390,7 +1390,7 @@ function viewDashboard(){
           <td>${e.company||'—'}</td>
           <td>${e.employee||''}</td>
           <td>${e.machine||''}</td>
-          <td class="weight-cell">${fmt(gaugeSqftTotal(e))}</td>
+          <td class="weight-cell">${fmt(gaugeWeightTotal(e))}</td>
         </tr>`).join('') : `<tr><td colspan="7"><div class="empty">No metal usage logged yet.</div></td></tr>`}
       </tbody>
     </table>
@@ -1407,7 +1407,7 @@ function viewDashboard(){
   </div>
   <div class="table-wrap" style="margin-bottom:16px;">
     <table>
-      <thead><tr><th>Job Name</th><th>Job #</th><th>Company</th>${GAUGE_TYPES.map(([k,label])=>`<th>${label}</th>`).join('')}<th>Job Total (Sq Ft)</th></tr></thead>
+      <thead><tr><th>Job Name</th><th>Job #</th><th>Company</th>${GAUGE_TYPES.map(([k,label])=>`<th>${label}</th>`).join('')}<th>Job Total (Lbs)</th></tr></thead>
       <tbody>
         ${weeklyRows.length ? weeklyRows.map(r=>`
         <tr>
@@ -1424,7 +1424,7 @@ function viewDashboard(){
     <div style="grid-column:1/2;">
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Gauge / Material</th><th>Total Sq Ft Used (All Jobs)</th></tr></thead>
+          <thead><tr><th>Gauge / Material</th><th>Total Weight Used (All Jobs, Lbs)</th></tr></thead>
           <tbody>
             ${GAUGE_TYPES.filter(([k])=>weekGaugeTotals[k]>0).length ? GAUGE_TYPES.filter(([k])=>weekGaugeTotals[k]>0).map(([k,label])=>`
             <tr><td>${label}</td><td class="weight-cell">${fmt(weekGaugeTotals[k])}</td></tr>`).join('') : `<tr><td colspan="2"><div class="empty">No usage recorded.</div></td></tr>`}
@@ -1435,7 +1435,7 @@ function viewDashboard(){
     <div>
       <div class="card" style="padding:20px;background:var(--bg-2);">
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin-bottom:8px;">Grand Total — All Gauges, All Jobs</div>
-        <div class="mono" style="font-size:28px;font-weight:800;color:var(--steel-bright);">${fmt(weeklyRows.reduce((s,r)=>s+r.total,0))} <span style="font-size:13px;font-weight:400;color:var(--text-dim);">sq ft</span></div>
+        <div class="mono" style="font-size:28px;font-weight:800;color:var(--steel-bright);">${fmt(weeklyRows.reduce((s,r)=>s+r.total,0))} <span style="font-size:13px;font-weight:400;color:var(--text-dim);">lbs</span></div>
       </div>
     </div>
   </div>
@@ -1568,7 +1568,7 @@ function renderJobsTable(jobs, opts){
           <td data-col="qty" class="mono">${j.qty}</td>
           <td data-col="weight" class="weight-cell">${fmt(j.weight)}</td>
           <td data-col="colors">${swatch(j.labelColor,j.secondaryColor)}</td>
-          <td data-col="trailer">${j.trailer}</td>
+          <td data-col="trailer">${j.trailer || '<span style="color:var(--text-faint);font-style:italic;">Unassigned</span>'}</td>
           <td data-col="sketch"><div class="thumb-cell" data-thumb="${j.id}" data-thumb-open="${j.id}">${thumbHTML(j)}</div></td>
           ${opts.showAdvance ? `<td>${ADVANCE_MAP[j.status] ? `<button class="btn-ghost" data-quickstatus="${j.id}">Advance → ${ADVANCE_MAP[j.status]}</button>` : '—'}</td>` : ''}
           ${opts.showDelivery ? `<td>${j.status!=='Delivered/Picked Up' ? `<button class="btn-primary" data-mark-delivered="${j.id}">Mark ${j.shippingMethod==='Pickup'?'Picked Up':'Delivered'}</button>` : `<span class="status delivered">Done</span>`}</td>` : ''}
@@ -1713,6 +1713,20 @@ function trailerCard(t, isMaster){
     </div>
   </div>`;
 }
+function addStandardTrailers(){
+  state.trailers = state.trailers || [];
+  const existingNames = new Set(state.trailers.map(t=>t.name));
+  let added = 0;
+  for(let i=1;i<=16;i++){
+    const name = `Trailer # ${i}`;
+    if(!existingNames.has(name)){
+      state.trailers.push({id:uid(), name, location:'At Shop', history:[{when:nowStr(), note:`Trailer added to the fleet by ${state.userName}.`}]});
+      added++;
+    }
+  }
+  if(added){ saveState(); toast(`Added ${added} trailer${added!==1?'s':''}.`); render(); }
+  else{ toast('Trailers #1–16 are all already on the list.'); }
+}
 function viewTrailer(){
   const isMaster = state.role==='master';
   const trailers = state.trailers || [];
@@ -1722,8 +1736,11 @@ function viewTrailer(){
   <div class="section-title"><span class="bar"></span>Trailer Dashboard</div>
   ${isMaster ? `
   <div class="toolbar">
-    <input class="search-box" id="trailer-new-input" placeholder="Add a trailer (e.g. Trailer 4, Flatbed A)…" style="min-width:280px;">
-    <button class="btn-primary" id="trailer-add-btn">+ Add Trailer</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <input class="search-box" id="trailer-new-input" placeholder="Add a trailer (e.g. Trailer 4, Flatbed A)…" style="min-width:280px;">
+      <button class="btn-primary" id="trailer-add-btn">+ Add Trailer</button>
+    </div>
+    <button class="btn-ghost" id="add-standard-trailers-btn">🚛 Add Trailers #1–16</button>
   </div>` : ''}
 
   <div class="section-title" style="margin-top:8px;"><span class="bar" style="background:var(--steel-bright)"></span>Trailers — At Shop</div>
@@ -1769,6 +1786,8 @@ function bindMainEvents(){
     state.trailers.push({id: uid(), name, location:'At Shop', history:[{when:nowStr(), note:`Trailer added to the fleet by ${state.userName}.`}]});
     saveState(); toast('Trailer added.'); render();
   });
+  const addStdTrailersBtn = document.getElementById('add-standard-trailers-btn');
+  if(addStdTrailersBtn) addStdTrailersBtn.addEventListener('click', addStandardTrailers);
   document.querySelectorAll('[data-remove-trailer]').forEach(b=>b.addEventListener('click', ()=>{
     const t = (state.trailers||[]).find(x=>x.id===b.dataset.removeTrailer);
     if(t && !confirm(`Remove "${t.name}" from the trailer list?`)) return;
@@ -2121,7 +2140,7 @@ async function renderJobModal(){
     body.innerHTML = `
     <div id="jm-metal-list">${entries.length ? entries.map(e=>`
       <div class="qc-item" data-edit-metal="${e.id}" style="cursor:pointer;">
-        <div class="qh"><span>${e.createdAt||''} · logged by ${e.createdBy||''}</span><span class="mono" style="color:var(--steel-bright);">${fmt(gaugeSqftTotal(e))} sq ft</span></div>
+        <div class="qh"><span>${e.createdAt||''} · logged by ${e.createdBy||''}</span><span class="mono" style="color:var(--steel-bright);">${fmt(gaugeWeightTotal(e))} lbs</span></div>
         <div class="qd"><b>${e.employee||''}</b> · ${e.machine||''}</div>
         <div class="qd" style="margin-top:4px;color:var(--text-faint);font-size:11.5px;">${GAUGE_TYPES.filter(([k])=>Number(e.gauges&&e.gauges[k])>0).map(([k,label])=>`${label}: ${e.gauges[k]}`).join(' · ') || 'No gauge breakdown entered'}</div>
       </div>`).join('') : '<div class="empty" style="padding:16px 0;">No metal usage logged for this job yet.</div>'}
@@ -2259,7 +2278,7 @@ document.getElementById('material-save-btn').addEventListener('click', ()=>{
   const leadTime = val('mat-leadtime');
   const job = {
     id: uid(), orderType:'Material', jobName, jobNumber, division: val('mat-division'), customer:'', requesterEmail:'',
-    system:'', area:'', trailer:'Parking Area/Shop', dateSubmitted: todayISO(),
+    system:'', area:'', trailer:'', dateSubmitted: todayISO(),
     needDate: val('mat-dateneeded'), shippingMethod: val('mat-shipping'),
     qty:1, weight:0, priority: leadTime==='Urgent Order' ? 'Urgent' : 'Normal',
     labelColor:'', secondaryColor:'', notes: val('mat-notes'), status:'Pending', hasPhoto:false, photoKeys:[],
@@ -2286,10 +2305,10 @@ function openMetalModal(existingId, prefillJob){
       <div class="field"><label>Employee</label><select id="metal-employee">${EMPLOYEES.map(n=>`<option ${existing&&existing.employee===n?'selected':''}>${n}</option>`).join('')}</select></div>
       <div class="field"><label>Machine Type</label><select id="metal-machine">${MACHINES.map(n=>`<option ${existing&&existing.machine===n?'selected':''}>${n}</option>`).join('')}</select></div>
     </div>
-    <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Square Footage by Gauge</div>
+    <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Weight by Gauge (Lbs)</div>
     <div class="form-grid">
       ${GAUGE_TYPES.map(([k,label])=>`
-        <div class="field"><label>${label} (sq ft)</label><input id="metal-g-${k}" type="number" min="0" step="0.1" value="${g[k]||''}" placeholder="0"></div>`).join('')}
+        <div class="field"><label>${label} (lbs)</label><input id="metal-g-${k}" type="number" min="0" step="0.1" value="${g[k]||''}" placeholder="0"></div>`).join('')}
     </div>
     ${existing ? `<button class="btn-danger" id="metal-delete-btn" style="margin-top:16px;">Delete Entry</button>` : ''}
   `;
@@ -2404,7 +2423,7 @@ document.getElementById('add-save-btn').addEventListener('click', async ()=>{
   if(!name || !num){ toast('Job name and number are required.'); return; }
   const job = {
     id: uid(), orderType:'Duct', jobName:name, jobNumber:num, division:val('n-division'), customer:val('n-customer'), requesterEmail:val('n-email'), system:val('n-system'), area:val('n-area'),
-    trailer:'Parking Area/Shop', dateSubmitted:val('n-date'), needDate:val('n-needdate'), shippingMethod:val('n-shipping'),
+    trailer:'', dateSubmitted:val('n-date'), needDate:val('n-needdate'), shippingMethod:val('n-shipping'),
     qty:Number(val('n-qty')), weight:Number(val('n-weight')), priority:val('n-priority'), labelColor:val('n-color'), secondaryColor:val('n-color2'),
     notes:val('n-notes'), status:'Pending', hasPhoto:false, photoKeys:[], drawingType:'Field Drwg', sketchNumber:'',
     history:[{when:nowStr(), note:`Job created by ${state.userName}.`}], qc:[]
