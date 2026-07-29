@@ -173,7 +173,8 @@ main{flex:1; padding:20px; max-width:1900px; margin:0 auto; width:100%;}
 .cal-chip:active{cursor:grabbing;}
 .cal-chip:hover{background:var(--border-soft);}
 .cal-chip.urgent{border-left-color:var(--red);}
-.cal-more{font-size:10px;color:var(--text-faint);margin-top:2px;}
+.cal-more{font-size:10px;color:var(--text-faint);margin-top:2px;cursor:pointer;text-decoration:underline;}
+.cal-more:hover{color:var(--steel-bright);}
 @media(max-width:900px){
   .cal-grid, .cal-weekdays{grid-template-columns:repeat(7,minmax(34px,1fr));}
   .cal-cell{min-height:70px;padding:4px;}
@@ -531,6 +532,17 @@ tbody tr:last-child td{border-bottom:none;}
       <button class="modal-close" data-close="trailer-history-modal">×</button>
     </div>
     <div class="modal-body" id="trailer-history-body"></div>
+  </div>
+</div>
+
+<!-- CALENDAR DAY DETAIL MODAL -->
+<div class="overlay" id="day-detail-modal">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-head">
+      <div><h2 id="day-detail-title">Jobs Needed</h2><div class="sub">Every order on the schedule for this day</div></div>
+      <button class="modal-close" data-close="day-detail-modal">×</button>
+    </div>
+    <div class="modal-body" id="day-detail-body"></div>
   </div>
 </div>
 
@@ -1677,9 +1689,9 @@ function viewCalendar(){
     const isToday = iso === today;
     const jobsToday = (byDate[iso]||[]).sort((a,b)=> (a.priority==='Urgent'?0:1)-(b.priority==='Urgent'?0:1));
     cells += `<div class="cal-cell ${otherMonth?'other-month':''} ${isToday?'today':''}" data-cal-date="${iso}">
-      <div class="cal-daynum">${cellDate.getDate()}</div>
+      <div class="cal-daynum" ${jobsToday.length?`data-day-detail="${iso}" style="cursor:pointer;"`:''}>${cellDate.getDate()}</div>
       ${jobsToday.slice(0,4).map(j=>`<div class="cal-chip ${j.priority==='Urgent'?'urgent':''}" data-open="${j.id}" ${canDrag?`draggable="true" data-drag-job="${j.id}"`:''} title="${j.jobName} — ${j.jobNumber} (${j.shippingMethod})${canDrag?' — drag to reschedule':''}">${j.shippingMethod==='Pickup'?'📦':'🚚'} ${j.jobName}</div>`).join('')}
-      ${jobsToday.length>4?`<div class="cal-more">+${jobsToday.length-4} more</div>`:''}
+      ${jobsToday.length>4?`<div class="cal-more" data-day-detail="${iso}">+${jobsToday.length-4} more</div>`:''}
     </div>`;
   }
 
@@ -1787,6 +1799,7 @@ function bindMainEvents(){
   const calPrev = document.getElementById('cal-prev'); if(calPrev) calPrev.addEventListener('click', ()=>{ state.calMonth--; if(state.calMonth<0){state.calMonth=11;state.calYear--;} render(); });
   const calNext = document.getElementById('cal-next'); if(calNext) calNext.addEventListener('click', ()=>{ state.calMonth++; if(state.calMonth>11){state.calMonth=0;state.calYear++;} render(); });
   const calToday = document.getElementById('cal-today'); if(calToday) calToday.addEventListener('click', ()=>{ const n=new Date(); state.calYear=n.getFullYear(); state.calMonth=n.getMonth(); render(); });
+  document.querySelectorAll('[data-day-detail]').forEach(el=>el.addEventListener('click',(e)=>{ e.stopPropagation(); openDayDetailModal(el.dataset.dayDetail); }));
   const trailerAddBtn = document.getElementById('trailer-add-btn');
   if(trailerAddBtn) trailerAddBtn.addEventListener('click', ()=>{
     const inp = document.getElementById('trailer-new-input');
@@ -2383,6 +2396,22 @@ document.getElementById('metal-save-btn').addEventListener('click', ()=>{
   saveState(); closeModal('metal-modal'); toast('Metal usage saved.'); render();
   if(state.openJobId && state.jmTab==='metalUsage'){ renderJobModal(); }
 });
+
+function openDayDetailModal(iso){
+  const jobs = state.jobs.filter(j=>j.status!=='Delivered/Picked Up' && j.needDate===iso)
+    .sort((a,b)=> (a.priority==='Urgent'?0:1)-(b.priority==='Urgent'?0:1));
+  document.getElementById('day-detail-title').textContent = `Jobs Needed — ${needDateLabel(iso)}`;
+  document.getElementById('day-detail-body').innerHTML = jobs.length ? jobs.map(j=>`
+    <div class="qc-item" data-open="${j.id}" style="cursor:pointer;">
+      <div class="qh"><span>${j.jobNumber}${j.division?' · '+j.division:''}</span><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></div>
+      <div class="qd">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}</div>
+      <div class="qd" style="margin-top:4px;color:var(--text-faint);font-size:11.5px;">${j.shippingMethod==='Pickup'?'📦 Pickup':'🚚 Deliver'} · ${fmt(j.weight)} lbs${j.system?' · '+j.system:''}</div>
+    </div>`).join('') : '<div class="empty">No jobs need this date.</div>';
+  document.querySelectorAll('#day-detail-body [data-open]').forEach(el=>el.addEventListener('click',()=>{
+    closeModal('day-detail-modal'); openJob(el.dataset.open);
+  }));
+  openModal('day-detail-modal');
+}
 
 function renderDeletedJobsModal(){
   const list = state.deletedJobs || [];
