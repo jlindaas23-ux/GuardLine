@@ -1722,19 +1722,20 @@ function trailerCard(t, isMaster){
     </div>
   </div>`;
 }
-function addStandardTrailers(){
+function addStandardTrailers(silent){
   state.trailers = state.trailers || [];
   const existingNames = new Set(state.trailers.map(t=>t.name));
   let added = 0;
   for(let i=1;i<=16;i++){
     const name = `Trailer # ${i}`;
     if(!existingNames.has(name)){
-      state.trailers.push({id:uid(), name, location:'At Shop', history:[{when:nowStr(), note:`Trailer added to the fleet by ${state.userName}.`}]});
+      state.trailers.push({id:uid(), name, location:'At Shop', history:[{when:nowStr(), note:`Trailer added to the fleet${silent?' automatically':' by '+state.userName}.`}]});
       added++;
     }
   }
-  if(added){ saveState(); toast(`Added ${added} trailer${added!==1?'s':''}.`); render(); }
-  else{ toast('Trailers #1–16 are all already on the list.'); }
+  if(added){ saveState(); if(!silent){ toast(`Added ${added} trailer${added!==1?'s':''}.`); render(); } }
+  else if(!silent){ toast('Trailers #1–16 are all already on the list.'); }
+  return added;
 }
 function viewTrailer(){
   const isMaster = state.role==='master';
@@ -2575,6 +2576,7 @@ function boot(){
       state.jobs = seedJobs();
       saveStateNow();
     }
+    addStandardTrailers(true);
     if(state.role){ render(); }
   });
 }
