@@ -239,6 +239,9 @@ thead th{
 .col-filter-menu button.active{background:var(--steel); color:#0d1418; font-weight:600;}
 tbody td{padding:9px 6px; font-size:11px; border-bottom:1px solid var(--border-soft); white-space:normal; overflow-wrap:break-word; vertical-align:middle;}
 tbody tr{cursor:pointer;transition:.1s;}
+tbody tr[draggable="true"]{cursor:grab;}
+tbody tr[draggable="true"]:active{cursor:grabbing;}
+tbody tr.row-drag-over{background:var(--panel-2); box-shadow:inset 0 0 0 2px var(--steel-bright);}
 tbody tr:hover{background:var(--panel-2);}
 tbody tr:last-child td{border-bottom:none;}
 .job-name-cell b{font-size:12px;}
@@ -618,6 +621,7 @@ const ACCESS_CODE = 'FABQ2026';
 
 let pendingRole = null;
 let draggedJobId = null;
+let draggedRowJobId = null;
 function persistRole(role){
   try{ localStorage.setItem('fabq-role', role); }catch(e){}
 }
@@ -685,6 +689,8 @@ let state = {
 };
 
 function uid(){ return 'J' + Math.random().toString(36).slice(2,9); }
+let manualOrderSeq = Date.now();
+function nextManualOrder(){ return manualOrderSeq++; }
 function nowStr(){ return new Date().toLocaleString('en-US', {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 
@@ -693,7 +699,7 @@ function seedJobs(){
   const mk = (o)=>Object.assign({
     id:uid(), orderType:'Duct', division:'', area:'', notes:'', drawingType:'Field Drwg', sketchNumber:'', shippingMethod:'Deliver',
     dateSubmitted:'', needDate:'', qty:1, weight:0, labelColor:'', secondaryColor:'', trailer:'',
-    status:'Pending', priority:'Normal', hasPhoto:false, photoKeys:[], history:[{when:nowStr(),note:'Job created and added to schedule.'}], qc:[]
+    status:'Pending', priority:'Normal', hasPhoto:false, photoKeys:[], manualOrder:nextManualOrder(), history:[{when:nowStr(),note:'Job created and added to schedule.'}], qc:[]
   }, o);
   return [
     mk({jobName:'Pasco County J',jobNumber:'22-10-0027',customer:'RICH.LY...',system:'Outside Air',notes:'Waiting on e-mail / CAD',sketchNumber:'534 remake',shippingMethod:'Deliver',dateSubmitted:'2026-07-23',needDate:'2026-07-28',status:'Pending',weight:640,qty:1}),
@@ -836,7 +842,10 @@ function needDateLabel(dateStr){
 function needDateSort(a,b){
   const av = a.needDate ? new Date(a.needDate).getTime() : Infinity;
   const bv = b.needDate ? new Date(b.needDate).getTime() : Infinity;
-  return av-bv;
+  if(av!==bv) return av-bv;
+  const amo = a.manualOrder||0, bmo = b.manualOrder||0;
+  if(amo!==bmo) return amo-bmo;
+  return (a.jobName||'').localeCompare(b.jobName||'');
 }
 function weekBounds(){
   const d = new Date();
@@ -984,7 +993,7 @@ function importRealSchedule(){
     trailer:'Parking Area/Shop', dateSubmitted:r.dateSubmitted, needDate:r.needDate, status:r.status,
     qty:r.qty, weight:0, priority:'Normal', labelColor:r.labelColor, secondaryColor:r.secondaryColor,
     hasPhoto:false, photoKeys:[],
-    history:[{when:nowStr(), note:`Imported from real production schedule by ${state.userName}.`}], qc:[]
+    manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Imported from real production schedule by ${state.userName}.`}], qc:[]
   }));
   saveState(); toast('Schedule replaced with real data.'); render();
 }
@@ -1555,7 +1564,7 @@ function renderJobsTable(jobs, opts){
       </tr></thead>
       <tbody>
         ${rows.length ? rows.map(j=>`
-        <tr data-open="${j.id}">
+        <tr data-open="${j.id}" ${state.role!=='field'?`draggable="true" data-drag-row="${j.id}"`:''}>
           <td data-col="needDate" class="need-date ${needDateClass(j)}">${needDateLabel(j.needDate)}</td>
           <td data-col="jobName" class="job-name-cell">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}</td>
           <td data-col="jobNumber" class="mono">${j.jobNumber}</td>
@@ -1924,6 +1933,31 @@ function bindMainEvents(){
       saveState(); toast('Hours updated.'); render();
     }
   }));
+  document.querySelectorAll('[data-drag-row]').forEach(tr=>{
+    tr.addEventListener('dragstart', (e)=>{
+      draggedRowJobId = tr.dataset.dragRow;
+      e.dataTransfer.effectAllowed = 'move';
+      try{ e.dataTransfer.setData('text/plain', draggedRowJobId); }catch(err){}
+    });
+    tr.addEventListener('dragover', (e)=>{ e.preventDefault(); tr.classList.add('row-drag-over'); });
+    tr.addEventListener('dragleave', ()=>{ tr.classList.remove('row-drag-over'); });
+    tr.addEventListener('dragend', ()=>{
+      draggedRowJobId = null;
+      document.querySelectorAll('.row-drag-over').forEach(el=>el.classList.remove('row-drag-over'));
+    });
+    tr.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      tr.classList.remove('row-drag-over');
+      const targetId = tr.dataset.dragRow;
+      const sourceId = draggedRowJobId || (e.dataTransfer ? e.dataTransfer.getData('text/plain') : null);
+      draggedRowJobId = null;
+      if(!sourceId || sourceId===targetId) return;
+      const a = jobById(sourceId), b = jobById(targetId);
+      if(!a || !b) return;
+      const tmp = a.manualOrder||0; a.manualOrder = b.manualOrder||0; b.manualOrder = tmp;
+      saveState(); toast('Order updated.'); renderTableOnly();
+    });
+  });
   document.querySelectorAll('[data-quickstatus]').forEach(b=>b.addEventListener('click',(e)=>{
     e.stopPropagation();
     const job = jobById(b.dataset.quickstatus);
@@ -2283,7 +2317,7 @@ document.getElementById('material-save-btn').addEventListener('click', ()=>{
     qty:1, weight:0, priority: leadTime==='Urgent Order' ? 'Urgent' : 'Normal',
     labelColor:'', secondaryColor:'', notes: val('mat-notes'), status:'Pending', hasPhoto:false, photoKeys:[],
     drawingType:'', sketchNumber:'', materials, otherItems: val('mat-other'),
-    history:[{when:nowStr(), note:`Material order created by ${state.userName}.`}], qc:[]
+    manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Material order created by ${state.userName}.`}], qc:[]
   };
   state.jobs.unshift(job);
   saveState(); closeModal('material-modal'); toast('Material request added to the production schedule.'); render();
@@ -2426,7 +2460,7 @@ document.getElementById('add-save-btn').addEventListener('click', async ()=>{
     trailer:'', dateSubmitted:val('n-date'), needDate:val('n-needdate'), shippingMethod:val('n-shipping'),
     qty:Number(val('n-qty')), weight:Number(val('n-weight')), priority:val('n-priority'), labelColor:val('n-color'), secondaryColor:val('n-color2'),
     notes:val('n-notes'), status:'Pending', hasPhoto:false, photoKeys:[], drawingType:'Field Drwg', sketchNumber:'',
-    history:[{when:nowStr(), note:`Job created by ${state.userName}.`}], qc:[]
+    manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Job created by ${state.userName}.`}], qc:[]
   };
   if(newJobPhotoDrafts.length){
     for(const draft of newJobPhotoDrafts){
@@ -2491,7 +2525,7 @@ async function fileQcReport(job, opts){
       system: job.system, area: job.area, trailer: job.trailer, dateSubmitted: todayISO(), shippingMethod: job.shippingMethod,
       qty: job.qty, weight: 0, priority:'Urgent', labelColor:'', secondaryColor:'', drawingType: job.drawingType,
       sketchNumber: opts.ref || job.sketchNumber, notes: `REMAKE — ${opts.issueType}: ${opts.desc}`, status:'Pending',
-      hasPhoto:false, history:[{when:nowStr(), note:`Remake job created automatically from a callback reported by ${state.userName} on ${job.jobName} (${job.jobNumber}).`}], qc:[]
+      hasPhoto:false, manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Remake job created automatically from a callback reported by ${state.userName} on ${job.jobName} (${job.jobNumber}).`}], qc:[]
     };
     state.jobs.unshift(remakeJob);
     addHistory(job, `Remake job ${remakeJob.jobNumber} created automatically and added to the schedule as Urgent.`);
