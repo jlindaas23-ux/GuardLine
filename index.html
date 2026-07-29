@@ -209,17 +209,17 @@ main{flex:1; padding:24px; max-width:1500px; margin:0 auto; width:100%;}
 .btn-ghost:hover{border-color:var(--steel);}
 .btn-danger{background:rgba(209,69,59,.15);border:1px solid rgba(209,69,59,.4);color:#e88b83;padding:8px 13px;border-radius:8px;font-size:12.5px;}
 
-.table-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);}
-table{border-collapse:collapse;width:100%;min-width:1100px;background:var(--panel);}
+.table-wrap{overflow-x:hidden;border-radius:var(--radius);border:1px solid var(--border);}
+table{border-collapse:collapse;width:100%;table-layout:fixed;background:var(--panel);}
 thead th{
-  text-align:left; font-family:'Oswald'; font-size:11px; letter-spacing:.05em; text-transform:uppercase;
-  color:var(--text-faint); padding:12px 14px; background:var(--panel-2); border-bottom:1px solid var(--border); white-space:nowrap;
-  position:relative;
+  text-align:left; font-family:'Oswald'; font-size:9.5px; letter-spacing:.03em; text-transform:uppercase;
+  color:var(--text-faint); padding:9px 6px; background:var(--panel-2); border-bottom:1px solid var(--border);
+  white-space:normal; overflow-wrap:break-word; position:relative;
 }
 .sortable-th{cursor:pointer; user-select:none;}
 .sortable-th:hover{color:var(--text);}
 .sort-arrow{color:var(--steel-bright); font-size:9px; margin-left:2px;}
-.col-filter{display:inline-block; position:relative;}
+.col-filter{display:inline-block; position:relative; max-width:100%;}
 .col-filter summary{cursor:pointer; list-style:none; user-select:none;}
 .col-filter summary::-webkit-details-marker{display:none;}
 .col-filter summary:hover{color:var(--text);}
@@ -228,6 +228,7 @@ thead th{
 .col-filter-menu{
   position:absolute; top:100%; left:0; z-index:60; margin-top:6px; min-width:160px; max-height:260px; overflow-y:auto;
   background:var(--panel); border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow); padding:6px;
+  white-space:nowrap;
 }
 .col-filter-menu button{
   display:block; width:100%; text-align:left; background:none; border:none; color:var(--text-dim);
@@ -236,12 +237,12 @@ thead th{
 }
 .col-filter-menu button:hover{background:var(--panel-2); color:var(--text);}
 .col-filter-menu button.active{background:var(--steel); color:#0d1418; font-weight:600;}
-tbody td{padding:12px 14px; font-size:12.5px; border-bottom:1px solid var(--border-soft); white-space:nowrap;}
+tbody td{padding:9px 6px; font-size:11px; border-bottom:1px solid var(--border-soft); white-space:normal; overflow-wrap:break-word; vertical-align:middle;}
 tbody tr{cursor:pointer;transition:.1s;}
 tbody tr:hover{background:var(--panel-2);}
 tbody tr:last-child td{border-bottom:none;}
-.job-name-cell b{font-size:13px;}
-.job-name-cell .sub{color:var(--text-faint);font-size:11px;}
+.job-name-cell b{font-size:12px;}
+.job-name-cell .sub{color:var(--text-faint);font-size:10px;}
 .weight-cell{font-family:'IBM Plex Mono'; font-weight:600;}
 
 /* ---------- SHOP CARDS ---------- */
@@ -312,7 +313,7 @@ tbody tr:last-child td{border-bottom:none;}
 .empty .big{font-family:'Oswald';font-size:16px;color:var(--text-dim);margin-bottom:6px;}
 
 /* ---------- INLINE SKETCH THUMBNAILS ---------- */
-.thumb-cell{width:52px;height:52px;border-radius:6px;overflow:hidden;background:var(--panel-2);display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--border);flex-shrink:0;}
+.thumb-cell{width:38px;height:38px;border-radius:6px;overflow:hidden;background:var(--panel-2);display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--border);flex-shrink:0;margin:0 auto;}
 .thumb-cell:hover{border-color:var(--steel);}
 .thumb-cell img{width:100%;height:100%;object-fit:cover;display:block;}
 .thumb-none{color:var(--text-faint);font-size:18px;}
