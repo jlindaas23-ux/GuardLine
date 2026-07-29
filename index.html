@@ -595,7 +595,15 @@ const SEARCH_FIELDS = [
   ['jobName','Job Name'],['jobNumber','Job Number'],['needDate','Date Needed'],
   ['dateSubmitted','Date Required'],['sketchNumber','Sketch #'],['drawingType','Drawing Type'],['trailer','Trailer #']
 ];
-const COLOR_HEX = {'FL-Yellow':'#f0d33a','FL Green':'#4f9d69','FL Red':'#d1453b','FL Pink':'#e0559c','Blue':'#4a7fd1','Orange':'#df7a3d','Yellow':'#f0d33a','Green':'#5eb87f','Red':'#d1453b'};
+const COLOR_HEX = {
+  'Blue':'#4a7fd1','Red':'#d1453b','Yellow':'#f0d33a','Green':'#4f9d69','Grey':'#9aa4af','Orange':'#df7a3d',
+  'Purple':'#9b59b6','Pink':'#e0559c','White':'#f2f2f2','Light Blue':'#7fbccf','Light Green':'#8bd1a1','Dark Green':'#2e6b46',
+  'FL Yellow':'#eaff00','Black':'#2b2f36','FL Orange':'#ff6a00','FL Red':'#ff1a1a','Olive':'#6b6b23','FL Pink':'#ff33cc',
+  'Aqua':'#3ad6c8','Brown':'#7a4b2a','FL Green':'#39ff14','Brick Red':'#9e3a2f',
+  'Blue-Line':'#2f5fa8','Aqua-Line':'#1f9e91','Brown-Line':'#5a3820','Orange-Line':'#b85a26','Yellow-Line':'#c9ab1f',
+  'Black-Line':'#15171b','Pink-Line':'#b23d76','Purple-Line':'#733d8f','Green-Line':'#357a4c','Red-Line':'#a3352c',
+  'Grey-Line':'#6f7882','Olive-Line':'#4d4d18'
+};
 
 const ROLE_VIEWS = {
   master:  ['dashboard','managers','completed','delivered','calendar','trailer'],
@@ -689,8 +697,8 @@ function seedJobs(){
   }, o);
   return [
     mk({jobName:'Pasco County J',jobNumber:'22-10-0027',customer:'RICH.LY...',system:'Outside Air',notes:'Waiting on e-mail / CAD',sketchNumber:'534 remake',shippingMethod:'Deliver',dateSubmitted:'2026-07-23',needDate:'2026-07-28',status:'Pending',weight:640,qty:1}),
-    mk({jobName:'JHACH BAT',jobNumber:'26-10-0002',customer:'JASON.S...',system:'O/A AHU 1-1 & 1-2',area:'1st Floor',notes:'Hot need tomorrow 7/28',shippingMethod:'Deliver',dateSubmitted:'2026-07-27',needDate:'2026-07-28',status:'In Shop',weight:1120,qty:6,labelColor:'FL-Yellow',trailer:'Parking Area/Shop'}),
-    mk({jobName:'JHACH BAT',jobNumber:'26-10-0002',customer:'JASON.S...',system:'O/A AHU 2-6',area:'2nd Floor',notes:'Hot need tomorrow 7/28',shippingMethod:'Deliver',dateSubmitted:'2026-07-27',needDate:'2026-07-28',status:'Pending',weight:210,qty:1,labelColor:'FL-Yellow'}),
+    mk({jobName:'JHACH BAT',jobNumber:'26-10-0002',customer:'JASON.S...',system:'O/A AHU 1-1 & 1-2',area:'1st Floor',notes:'Hot need tomorrow 7/28',shippingMethod:'Deliver',dateSubmitted:'2026-07-27',needDate:'2026-07-28',status:'In Shop',weight:1120,qty:6,labelColor:'FL Yellow',trailer:'Parking Area/Shop'}),
+    mk({jobName:'JHACH BAT',jobNumber:'26-10-0002',customer:'JASON.S...',system:'O/A AHU 2-6',area:'2nd Floor',notes:'Hot need tomorrow 7/28',shippingMethod:'Deliver',dateSubmitted:'2026-07-27',needDate:'2026-07-28',status:'Pending',weight:210,qty:1,labelColor:'FL Yellow'}),
     mk({jobName:'STRAZ-CENTER',jobNumber:'25-41-1021',customer:'DAVID.C...',system:'3rd Floor',sketchNumber:'4',shippingMethod:'Pickup',dateSubmitted:'2026-07-27',needDate:'2026-07-28',status:'Complete',weight:980,qty:7,labelColor:'FL Green'}),
     mk({jobName:'TGH-2E-DIALYSIS',jobNumber:'25-10-0056',customer:'STEPHEN...',system:'Duct',notes:'Field Drwg',shippingMethod:'Deliver',dateSubmitted:'2026-07-28',needDate:'2026-07-30',status:'Pending',weight:340,qty:1}),
     mk({jobName:'TPA-AIRSIDE-D',jobNumber:'25-10-0054',customer:'MANUEL...',system:'SAM',shippingMethod:'Deliver',dateSubmitted:'2026-07-27',needDate:'2026-07-31',status:'In Shop',weight:1450,qty:5,labelColor:'Blue'}),
