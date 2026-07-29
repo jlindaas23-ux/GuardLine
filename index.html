@@ -551,6 +551,7 @@ tbody tr:last-child td{border-bottom:none;}
   <div style="max-width:95vw;max-height:92vh;position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;">
     <img id="lightbox-img" style="max-width:95vw;max-height:80vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.6);">
     <div id="lightbox-caption" style="color:var(--text-dim);font-size:13px;"></div>
+    <button class="btn-primary" id="lightbox-print-btn" style="margin-top:4px;">🖨 Print This Image</button>
     <button class="btn-ghost" data-close="lightbox-modal" style="position:absolute;top:-10px;right:-10px;width:36px;height:36px;border-radius:50%;font-size:18px;padding:0;">×</button>
   </div>
 </div>
@@ -1184,11 +1185,22 @@ function render(){
   bindMainEvents();
   hydratePhotoThumbs();
 }
+let lightboxCurrent = {url:null, caption:''};
 function openLightbox(url, caption){
   if(!url) return;
+  lightboxCurrent = {url, caption: caption||''};
   document.getElementById('lightbox-img').src = url;
   document.getElementById('lightbox-caption').textContent = caption || '';
   openModal('lightbox-modal');
+}
+function printImage(url, caption){
+  if(!url) return;
+  document.getElementById('print-report').innerHTML = `
+    <div style="text-align:center;padding:10px;">
+      <img src="${url}" style="max-width:100%;max-height:90vh;border-radius:4px;">
+      ${caption ? `<div style="margin-top:14px;font-family:Arial,sans-serif;font-size:14px;color:#111;">${caption}</div>` : ''}
+    </div>`;
+  setTimeout(()=> window.print(), 50);
 }
 async function openThumbLightbox(jobId){
   const job = jobById(jobId); if(!job) return;
@@ -2261,6 +2273,7 @@ async function renderJobModal(){
           ${urls[i] ? `<img src="${urls[i]}" data-lightbox-open="${i}" style="cursor:zoom-in;">` : `<span class="thumb-loading">loading…</span>`}
           ${canEdit ? `<button type="button" data-remove-job-photo="${k}">×</button>` : ''}
         </div>`).join('')}</div>` : `<div>No photos attached yet.</div>`}
+      ${photoKeys.length ? `<div class="photo-buttons" style="margin-top:10px;"><button class="btn-primary" id="print-all-photos-btn">🖨 Print All Photos</button></div>` : ''}
       ${canEdit ? `
       <div class="photo-buttons">
         <label class="btn-ghost">Take Photo<input type="file" accept="image/*" capture="environment" id="camera-input" style="display:none;"></label>
@@ -2268,6 +2281,21 @@ async function renderJobModal(){
       </div>` : ''}
     </div>`;
     foot.innerHTML = '';
+    const printAllBtn = document.getElementById('print-all-photos-btn');
+    if(printAllBtn) printAllBtn.addEventListener('click', ()=>{
+      const validUrls = urls.filter(Boolean);
+      if(!validUrls.length){ toast('No photos loaded yet — try again in a moment.'); return; }
+      document.getElementById('print-report').innerHTML = `
+        <div style="font-family:Arial,sans-serif;padding:10px;">
+          <h2 style="margin:0 0 4px;color:#111;">${job.jobName} — ${job.jobNumber}</h2>
+          <div style="color:#555;font-size:12px;margin-bottom:20px;">${photoKeys.length} photo${photoKeys.length!==1?'s':''}</div>
+          ${validUrls.map((u,idx)=>`<div style="text-align:center;${idx<validUrls.length-1?'page-break-after:always;':''}margin-bottom:20px;">
+            <img src="${u}" style="max-width:100%;max-height:85vh;border-radius:4px;">
+            <div style="margin-top:10px;color:#333;font-size:12px;">Photo ${idx+1} of ${validUrls.length}</div>
+          </div>`).join('')}
+        </div>`;
+      setTimeout(()=> window.print(), 50);
+    });
     body.querySelectorAll('[data-lightbox-open]').forEach(img=>img.addEventListener('click', ()=>{
       openLightbox(img.src, `${job.jobName} — ${job.jobNumber}`);
     }));
@@ -2709,6 +2737,7 @@ function resetQcReportForm(){
 document.getElementById('new-order-btn').addEventListener('click', openAddModal);
 document.getElementById('new-material-btn-global').addEventListener('click', ()=> openMaterialModal());
 document.getElementById('new-metal-btn-global').addEventListener('click', ()=> openMetalModal(null));
+document.getElementById('lightbox-print-btn').addEventListener('click', ()=> printImage(lightboxCurrent.url, lightboxCurrent.caption));
 document.getElementById('report-issue-btn').addEventListener('click', ()=>{
   const sel = document.getElementById('qc-report-job');
   const sorted = [...state.jobs].sort((a,b)=> a.jobName.localeCompare(b.jobName));
