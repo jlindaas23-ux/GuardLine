@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1750,7 +1751,7 @@ function addStandardTrailers(silent){
   return added;
 }
 function viewTrailer(){
-  const isMaster = state.role==='master';
+  const isMaster = state.role==='master'||state.role==='manager';
   const trailers = state.trailers || [];
   const atShop = trailers.filter(t=> (t.location||'At Shop')==='At Shop');
   const onSite = trailers.filter(t=> t.location==='On Site');
@@ -1775,7 +1776,7 @@ function viewTrailer(){
     ${onSite.length ? onSite.map(t=>trailerCard(t,isMaster)).join('') : `<div class="empty" style="grid-column:1/-1;">No trailers currently on site.</div>`}
   </div>
 
-  ${!trailers.length ? `<div class="empty" style="margin-top:12px;"><div class="big">No trailers yet</div>${isMaster? 'Add your first trailer above.' : 'Ask an Executive user to add trailers here.'}</div>` : ''}
+  ${!trailers.length ? `<div class="empty" style="margin-top:12px;"><div class="big">No trailers yet</div>${isMaster? 'Add your first trailer above.' : 'Ask an Executive or Manager to add trailers here.'}</div>` : ''}
   `;
 }
 
