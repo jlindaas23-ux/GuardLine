@@ -1699,7 +1699,7 @@ function viewCalendar(){
 /* ============================ TRAILER DASHBOARD ============================ */
 function trailerCard(t, isMaster){
   const loc = t.location || 'At Shop';
-  const jobs = loc==='On Site' ? state.jobs.filter(j=> j.trailer===t.name && j.status==='Complete') : [];
+  const jobs = state.jobs.filter(j=> j.trailer===t.name && j.status==='Complete');
   const totalW = jobs.reduce((s,j)=>s+Number(j.weight||0),0);
   return `
   <div class="card" style="padding:18px;">
@@ -1707,7 +1707,7 @@ function trailerCard(t, isMaster){
       <div class="disp" style="font-size:15px;">${t.name}</div>
       <div class="mono" style="font-weight:700;font-size:13px;">${fmt(totalW)} lbs</div>
     </div>
-    <div style="color:var(--text-faint);font-size:11.5px;margin-bottom:12px;">${loc==='At Shop' ? 'Empty — available to load' : `${jobs.length} completed job${jobs.length!==1?'s':''} loaded`}</div>
+    <div style="color:var(--text-faint);font-size:11.5px;margin-bottom:12px;">${jobs.length ? `${jobs.length} completed job${jobs.length!==1?'s':''} loaded` : 'Empty — available to load'}</div>
     ${jobs.length ? jobs.map(j=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft);gap:8px;cursor:pointer;" data-open="${j.id}">
         <div style="flex:1;min-width:0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${j.jobName}${priorityBadge(j)}</div>
@@ -1808,18 +1808,24 @@ function bindMainEvents(){
     const t = (state.trailers||[]).find(x=>x.id===b.dataset.trailerTosite); if(!t) return;
     const loaded = state.jobs.filter(j=> j.trailer===t.name && j.status==='Complete');
     const totalW = loaded.reduce((s,j)=>s+Number(j.weight||0),0);
+    loaded.forEach(j=>{
+      j.status = 'Delivered/Picked Up';
+      j.deliveredAt = todayISO();
+      addHistory(j, `Marked ${j.shippingMethod==='Pickup'?'picked up':'delivered'} by ${state.userName} — sent out on ${t.name}.`);
+    });
     t.location = 'On Site';
     t.history = t.history || [];
     const loadNote = loaded.length
-      ? `Sent on site by ${state.userName} with ${loaded.length} job${loaded.length!==1?'s':''} (${fmt(totalW)} lbs): ${loaded.map(j=>j.jobName).join(', ')}.`
+      ? `Sent on site by ${state.userName} with ${loaded.length} job${loaded.length!==1?'s':''} (${fmt(totalW)} lbs), now marked delivered: ${loaded.map(j=>j.jobName).join(', ')}.`
       : `Sent on site by ${state.userName} (no completed jobs assigned).`;
     t.history.unshift({when:nowStr(), note:loadNote});
-    saveState(); toast(`${t.name} marked on site.`); render();
+    saveState(); toast(`${t.name} sent on site — ${loaded.length} job${loaded.length!==1?'s':''} marked delivered.`); render();
   }));
   document.querySelectorAll('[data-trailer-toshop]').forEach(b=>b.addEventListener('click', ()=>{
     const t = (state.trailers||[]).find(x=>x.id===b.dataset.trailerToshop); if(!t) return;
     t.location = 'At Shop';
-    t.history = t.history || []; t.history.unshift({when:nowStr(), note:`Marked back at shop by ${state.userName}.`});
+    t.history = t.history || [];
+    t.history.unshift({when:nowStr(), note:`Marked back at shop by ${state.userName}.`});
     saveState(); toast(`${t.name} marked back at shop.`); render();
   }));
   document.querySelectorAll('[data-trailer-history]').forEach(b=>b.addEventListener('click', ()=>{
