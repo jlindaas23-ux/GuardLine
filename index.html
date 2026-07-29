@@ -150,6 +150,7 @@ main{flex:1; padding:24px; max-width:1500px; margin:0 auto; width:100%;}
 .urgent-badge{display:inline-block;background:var(--red);color:#fff;font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-left:6px;vertical-align:middle;}
 .remake-badge{display:inline-block;background:var(--steel);color:#0d1418;font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-left:6px;vertical-align:middle;}
 .order-type-icon{display:inline-block;margin-right:6px;font-size:13px;vertical-align:middle;}
+.division-badge{display:inline-block;font-size:9px;padding:2px 7px;border-radius:4px;letter-spacing:.03em;font-weight:700;margin-left:6px;vertical-align:middle;text-transform:none;white-space:nowrap;}
 .need-date{font-family:'IBM Plex Mono';font-weight:600;font-size:12.5px;}
 .need-date.nd-urgent{color:var(--red);}
 .need-date.nd-short{color:var(--yellow);}
@@ -460,6 +461,10 @@ tbody tr:last-child td{border-bottom:none;}
           <select id="qc-report-job"></select>
         </div>
         <div class="field">
+          <label>Division / Company <span style="color:var(--red);">*</span></label>
+          <select id="qc-report-division">${divisionOptionsHTML('')}</select>
+        </div>
+        <div class="field">
           <label>Sketch # / Order #</label>
           <input id="qc-report-ref" placeholder="e.g. 534 or 25-10-0054">
         </div>
@@ -565,6 +570,16 @@ const MATERIAL_ITEMS = [
 const STATUS_CLASS = {'Pending':'pending','In Shop':'inshop','QC Hold':'qchold','Complete':'complete','Delivered/Picked Up':'delivered'};
 const ADVANCE_MAP = {'Pending':'In Shop','In Shop':'Complete','QC Hold':'In Shop'};
 const EMPLOYEES = ['Tj Lauffer','Steven Romero','James Read','Isaiah Davis','Daniel Sanches'];
+const DIVISIONS = ['BCH Mechanical Inc.','ConServ','RoyalAire'];
+const DIVISION_COLOR = {'BCH Mechanical Inc.':'#4a7fd1','ConServ':'#4f9d69','RoyalAire':'#d4a339'};
+function divisionOptionsHTML(selected){
+  return `<option value="">—</option>` + DIVISIONS.map(d=>`<option ${selected===d?'selected':''}>${d}</option>`).join('');
+}
+function divisionBadge(job){
+  if(!job.division) return '';
+  const c = DIVISION_COLOR[job.division] || 'var(--steel)';
+  return `<span class="division-badge" style="background:${c}22;color:${c};border:1px solid ${c}55;">${job.division}</span>`;
+}
 const MACHINES = ['Single Plasma Table','Double Plasma Table','Fabriduct Coil Line'];
 const GAUGE_TYPES = [
   ['g26','26 Ga'],['g24','24 Ga'],['g22','22 Ga'],['g20','20 Ga'],
@@ -662,7 +677,7 @@ function todayISO(){ return new Date().toISOString().slice(0,10); }
 /* seed data reflecting the shop's real schedule shape */
 function seedJobs(){
   const mk = (o)=>Object.assign({
-    id:uid(), orderType:'Duct', area:'', notes:'', drawingType:'Field Drwg', sketchNumber:'', shippingMethod:'Deliver',
+    id:uid(), orderType:'Duct', division:'', area:'', notes:'', drawingType:'Field Drwg', sketchNumber:'', shippingMethod:'Deliver',
     dateSubmitted:'', needDate:'', qty:1, weight:0, labelColor:'', secondaryColor:'', trailer:'Parking Area/Shop',
     status:'Pending', priority:'Normal', hasPhoto:false, history:[{when:nowStr(),note:'Job created and added to schedule.'}], qc:[]
   }, o);
@@ -1405,7 +1420,7 @@ function swatch(color, sec){
 }
 
 /* Shared schedule table — used by Managers, Shop, and Field so every role sees the same layout */
-const FILTERABLE_COLS = [['jobName','Job Name'],['jobNumber','Job #'],['customer','Customer'],['system','System / Area'],['trailer','Trailer']];
+const FILTERABLE_COLS = [['jobName','Job Name'],['jobNumber','Job #'],['division','Division'],['customer','Customer'],['system','System / Area'],['trailer','Trailer']];
 function colFilterHeader(tableId, key, label, jobs){
   state.colFilters = state.colFilters || {};
   state.colFilters[tableId] = state.colFilters[tableId] || {};
@@ -1436,7 +1451,7 @@ function renderJobsTable(jobs, opts){
   const rows = filtered.slice().sort((a,b)=> sortDir==='asc' ? needDateSort(a,b) : needDateSort(b,a));
 
   const extraCols = (opts.showAdvance?1:0) + (opts.showDelivery?1:0);
-  const colCount = 13 + extraCols;
+  const colCount = 14 + extraCols;
   return `
   <div class="table-wrap">
     <table>
@@ -1444,6 +1459,7 @@ function renderJobsTable(jobs, opts){
         <th class="sortable-th" data-sort="${tableId}">Need Date <span class="sort-arrow">${sortDir==='asc'?'▲':'▼'}</span></th>
         ${colFilterHeader(tableId,'jobName','Job Name',jobs)}
         ${colFilterHeader(tableId,'jobNumber','Job #',jobs)}
+        ${colFilterHeader(tableId,'division','Division',jobs)}
         ${colFilterHeader(tableId,'customer','Customer',jobs)}
         ${colFilterHeader(tableId,'system','System / Area',jobs)}
         <th>Notes</th><th>Ship</th><th>Status</th><th>Qty</th><th>Weight</th><th>Colors</th>
@@ -1454,8 +1470,9 @@ function renderJobsTable(jobs, opts){
         ${rows.length ? rows.map(j=>`
         <tr data-open="${j.id}">
           <td class="need-date ${needDateClass(j)}">${needDateLabel(j.needDate)}</td>
-          <td class="job-name-cell">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}</td>
+          <td class="job-name-cell">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}${divisionBadge(j)}</td>
           <td class="mono">${j.jobNumber}</td>
+          <td>${j.division||'—'}</td>
           <td>${j.customer||'—'}</td>
           <td>${j.system||''}${j.area?`<div class="sub" style="color:var(--text-faint);font-size:11px;">${j.area}</div>`:''}</td>
           <td style="max-width:180px;white-space:normal;color:var(--text-dim);">${j.notes||''}</td>
@@ -1861,6 +1878,7 @@ async function renderJobModal(){
     <div class="form-grid">
       <div class="field"><label>Job Name</label><input id="f-jobName" value="${job.jobName}" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>Job Number</label><input id="f-jobNumber" value="${job.jobNumber}" ${canEdit?'':'disabled'}></div>
+      <div class="field"><label>Division / Company</label><select id="f-division" ${canEdit?'':'disabled'}>${divisionOptionsHTML(job.division)}</select></div>
       <div class="field"><label>Customer</label><input id="f-customer" value="${job.customer||''}" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>Requester Email</label><input id="f-email" type="email" value="${job.requesterEmail||''}" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>System</label><input id="f-system" value="${job.system||''}" ${canEdit?'':'disabled'}></div>
@@ -1890,7 +1908,7 @@ async function renderJobModal(){
     if(canEdit){
       document.getElementById('save-job-btn').onclick = ()=>{
         const patch = {
-          jobName: val('f-jobName'), jobNumber: val('f-jobNumber'), customer: val('f-customer'), requesterEmail: val('f-email'),
+          jobName: val('f-jobName'), jobNumber: val('f-jobNumber'), division: val('f-division'), customer: val('f-customer'), requesterEmail: val('f-email'),
           system: val('f-system'), area: val('f-area'), trailer: val('f-trailer'), needDate: val('f-needdate'),
           qty: Number(val('f-qty')), weight: Number(val('f-weight')), shippingMethod: val('f-shipping'),
           labelColor: val('f-color'), secondaryColor: val('f-color2'), notes: val('f-notes'), priority: val('f-priority')
@@ -2041,7 +2059,7 @@ async function renderJobModal(){
     document.getElementById('qc-submit-btn').onclick = async ()=>{
       const desc = val('qc-desc'); if(!desc.trim()){ toast('Describe the issue first.'); return; }
       await fileQcReport(job, {
-        ref: val('qc-ref'), issueType: val('qc-type'), priority: val('qc-priority'),
+        ref: val('qc-ref'), issueType: val('qc-type'), priority: val('qc-priority'), division: job.division,
         desc, photoDataUrl: jmQcPhotoDraft, remake: document.getElementById('qc-remake').checked
       });
       toast('Callback submitted.'); renderJobModal();
@@ -2090,6 +2108,7 @@ function openMaterialModal(){
     <div class="form-grid">
       <div class="field"><label>Job Name</label><input id="mat-jobName" placeholder="e.g. Site Material Order"></div>
       <div class="field"><label>Job Number</label><input id="mat-jobNumber" placeholder="optional"></div>
+      <div class="field"><label>Division / Company <span style="color:var(--red);">*</span></label><select id="mat-division">${divisionOptionsHTML('')}</select></div>
     </div>
     <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Materials Needed</div>
     <div class="form-grid">
@@ -2129,7 +2148,7 @@ document.getElementById('material-save-btn').addEventListener('click', ()=>{
   const jobNumber = val('mat-jobNumber').trim() || ('MAT-'+uid().slice(1,6).toUpperCase());
   const leadTime = val('mat-leadtime');
   const job = {
-    id: uid(), orderType:'Material', jobName, jobNumber, customer:'', requesterEmail:'',
+    id: uid(), orderType:'Material', jobName, jobNumber, division: val('mat-division'), customer:'', requesterEmail:'',
     system:'', area:'', trailer:'Parking Area/Shop', dateSubmitted: todayISO(),
     needDate: val('mat-dateneeded'), shippingMethod: val('mat-shipping'),
     qty:1, weight:0, priority: leadTime==='Urgent Order' ? 'Urgent' : 'Normal',
@@ -2152,6 +2171,7 @@ function openMetalModal(existingId, prefillJob){
     <div class="form-grid">
       <div class="field"><label>Job Name</label><input id="metal-jobName" value="${existing?existing.jobName:(prefillJob?prefillJob.jobName:'')}" placeholder="e.g. TPA-AIRSIDE-D" ${lockJob?'disabled':''}></div>
       <div class="field"><label>Job Number</label><input id="metal-jobNumber" value="${existing?existing.jobNumber||'':(prefillJob?prefillJob.jobNumber||'':'')}" placeholder="e.g. 25-10-0054" ${lockJob?'disabled':''}></div>
+      <div class="field"><label>Division / Company <span style="color:var(--red);">*</span></label><select id="metal-division">${divisionOptionsHTML(existing?existing.division:(prefillJob?prefillJob.division:''))}</select></div>
       <div class="field"><label>Company</label><input id="metal-company" value="${existing?existing.company||'':(prefillJob?prefillJob.customer||'':'')}" ${lockJob?'disabled':''}></div>
       <div class="field"><label>Employee</label><select id="metal-employee">${EMPLOYEES.map(n=>`<option ${existing&&existing.employee===n?'selected':''}>${n}</option>`).join('')}</select></div>
       <div class="field"><label>Machine Type</label><select id="metal-machine">${MACHINES.map(n=>`<option ${existing&&existing.machine===n?'selected':''}>${n}</option>`).join('')}</select></div>
@@ -2181,7 +2201,7 @@ document.getElementById('metal-save-btn').addEventListener('click', ()=>{
   const existing = editingMetalId ? (state.metalUsage||[]).find(m=>m.id===editingMetalId) : null;
   const record = {
     id: existing ? existing.id : uid(),
-    jobName, jobNumber: val('metal-jobNumber'), company: val('metal-company'),
+    jobName, jobNumber: val('metal-jobNumber'), division: val('metal-division'), company: val('metal-company'),
     employee: val('metal-employee'), machine: val('metal-machine'), gauges,
     createdBy: existing ? existing.createdBy : state.userName,
     createdAt: existing ? existing.createdAt : nowStr(),
@@ -2219,6 +2239,7 @@ function openAddModal(){
   <div class="form-grid">
     <div class="field"><label>Job Name</label><input id="n-jobName" placeholder="e.g. TPA-AIRSIDE-D"></div>
     <div class="field"><label>Job Number</label><input id="n-jobNumber" placeholder="e.g. 25-10-0054"></div>
+    <div class="field"><label>Division / Company <span style="color:var(--red);">*</span></label><select id="n-division">${divisionOptionsHTML('')}</select></div>
     <div class="field"><label>Customer</label><input id="n-customer"></div>
     <div class="field"><label>Requester Email <span style="color:var(--text-faint);font-size:10px;">(for order emails)</span></label><input id="n-email" type="email" placeholder="name@example.com"></div>
     <div class="field"><label>System</label><input id="n-system"></div>
@@ -2240,7 +2261,7 @@ document.getElementById('add-save-btn').addEventListener('click', ()=>{
   const name = val('n-jobName'); const num = val('n-jobNumber');
   if(!name || !num){ toast('Job name and number are required.'); return; }
   const job = {
-    id: uid(), orderType:'Duct', jobName:name, jobNumber:num, customer:val('n-customer'), requesterEmail:val('n-email'), system:val('n-system'), area:val('n-area'),
+    id: uid(), orderType:'Duct', jobName:name, jobNumber:num, division:val('n-division'), customer:val('n-customer'), requesterEmail:val('n-email'), system:val('n-system'), area:val('n-area'),
     trailer:val('n-trailer'), dateSubmitted:val('n-date'), needDate:val('n-needdate'), shippingMethod:val('n-shipping'),
     qty:Number(val('n-qty')), weight:Number(val('n-weight')), priority:val('n-priority'), labelColor:val('n-color'), secondaryColor:val('n-color2'),
     notes:val('n-notes'), status:'Pending', hasPhoto:false, drawingType:'Field Drwg', sketchNumber:'',
@@ -2287,7 +2308,7 @@ async function fileQcReport(job, opts){
   const qcId = uid();
   const entry = {
     id: qcId, when: nowStr(), by: state.userName, ref: opts.ref, issueType: opts.issueType,
-    priority: opts.priority, desc: opts.desc, hasPhoto: !!opts.photoDataUrl, status:'Open', remake: opts.remake
+    priority: opts.priority, desc: opts.desc, hasPhoto: !!opts.photoDataUrl, status:'Open', remake: opts.remake, division: opts.division
   };
   job.qc = job.qc || [];
   job.qc.unshift(entry);
@@ -2297,7 +2318,7 @@ async function fileQcReport(job, opts){
 
   if(opts.remake){
     const remakeJob = {
-      id: uid(), jobName: `${job.jobName} (Remake)`, jobNumber: job.jobNumber + '-RM', customer: job.customer,
+      id: uid(), orderType:'Duct', jobName: `${job.jobName} (Remake)`, jobNumber: job.jobNumber + '-RM', division: opts.division || job.division, customer: job.customer,
       system: job.system, area: job.area, trailer: job.trailer, dateSubmitted: todayISO(), shippingMethod: job.shippingMethod,
       qty: job.qty, weight: 0, priority:'Urgent', labelColor:'', secondaryColor:'', drawingType: job.drawingType,
       sketchNumber: opts.ref || job.sketchNumber, notes: `REMAKE — ${opts.issueType}: ${opts.desc}`, status:'Pending',
@@ -2317,6 +2338,7 @@ document.getElementById('qc-report-submit').addEventListener('click', async ()=>
     ref: document.getElementById('qc-report-ref').value.trim(),
     issueType: document.getElementById('qc-report-type').value,
     priority: document.getElementById('qc-report-priority').value,
+    division: document.getElementById('qc-report-division').value,
     desc, photoDataUrl: qcReportPhotoDraft, remake: document.getElementById('qc-report-remake').checked
   });
   closeModal('qc-report-modal'); toast('Callback submitted.'); render();
