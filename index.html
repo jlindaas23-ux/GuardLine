@@ -327,6 +327,39 @@ tbody tr:last-child td{border-bottom:none;}
   nav.tabs{justify-content:flex-start;}
   .topbar-right{justify-content:center; flex-wrap:wrap;}
 }
+
+/* ---------- PRINT: WEEKLY METAL USAGE REPORT ---------- */
+.print-only{display:none;}
+.pr-head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #14181d;padding-bottom:14px;margin-bottom:22px;}
+.pr-brand{display:flex;align-items:center;gap:14px;}
+.pr-logo{height:48px;width:auto;}
+.pr-brand-text{font-family:Arial,sans-serif;font-size:26px;font-weight:800;color:#14181d;}
+.pr-title{font-family:Arial,sans-serif;font-size:18px;font-weight:700;color:#111;letter-spacing:.01em;}
+.pr-sub{font-family:Arial,sans-serif;font-size:12.5px;color:#555;margin-top:2px;}
+.pr-meta{font-family:Arial,sans-serif;font-size:10.5px;color:#666;text-align:right;line-height:1.6;}
+.pr-section-label{font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#14181d;border-left:4px solid #4a90a4;padding-left:8px;margin-bottom:10px;}
+.pr-table{width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:10.5px;}
+.pr-table th{background:#f0f0f0;border:1px solid #bbb;padding:7px 8px;text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:#333;}
+.pr-table td{border:1px solid #ccc;padding:7px 8px;color:#111;}
+.pr-summary-wrap{display:flex;gap:24px;align-items:flex-start;}
+.pr-summary-table{flex:1;border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;}
+.pr-summary-table th{background:#f0f0f0;border:1px solid #bbb;padding:8px 10px;text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:#333;}
+.pr-summary-table td{border:1px solid #ccc;padding:8px 10px;color:#111;}
+.pr-grand-total{
+  flex-shrink:0;width:230px;background:#14181d;color:#fff;border-radius:6px;padding:18px 20px;font-family:Arial,sans-serif;
+}
+.pr-gt-label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#9fb3bc;margin-bottom:8px;}
+.pr-gt-value{font-size:26px;font-weight:800;}
+.pr-gt-value span{font-size:13px;font-weight:400;color:#c9d6da;}
+.pr-sign{margin-top:60px;display:flex;gap:70px;font-family:Arial,sans-serif;font-size:12px;color:#111;}
+.pr-sign .line{border-top:1px solid #111;padding-top:6px;width:250px;}
+.pr-footer{margin-top:40px;text-align:center;font-family:Arial,sans-serif;font-size:9.5px;color:#999;letter-spacing:.05em;text-transform:uppercase;border-top:1px solid #ddd;padding-top:10px;}
+@media print{
+  body > *:not(.print-only){display:none !important;}
+  #app, #login-screen, .toast-wrap, .overlay{display:none !important;}
+  .print-only{display:block !important; background:#fff; color:#111; padding:0;}
+  @page{margin:0.6in;}
+}
 </style>
 </head>
 <body>
@@ -618,7 +651,8 @@ let state = {
   photoDraft: null,
   photoCache: {},
   calYear: new Date().getFullYear(),
-  calMonth: new Date().getMonth()
+  calMonth: new Date().getMonth(),
+  reportWeek: null
 };
 
 function uid(){ return 'J' + Math.random().toString(36).slice(2,9); }
@@ -910,6 +944,96 @@ function jobAnalysisRows(){
   });
   return Object.values(byNumber).sort((a,b)=> b.lbs-a.lbs);
 }
+
+/* ---- Weekly Metal Usage Report (for charging out metal to jobs) ---- */
+function metalUsageInWeek(weekStartISO){
+  const start = new Date(weekStartISO+'T00:00:00');
+  const end = new Date(start); end.setDate(end.getDate()+6); end.setHours(23,59,59,999);
+  return (state.metalUsage||[]).filter(e=>{
+    if(!e.dateISO) return false;
+    const d = new Date(e.dateISO+'T00:00:00');
+    return d>=start && d<=end;
+  });
+}
+function weeklyMetalByJob(weekStartISO){
+  const entries = metalUsageInWeek(weekStartISO);
+  const byJob = {};
+  entries.forEach(e=>{
+    const key = (e.jobNumber||e.jobName||e.id).trim().toLowerCase();
+    if(!byJob[key]) byJob[key] = {jobName:e.jobName, jobNumber:e.jobNumber||'—', company:e.company||'—', gauges:{}, total:0};
+    GAUGE_TYPES.forEach(([k])=>{
+      const v = Number((e.gauges||{})[k]||0);
+      if(v) byJob[key].gauges[k] = (byJob[key].gauges[k]||0) + v;
+    });
+    byJob[key].total += gaugeSqftTotal(e);
+  });
+  return Object.values(byJob).sort((a,b)=> b.total-a.total);
+}
+function weeklyGaugeTotals(weekStartISO){
+  const totals = {}; GAUGE_TYPES.forEach(([k])=> totals[k]=0);
+  metalUsageInWeek(weekStartISO).forEach(e=> GAUGE_TYPES.forEach(([k])=>{ totals[k]+=Number((e.gauges||{})[k]||0); }));
+  return totals;
+}
+function printMetalReport(){
+  const weekStart = state.reportWeek || mondayISO(todayISO());
+  const rows = weeklyMetalByJob(weekStart);
+  const totals = weeklyGaugeTotals(weekStart);
+  const start = new Date(weekStart+'T00:00:00');
+  const end = new Date(start); end.setDate(end.getDate()+6);
+  const rangeStr = start.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) + ' – ' + end.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  const grandTotal = rows.reduce((s,r)=>s+r.total,0);
+  const logoEl = document.querySelector('.fabq-logo-sm, .fabq-logo-lg');
+  const logoSrc = logoEl ? logoEl.src : '';
+  const usedGauges = GAUGE_TYPES.filter(([k])=> totals[k] > 0);
+
+  document.getElementById('print-report').innerHTML = `
+    <div class="pr-head">
+      <div class="pr-brand">
+        ${logoSrc ? `<img src="${logoSrc}" class="pr-logo">` : `<div class="pr-brand-text">FabQ</div>`}
+        <div>
+          <div class="pr-title">Weekly Metal Usage Report</div>
+          <div class="pr-sub">Week of ${rangeStr}</div>
+        </div>
+      </div>
+      <div class="pr-meta">Generated ${nowStr()}<br>Prepared for: Purchasing — Metal Charge-Out</div>
+    </div>
+
+    <div class="pr-section-label">Usage by Job &amp; Gauge</div>
+    <table class="pr-table">
+      <thead><tr><th>Job Name</th><th>Job #</th><th>Company</th>${GAUGE_TYPES.map(([k,label])=>`<th>${label}</th>`).join('')}<th>Job Total (Sq Ft)</th></tr></thead>
+      <tbody>
+        ${rows.length ? rows.map(r=>`
+        <tr>
+          <td>${r.jobName}</td><td>${r.jobNumber}</td><td>${r.company}</td>
+          ${GAUGE_TYPES.map(([k])=>`<td>${r.gauges[k]?fmt(r.gauges[k]):'—'}</td>`).join('')}
+          <td><b>${fmt(r.total)}</b></td>
+        </tr>`).join('') : `<tr><td colspan="${3+GAUGE_TYPES.length+1}">No metal usage logged for this week.</td></tr>`}
+      </tbody>
+    </table>
+
+    <div class="pr-section-label" style="margin-top:24px;">Summary</div>
+    <div class="pr-summary-wrap">
+      <table class="pr-summary-table">
+        <thead><tr><th>Gauge / Material</th><th>Total Sq Ft Used (All Jobs)</th></tr></thead>
+        <tbody>
+          ${usedGauges.length ? usedGauges.map(([k,label])=>`<tr><td>${label}</td><td>${fmt(totals[k])}</td></tr>`).join('') : `<tr><td colspan="2">No usage recorded.</td></tr>`}
+        </tbody>
+      </table>
+      <div class="pr-grand-total">
+        <div class="pr-gt-label">Grand Total — All Gauges, All Jobs</div>
+        <div class="pr-gt-value">${fmt(grandTotal)} <span>sq ft</span></div>
+      </div>
+    </div>
+
+    <div class="pr-sign">
+      <div class="line">Purchasing Agent Signature</div>
+      <div class="line">Date</div>
+    </div>
+    <div class="pr-footer">FabQ — The Operating System for Fabrication</div>
+  `;
+  setTimeout(()=> window.print(), 50);
+}
+
 function toast(msg){
   const wrap = document.getElementById('toast-wrap');
   const el = document.createElement('div');
@@ -1056,6 +1180,10 @@ function viewDashboard(){
   const jobRows = jobAnalysisRows();
   const gaugeTotals = allGaugeTotals();
   const metalLog = (state.metalUsage||[]).slice().sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  if(!state.reportWeek) state.reportWeek = mondayISO(todayISO());
+  const reportWeek = state.reportWeek;
+  const weeklyRows = weeklyMetalByJob(reportWeek);
+  const weekGaugeTotals = weeklyGaugeTotals(reportWeek);
 
   return `
   <div class="dash-grid">
@@ -1195,6 +1323,50 @@ function viewDashboard(){
         </tr>`).join('') : `<tr><td colspan="7"><div class="empty">No metal usage logged yet.</div></td></tr>`}
       </tbody>
     </table>
+  </div>
+
+  <div class="toolbar">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn-ghost" id="report-week-prev">‹</button>
+      <div class="section-title" style="margin:0;"><span class="bar"></span>Weekly Metal Usage Report — Week of ${needDateLabel(reportWeek)}</div>
+      <button class="btn-ghost" id="report-week-next">›</button>
+      <button class="btn-ghost" id="report-week-today">This Week</button>
+    </div>
+    <button class="btn-primary" id="print-metal-report-btn">🖨 Print This Report</button>
+  </div>
+  <div class="table-wrap" style="margin-bottom:16px;">
+    <table>
+      <thead><tr><th>Job Name</th><th>Job #</th><th>Company</th>${GAUGE_TYPES.map(([k,label])=>`<th>${label}</th>`).join('')}<th>Job Total (Sq Ft)</th></tr></thead>
+      <tbody>
+        ${weeklyRows.length ? weeklyRows.map(r=>`
+        <tr>
+          <td class="job-name-cell"><b>${r.jobName}</b></td>
+          <td class="mono">${r.jobNumber}</td>
+          <td>${r.company}</td>
+          ${GAUGE_TYPES.map(([k])=>`<td class="mono">${r.gauges[k]?fmt(r.gauges[k]):'—'}</td>`).join('')}
+          <td class="weight-cell">${fmt(r.total)}</td>
+        </tr>`).join('') : `<tr><td colspan="${3+GAUGE_TYPES.length+1}"><div class="empty">No metal logged for this week.</div></td></tr>`}
+      </tbody>
+    </table>
+  </div>
+  <div class="dash-grid" style="margin-bottom:26px;">
+    <div style="grid-column:1/2;">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Gauge / Material</th><th>Total Sq Ft Used (All Jobs)</th></tr></thead>
+          <tbody>
+            ${GAUGE_TYPES.filter(([k])=>weekGaugeTotals[k]>0).length ? GAUGE_TYPES.filter(([k])=>weekGaugeTotals[k]>0).map(([k,label])=>`
+            <tr><td>${label}</td><td class="weight-cell">${fmt(weekGaugeTotals[k])}</td></tr>`).join('') : `<tr><td colspan="2"><div class="empty">No usage recorded.</div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="padding:20px;background:var(--bg-2);">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin-bottom:8px;">Grand Total — All Gauges, All Jobs</div>
+        <div class="mono" style="font-size:28px;font-weight:800;color:var(--steel-bright);">${fmt(weeklyRows.reduce((s,r)=>s+r.total,0))} <span style="font-size:13px;font-weight:400;color:var(--text-dim);">sq ft</span></div>
+      </div>
+    </div>
   </div>
 
   <div class="section-title"><span class="bar"></span>Recently Completed</div>
@@ -1551,6 +1723,14 @@ function bindMainEvents(){
   const newBtn = document.getElementById('new-job-btn'); if(newBtn) newBtn.addEventListener('click', openAddModal);
   const viewDeletedBtn = document.getElementById('view-deleted-btn'); if(viewDeletedBtn) viewDeletedBtn.addEventListener('click', ()=>{ renderDeletedJobsModal(); openModal('deleted-jobs-modal'); });
   const dashLogMetalBtn = document.getElementById('dash-log-metal-btn'); if(dashLogMetalBtn) dashLogMetalBtn.addEventListener('click', ()=> openMetalModal(null));
+  const reportPrev = document.getElementById('report-week-prev');
+  if(reportPrev) reportPrev.addEventListener('click', ()=>{ const d=new Date(state.reportWeek+'T00:00:00'); d.setDate(d.getDate()-7); state.reportWeek=mondayISO(d.toISOString().slice(0,10)); render(); });
+  const reportNext = document.getElementById('report-week-next');
+  if(reportNext) reportNext.addEventListener('click', ()=>{ const d=new Date(state.reportWeek+'T00:00:00'); d.setDate(d.getDate()+7); state.reportWeek=mondayISO(d.toISOString().slice(0,10)); render(); });
+  const reportToday = document.getElementById('report-week-today');
+  if(reportToday) reportToday.addEventListener('click', ()=>{ state.reportWeek = mondayISO(todayISO()); render(); });
+  const printBtn = document.getElementById('print-metal-report-btn');
+  if(printBtn) printBtn.addEventListener('click', printMetalReport);
   document.querySelectorAll('[data-edit-metal-log]').forEach(el=>el.addEventListener('click',()=> openMetalModal(el.dataset.editMetalLog)));
 
   /* Delivery Calendar drag-and-drop rescheduling */
@@ -2004,7 +2184,8 @@ document.getElementById('metal-save-btn').addEventListener('click', ()=>{
     jobName, jobNumber: val('metal-jobNumber'), company: val('metal-company'),
     employee: val('metal-employee'), machine: val('metal-machine'), gauges,
     createdBy: existing ? existing.createdBy : state.userName,
-    createdAt: existing ? existing.createdAt : nowStr()
+    createdAt: existing ? existing.createdAt : nowStr(),
+    dateISO: existing ? (existing.dateISO || todayISO()) : todayISO()
   };
   state.metalUsage = state.metalUsage || [];
   if(existing){ state.metalUsage = state.metalUsage.map(m=> m.id===existing.id ? record : m); }
@@ -2174,5 +2355,6 @@ function boot(){
 }
 boot();
 </script>
+<div id="print-report" class="print-only"></div>
 </body>
 </html>
