@@ -957,6 +957,38 @@ function allGaugeTotals(){
   (state.metalUsage||[]).forEach(e=> GAUGE_TYPES.forEach(([k])=>{ totals[k]+=Number((e.gauges||{})[k]||0); }));
   return totals;
 }
+/* ---- One-time import: replace all jobs with the real production schedule ---- */
+const REAL_SCHEDULE_IMPORT = [
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'MANUEL.ROJAS@BCHMECHANICAL.COM', system:'SAM', area:'BAGGAGE CLAIM', notes:'', drawingType:'Field Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-07-29', needDate:'2026-07-31', status:'Pending', qty:1, labelColor:'', secondaryColor:''},
+  {jobName:'TGH CVTOR RENOVATIONS', jobNumber:'25-10-0049', division:'BCH Mechanical Inc.', email:'STEPHEN.CROWELL@BCHMECHANICAL.COM', system:'DUCT', area:'', notes:'', drawingType:'Field Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-07-29', needDate:'2026-07-31', status:'Pending', qty:1, labelColor:'', secondaryColor:''},
+  {jobName:'PASCO COUNTY JAIL', jobNumber:'22-10-0027', division:'BCH Mechanical Inc.', email:'ACANNAMELA@BCHMECHANICAL.COM', system:'LPSA', area:'', notes:'', drawingType:'Field Drawing', sketchNumber:'305', shippingMethod:'Deliver', dateSubmitted:'2026-07-29', needDate:'2026-07-31', status:'Pending', qty:4, labelColor:'FL Yellow', secondaryColor:''},
+  {jobName:'WW WINDING WATER K-8', jobNumber:'25-10-0018', division:'BCH Mechanical Inc.', email:'CHRISTIAN.GARCIA@BCHMECHANICAL.COM', system:'R/A', area:'A', notes:'8/3 deliver', drawingType:'Field Drawing', sketchNumber:'456', shippingMethod:'Deliver', dateSubmitted:'2026-07-29', needDate:'2026-08-03', status:'Pending', qty:4, labelColor:'', secondaryColor:''},
+  {jobName:'STRAZ-CENTER', jobNumber:'25-41-1021', division:'RoyalAire', email:'DAVID.CHIERICI@ROYALAIRE.COM', system:'RETURN-TO-SHAFT', area:'LEVEL-1', notes:'DATE-PENDING', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-07-29', needDate:'2026-08-03', status:'Pending', qty:8, labelColor:'FL Orange', secondaryColor:'Black'},
+  {jobName:'STRAZ-CENTER', jobNumber:'25-41-1021', division:'RoyalAire', email:'DAVID.CHIERICI@ROYALAIRE.COM', system:'TRANSFER', area:'LEVEL-1', notes:'DATE-PENDING', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-07-29', needDate:'2026-08-03', status:'Pending', qty:13, labelColor:'Blue', secondaryColor:'Black'},
+  {jobName:'SHEET-METAL-MISC-2026', jobNumber:'26-10-0021', division:'RoyalAire', email:'david.lestourgeon@royalaire.com', system:'LINESET COVER', area:'N/A', notes:'SENT VIA E-MAIL // PO#11...', drawingType:'Field Drawing', sketchNumber:'', shippingMethod:'Pickup', dateSubmitted:'2026-07-28', needDate:'2026-08-04', status:'In Shop', qty:1, labelColor:'', secondaryColor:''},
+  {jobName:'STRAZ-CENTER', jobNumber:'25-41-1021', division:'RoyalAire', email:'DAVID.CHIERICI@ROYALAIRE.COM', system:'SAM-TO-SHAFT-B', area:'LEVEL-1', notes:'DATE-PENDING', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-07-28', needDate:'2026-08-04', status:'In Shop', qty:29, labelColor:'FL Yellow', secondaryColor:'Black'},
+  {jobName:'STRAZ-CENTER', jobNumber:'25-41-1021', division:'RoyalAire', email:'DAVID.CHIERICI@ROYALAIRE.COM', system:'SAM-RUN-1-TO-...', area:'LEVEL-1', notes:'DATE-PENDING', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-07-28', needDate:'2026-08-04', status:'In Shop', qty:21, labelColor:'FL Yellow', secondaryColor:'Black'},
+  {jobName:'STRAZ-CENTER', jobNumber:'25-41-1021', division:'RoyalAire', email:'DAVID.CHIERICI@ROYALAIRE.COM', system:'SAM-RUN-2-TO-...', area:'LEVEL-1', notes:'DATE-PENDING', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-07-28', needDate:'2026-08-04', status:'In Shop', qty:22, labelColor:'FL Yellow', secondaryColor:'Black'},
+  {jobName:'STRAZ-CENTER', jobNumber:'25-41-1021', division:'RoyalAire', email:'DAVID.CHIERICI@ROYALAIRE.COM', system:'RETURN-TO-SHAFT', area:'LEVEL-1', notes:'DATE-PENDING', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-07-29', needDate:'2026-08-04', status:'Pending', qty:22, labelColor:'FL Orange', secondaryColor:'Black'},
+  {jobName:'STRAZ-CENTER', jobNumber:'25-41-1021', division:'RoyalAire', email:'DAVID.CHIERICI@ROYALAIRE.COM', system:'OUTSIDE-AIR-TO-...', area:'LEVEL-1', notes:'DATE-PENDING', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-07-29', needDate:'2026-08-04', status:'Pending', qty:29, labelColor:'FL Pink', secondaryColor:'Black'},
+  {jobName:'STRAZ-CENTER', jobNumber:'25-41-1021', division:'RoyalAire', email:'KEVIN.LOVELACE@ROYALAIRE.COM', system:'EXHAUST-TO-SHAFT', area:'LEVEL-1', notes:'DATE-PENDING', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-07-29', needDate:'2026-08-04', status:'Pending', qty:28, labelColor:'FL Green', secondaryColor:'Black'},
+  {jobName:'USF SCHOOL OF NURSING', jobNumber:'23-41-1017', division:'RoyalAire', email:'James.Griffin@royalaire.com', system:'AHU-3', area:'3rd Floor', notes:'Exhaust and misc.', drawingType:'Field Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-07-28', needDate:'2026-08-05', status:'Pending', qty:1, labelColor:'', secondaryColor:''},
+  {jobName:'ED WHITE HOSP.', jobNumber:'24-41-1034', division:'RoyalAire', email:'KEVIN.LOVELACE@ROYALAIRE.COM', system:'1', area:'', notes:'Note, duct needs to finish ...', drawingType:'Field Drawing', sketchNumber:'', shippingMethod:'Pickup', dateSubmitted:'2026-07-29', needDate:'2026-08-07', status:'Pending', qty:1, labelColor:'', secondaryColor:''}
+];
+function importRealSchedule(){
+  if(!confirm(`This will permanently delete everything currently on the Production Schedule, Completed, and Delivered/Picked Up tabs (${state.jobs.length} job${state.jobs.length!==1?'s':''}) and replace it with the ${REAL_SCHEDULE_IMPORT.length} real jobs from your uploaded schedule. This cannot be undone. Continue?`)) return;
+  state.jobs = REAL_SCHEDULE_IMPORT.map(r=>({
+    id: uid(), orderType:'Duct', jobName:r.jobName, jobNumber:r.jobNumber, division:r.division,
+    customer:r.email, requesterEmail:r.email, system:r.system, area:r.area, notes:r.notes,
+    drawingType:r.drawingType, sketchNumber:r.sketchNumber, shippingMethod:r.shippingMethod,
+    trailer:'Parking Area/Shop', dateSubmitted:r.dateSubmitted, needDate:r.needDate, status:r.status,
+    qty:r.qty, weight:0, priority:'Normal', labelColor:r.labelColor, secondaryColor:r.secondaryColor,
+    hasPhoto:false, photoKeys:[],
+    history:[{when:nowStr(), note:`Imported from real production schedule by ${state.userName}.`}], qc:[]
+  }));
+  saveState(); toast('Schedule replaced with real data.'); render();
+}
+
 function jobAnalysisRows(){
   const byNumber = {};
   state.jobs.forEach(j=>{
@@ -1215,6 +1247,16 @@ function viewDashboard(){
   const weekGaugeTotals = weeklyGaugeTotals(reportWeek);
 
   return `
+  ${state.role==='master' ? `
+  <div class="card" style="padding:16px;margin-bottom:20px;border:1px solid rgba(209,69,59,.4);background:rgba(209,69,59,.06);">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;">
+      <div>
+        <div style="font-family:'Oswald';font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#e88b83;">Data Tools — Executive Only</div>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:4px;">One-time import: replace every job on the schedule with the real data from your uploaded spreadsheet.</div>
+      </div>
+      <button class="btn-danger" id="import-real-schedule-btn">📥 Replace All Jobs With Real Schedule</button>
+    </div>
+  </div>` : ''}
   <div class="dash-grid">
     <div>
       <div class="card gauge-card">
@@ -1792,6 +1834,7 @@ function bindMainEvents(){
   const newBtn = document.getElementById('new-job-btn'); if(newBtn) newBtn.addEventListener('click', openAddModal);
   const viewDeletedBtn = document.getElementById('view-deleted-btn'); if(viewDeletedBtn) viewDeletedBtn.addEventListener('click', ()=>{ renderDeletedJobsModal(); openModal('deleted-jobs-modal'); });
   const dashLogMetalBtn = document.getElementById('dash-log-metal-btn'); if(dashLogMetalBtn) dashLogMetalBtn.addEventListener('click', ()=> openMetalModal(null));
+  const importBtn = document.getElementById('import-real-schedule-btn'); if(importBtn) importBtn.addEventListener('click', importRealSchedule);
   const reportPrev = document.getElementById('report-week-prev');
   if(reportPrev) reportPrev.addEventListener('click', ()=>{ const d=new Date(state.reportWeek+'T00:00:00'); d.setDate(d.getDate()-7); state.reportWeek=mondayISO(d.toISOString().slice(0,10)); render(); });
   const reportNext = document.getElementById('report-week-next');
