@@ -110,7 +110,7 @@ nav.tabs button:hover:not(.active){color:var(--text);}
 }
 .switch-role:hover{color:var(--text); border-color:var(--steel);}
 
-main{flex:1; padding:24px; max-width:1500px; margin:0 auto; width:100%;}
+main{flex:1; padding:20px; max-width:1900px; margin:0 auto; width:100%;}
 @media(max-width:640px){main{padding:14px;}}
 
 .card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);}
@@ -1422,12 +1422,39 @@ function swatch(color, sec){
 
 /* Shared schedule table — used by Managers, Shop, and Field so every role sees the same layout */
 const FILTERABLE_COLS = [['jobName','Job Name'],['jobNumber','Job #'],['division','Division'],['customer','Customer'],['system','System / Area'],['trailer','Trailer']];
+const COLUMN_DEFS = [
+  ['needDate','Need Date',true],['jobName','Job Name',true],['jobNumber','Job #',false],
+  ['division','Division',false],['customer','Customer',false],['system','System / Area',false],
+  ['notes','Notes',false],['ship','Ship',false],['status','Status',true],['qty','Qty',false],
+  ['weight','Weight',false],['colors','Colors',false],['trailer','Trailer',false],['sketch','Sketch',false]
+];
+function columnsToggleHTML(tableId){
+  state.hiddenCols = state.hiddenCols || {};
+  const hidden = state.hiddenCols[tableId] || {};
+  return `<details class="col-filter">
+    <summary>⚙ Columns</summary>
+    <div class="col-filter-menu" style="min-width:190px;">
+      ${COLUMN_DEFS.filter(c=>!c[2]).map(([key,label])=>`
+        <label style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;">
+          <input type="checkbox" data-colvis="${tableId}|${key}" ${hidden[key]?'':'checked'} style="width:auto;flex-shrink:0;">
+          <span style="font-size:12.5px;color:var(--text-dim);">${label}</span>
+        </label>`).join('')}
+    </div>
+  </details>`;
+}
+function applyColumnVisibility(tableId){
+  state.hiddenCols = state.hiddenCols || {};
+  const hidden = state.hiddenCols[tableId] || {};
+  COLUMN_DEFS.forEach(([key])=>{
+    document.querySelectorAll(`[data-col="${key}"]`).forEach(el=>{ el.style.display = hidden[key] ? 'none' : ''; });
+  });
+}
 function colFilterHeader(tableId, key, label, jobs){
   state.colFilters = state.colFilters || {};
   state.colFilters[tableId] = state.colFilters[tableId] || {};
   const active = state.colFilters[tableId][key];
   const vals = Array.from(new Set(jobs.map(j=> (j[key]||'').toString().trim()).filter(Boolean))).sort();
-  return `<th><details class="col-filter">
+  return `<th data-col="${key}"><details class="col-filter">
     <summary>${label}${active?' <span class="cf-dot"></span>':''}</summary>
     <div class="col-filter-menu">
       <button data-colfilter="${tableId}|${key}|">All ${label}</button>
@@ -1454,36 +1481,40 @@ function renderJobsTable(jobs, opts){
   const extraCols = (opts.showAdvance?1:0) + (opts.showDelivery?1:0);
   const colCount = 14 + extraCols;
   return `
+  <div class="toolbar" style="margin-bottom:10px;">
+    <div></div>
+    ${columnsToggleHTML(tableId)}
+  </div>
   <div class="table-wrap">
     <table>
       <thead><tr>
-        <th class="sortable-th" data-sort="${tableId}">Need Date <span class="sort-arrow">${sortDir==='asc'?'▲':'▼'}</span></th>
+        <th class="sortable-th" data-col="needDate" data-sort="${tableId}">Need Date <span class="sort-arrow">${sortDir==='asc'?'▲':'▼'}</span></th>
         ${colFilterHeader(tableId,'jobName','Job Name',jobs)}
         ${colFilterHeader(tableId,'jobNumber','Job #',jobs)}
         ${colFilterHeader(tableId,'division','Division',jobs)}
         ${colFilterHeader(tableId,'customer','Customer',jobs)}
         ${colFilterHeader(tableId,'system','System / Area',jobs)}
-        <th>Notes</th><th>Ship</th><th>Status</th><th>Qty</th><th>Weight</th><th>Colors</th>
+        <th data-col="notes">Notes</th><th data-col="ship">Ship</th><th data-col="status">Status</th><th data-col="qty">Qty</th><th data-col="weight">Weight</th><th data-col="colors">Colors</th>
         ${colFilterHeader(tableId,'trailer','Trailer',jobs)}
-        <th>Sketch</th>${opts.showAdvance?'<th>Action</th>':''}${opts.showDelivery?'<th>Delivery</th>':''}
+        <th data-col="sketch">Sketch</th>${opts.showAdvance?'<th>Action</th>':''}${opts.showDelivery?'<th>Delivery</th>':''}
       </tr></thead>
       <tbody>
         ${rows.length ? rows.map(j=>`
         <tr data-open="${j.id}">
-          <td class="need-date ${needDateClass(j)}">${needDateLabel(j.needDate)}</td>
-          <td class="job-name-cell">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}${divisionBadge(j)}</td>
-          <td class="mono">${j.jobNumber}</td>
-          <td>${j.division||'—'}</td>
-          <td>${j.customer||'—'}</td>
-          <td>${j.system||''}${j.area?`<div class="sub" style="color:var(--text-faint);font-size:11px;">${j.area}</div>`:''}</td>
-          <td style="max-width:180px;white-space:normal;color:var(--text-dim);">${j.notes||''}</td>
-          <td>${j.shippingMethod}</td>
-          <td><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></td>
-          <td class="mono">${j.qty}</td>
-          <td class="weight-cell">${fmt(j.weight)}</td>
-          <td>${swatch(j.labelColor,j.secondaryColor)}</td>
-          <td>${j.trailer}</td>
-          <td><div class="thumb-cell" data-thumb="${j.id}" data-thumb-open="${j.id}">${thumbHTML(j)}</div></td>
+          <td data-col="needDate" class="need-date ${needDateClass(j)}">${needDateLabel(j.needDate)}</td>
+          <td data-col="jobName" class="job-name-cell">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}${divisionBadge(j)}</td>
+          <td data-col="jobNumber" class="mono">${j.jobNumber}</td>
+          <td data-col="division">${j.division||'—'}</td>
+          <td data-col="customer">${j.customer||'—'}</td>
+          <td data-col="system">${j.system||''}${j.area?`<div class="sub" style="color:var(--text-faint);font-size:11px;">${j.area}</div>`:''}</td>
+          <td data-col="notes" style="max-width:180px;white-space:normal;color:var(--text-dim);">${j.notes||''}</td>
+          <td data-col="ship">${j.shippingMethod}</td>
+          <td data-col="status"><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></td>
+          <td data-col="qty" class="mono">${j.qty}</td>
+          <td data-col="weight" class="weight-cell">${fmt(j.weight)}</td>
+          <td data-col="colors">${swatch(j.labelColor,j.secondaryColor)}</td>
+          <td data-col="trailer">${j.trailer}</td>
+          <td data-col="sketch"><div class="thumb-cell" data-thumb="${j.id}" data-thumb-open="${j.id}">${thumbHTML(j)}</div></td>
           ${opts.showAdvance ? `<td>${ADVANCE_MAP[j.status] ? `<button class="btn-ghost" data-quickstatus="${j.id}">Advance → ${ADVANCE_MAP[j.status]}</button>` : '—'}</td>` : ''}
           ${opts.showDelivery ? `<td>${j.status!=='Delivered/Picked Up' ? `<button class="btn-primary" data-mark-delivered="${j.id}">Mark ${j.shippingMethod==='Pickup'?'Picked Up':'Delivered'}</button>` : `<span class="status delivered">Done</span>`}</td>` : ''}
         </tr>`).join('') : `<tr><td colspan="${colCount}"><div class="empty"><div class="big">No jobs match</div>${opts.emptyText||'Try clearing filters or search.'}</div></td></tr>`}
@@ -1664,6 +1695,13 @@ function materialSummary(m){
 
 function bindMainEvents(){
   document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{ state.statusFilter=b.dataset.filter; render(); }));
+  document.querySelectorAll('[data-colvis]').forEach(cb=>cb.addEventListener('change', ()=>{
+    const [t,key] = cb.dataset.colvis.split('|');
+    state.hiddenCols = state.hiddenCols || {}; state.hiddenCols[t] = state.hiddenCols[t] || {};
+    state.hiddenCols[t][key] = !cb.checked;
+    applyColumnVisibility(t);
+  }));
+  if(state.view==='managers'||state.view==='completed'||state.view==='delivered'){ applyColumnVisibility(state.view); }
   const calPrev = document.getElementById('cal-prev'); if(calPrev) calPrev.addEventListener('click', ()=>{ state.calMonth--; if(state.calMonth<0){state.calMonth=11;state.calYear--;} render(); });
   const calNext = document.getElementById('cal-next'); if(calNext) calNext.addEventListener('click', ()=>{ state.calMonth++; if(state.calMonth>11){state.calMonth=0;state.calYear++;} render(); });
   const calToday = document.getElementById('cal-today'); if(calToday) calToday.addEventListener('click', ()=>{ const n=new Date(); state.calYear=n.getFullYear(); state.calMonth=n.getMonth(); render(); });
