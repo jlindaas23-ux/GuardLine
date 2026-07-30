@@ -729,6 +729,34 @@ function requesterOptionsHTML(selectedEmail){
   const opts = contacts.filter(c=>c.email).map(c=>`<option value="${c.email}" ${selectedEmail===c.email?'selected':''}>${c.name}${c.title?' — '+c.title:''}</option>`).join('');
   return `<option value="">— No requester selected —</option>${opts}`;
 }
+function getPickedRequesterEmail(prefix){
+  const picker = document.getElementById(prefix+'-email-picker');
+  if(!picker) return val(prefix+'-email');
+  return picker.value === '__custom__' ? val(prefix+'-email') : picker.value;
+}
+function wireRequesterPicker(prefix){
+  const picker = document.getElementById(prefix+'-email-picker');
+  const customInput = document.getElementById(prefix+'-email');
+  if(!picker || !customInput) return;
+  picker.addEventListener('change', ()=>{
+    if(picker.value==='__custom__'){ customInput.style.display=''; customInput.value=''; customInput.focus(); }
+    else { customInput.style.display='none'; customInput.value=''; }
+  });
+  const addLink = document.getElementById(prefix+'-add-contact-link');
+  if(addLink) addLink.addEventListener('click', ()=>{
+    openContactModal(null);
+    pendingRequesterPickerPrefix = prefix;
+  });
+}
+let pendingRequesterPickerPrefix = null;
+function refreshRequesterPickerIfOpen(prefix){
+  if(!prefix) return;
+  const picker = document.getElementById(prefix+'-email-picker');
+  if(!picker) return;
+  const cur = picker.value;
+  picker.innerHTML = `${requesterOptionsHTML('')}<option value="__custom__">✏️ Type a different email…</option>`;
+  picker.value = cur;
+}
 function divisionBadge(job){
   if(!job.division) return '';
   const c = DIVISION_COLOR[job.division] || 'var(--steel)';
@@ -846,7 +874,7 @@ function seedJobs(){
   const mk = (o)=>Object.assign({
     id:uid(), orderType:'Duct', division:'', area:'', notes:'', drawingType:'Field Drwg', sketchNumber:'', shippingMethod:'Deliver',
     dateSubmitted:'', needDate:'', qty:1, weight:0, labelColor:'', secondaryColor:'', trailer:'',
-    status:'Pending', priority:'Normal', hasPhoto:false, photoKeys:[], manualOrder:nextManualOrder(), history:[{when:nowStr(),note:'Job created and added to schedule.'}], qc:[]
+    status:'Pending', priority:'Normal', hasPhoto:false, photoKeys:[], pdfFiles:[], manualOrder:nextManualOrder(), history:[{when:nowStr(),note:'Job created and added to schedule.'}], qc:[]
   }, o);
   return [
     mk({jobName:'Pasco County J',jobNumber:'22-10-0027',customer:'RICH.LY...',system:'Outside Air',notes:'Waiting on e-mail / CAD',sketchNumber:'534 remake',shippingMethod:'Deliver',dateSubmitted:'2026-07-23',needDate:'2026-07-28',status:'Pending',weight:640,qty:1}),
@@ -950,6 +978,28 @@ async function loadPhoto(jobId){
 }
 async function savePhoto(jobId, dataUrl){
   await db.collection('fabq_photos').doc(jobId).set({dataUrl});
+}
+async function saveFile(key, dataUrl, name){
+  await db.collection('fabq_files').doc(key).set({dataUrl, name: name||'file.pdf'});
+}
+async function loadFile(key){
+  try{
+    const doc = await db.collection('fabq_files').doc(key).get();
+    return doc.exists ? doc.data() : null;
+  }catch(e){ return null; }
+}
+function readFileAsDataURL(file){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=> resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function downloadDataUrl(dataUrl, filename){
+  const a = document.createElement('a');
+  a.href = dataUrl; a.download = filename || 'attachment.pdf';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
 /* Real-time sync: any change anyone makes shows up immediately for everyone else.
@@ -1206,7 +1256,7 @@ function importRealSchedule(){
     drawingType:r.drawingType, sketchNumber:r.sketchNumber, shippingMethod:r.shippingMethod,
     trailer:'Parking Area/Shop', dateSubmitted:r.dateSubmitted, needDate:r.needDate, status:r.status,
     qty:r.qty, weight:0, priority:'Normal', labelColor:r.labelColor, secondaryColor:r.secondaryColor,
-    hasPhoto:false, photoKeys:[],
+    hasPhoto:false, photoKeys:[], pdfFiles:[],
     manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Imported from real production schedule by ${state.userName}.`}], qc:[]
   }));
   saveState(); toast('Schedule replaced with real data.'); render();
@@ -2444,7 +2494,15 @@ async function renderJobModal(){
         <label class="btn-ghost">Take Photo<input type="file" accept="image/*" capture="environment" id="camera-input" style="display:none;"></label>
         <label class="btn-ghost">Upload Photos<input type="file" accept="image/*" multiple id="upload-input" style="display:none;"></label>
       </div>` : ''}
-    </div>`;
+    </div>
+    <div class="section-title" style="margin-top:20px;"><span class="bar"></span>PDF Attachments</div>
+    <div id="jm-pdf-list">${(job.pdfFiles&&job.pdfFiles.length) ? job.pdfFiles.map(f=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-soft);gap:8px;">
+        <span style="font-size:12.5px;cursor:pointer;color:var(--steel-bright);" data-open-pdf="${f.key}" data-pdf-name="${f.name}">📄 ${f.name}</span>
+        ${canEdit ? `<button class="btn-danger" data-remove-pdf="${f.key}" style="padding:4px 10px;font-size:11px;">Remove</button>` : ''}
+      </div>`).join('') : `<div class="empty" style="padding:12px 0;">No PDFs attached.</div>`}
+    </div>
+    ${canEdit ? `<div class="photo-buttons" style="margin-top:10px;"><label class="btn-ghost">Upload PDF<input type="file" accept="application/pdf" multiple id="jm-pdf-upload" style="display:none;"></label></div>` : ''}`;
     foot.innerHTML = '';
     const printAllBtn = document.getElementById('print-all-photos-btn');
     if(printAllBtn) printAllBtn.addEventListener('click', ()=>{
@@ -2488,7 +2546,33 @@ async function renderJobModal(){
         addHistory(job, `Photo removed by ${state.userName}.`);
         saveState(); toast('Photo removed.'); renderJobModal();
       }));
+      const pdfUpInput = document.getElementById('jm-pdf-upload');
+      pdfUpInput.addEventListener('change', async ()=>{
+        const files = Array.from(pdfUpInput.files);
+        job.pdfFiles = job.pdfFiles || [];
+        for(const f of files){
+          if(f.size > 900*1024){ toast(`${f.name} is too large (max ~900KB). Skipped.`); continue; }
+          const dataUrl = await readFileAsDataURL(f);
+          const key = uid();
+          await saveFile(key, dataUrl, f.name);
+          job.pdfFiles.push({key, name:f.name});
+        }
+        addHistory(job, `${files.length>1?files.length+' PDFs':'PDF'} attached by ${state.userName}.`);
+        saveState(); toast('PDF(s) saved.'); renderJobModal();
+        pdfUpInput.value='';
+      });
+      body.querySelectorAll('[data-remove-pdf]').forEach(b=>b.addEventListener('click', ()=>{
+        if(!confirm('Remove this PDF?')) return;
+        job.pdfFiles = (job.pdfFiles||[]).filter(f=>f.key!==b.dataset.removePdf);
+        addHistory(job, `PDF removed by ${state.userName}.`);
+        saveState(); toast('PDF removed.'); renderJobModal();
+      }));
     }
+    body.querySelectorAll('[data-open-pdf]').forEach(el=>el.addEventListener('click', async ()=>{
+      const file = await loadFile(el.dataset.openPdf);
+      if(!file){ toast('Could not load that PDF.'); return; }
+      downloadDataUrl(file.dataUrl, file.name || el.dataset.pdfName);
+    }));
   }
 
   else if(state.jmTab==='history'){
@@ -2689,7 +2773,15 @@ function openMaterialModal(){
       <div class="field"><label>Job Name</label><input id="mat-jobName" placeholder="e.g. Site Material Order"></div>
       <div class="field"><label>Job Number</label><input id="mat-jobNumber" placeholder="optional"></div>
       <div class="field"><label>Division / Company <span style="color:var(--red);">*</span></label><select id="mat-division">${divisionOptionsHTML('')}</select></div>
-      <div class="field"><label>Requester <span style="color:var(--text-faint);font-size:10px;">(for order emails)</span></label><select id="mat-email">${requesterOptionsHTML('')}</select></div>
+      <div class="field" style="grid-column:1/-1;">
+        <label>Requester <span style="color:var(--text-faint);font-size:10px;">(for order emails)</span></label>
+        <select id="mat-email-picker" style="margin-bottom:6px;">
+          ${requesterOptionsHTML('')}
+          <option value="__custom__">✏️ Type a different email…</option>
+        </select>
+        <input id="mat-email" type="email" placeholder="name@example.com" style="display:none;">
+        <button type="button" id="mat-add-contact-link" style="background:none;border:none;color:var(--steel-bright);text-decoration:underline;font-size:11px;padding:6px 0 0;cursor:pointer;">+ Add New Contact</button>
+      </div>
     </div>
     <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Materials Needed</div>
     <div class="form-grid">
@@ -2723,6 +2815,7 @@ function openMaterialModal(){
       </div>
     </div>
   `;
+  wireRequesterPicker('mat');
   const matCamInput = document.getElementById('mat-camera');
   matCamInput.addEventListener('change', async ()=>{
     if(matCamInput.files[0]){ materialPhotoDrafts.push({dataUrl: await compressImage(matCamInput.files[0])}); renderMaterialPhotoGallery(); }
@@ -2759,11 +2852,11 @@ document.getElementById('material-save-btn').addEventListener('click', async ()=
   const jobNumber = val('mat-jobNumber').trim() || ('MAT-'+uid().slice(1,6).toUpperCase());
   const leadTime = val('mat-leadtime');
   const job = {
-    id: uid(), orderType:'Material', jobName, jobNumber, division: val('mat-division'), customer:'', requesterEmail: val('mat-email'),
+    id: uid(), orderType:'Material', jobName, jobNumber, division: val('mat-division'), customer:'', requesterEmail: getPickedRequesterEmail('mat'),
     system:'', area:'', trailer:'', dateSubmitted: todayISO(),
     needDate: val('mat-dateneeded'), shippingMethod: val('mat-shipping'),
     qty:1, weight:0, priority: leadTime==='Urgent Order' ? 'Urgent' : 'Normal',
-    labelColor:'', secondaryColor:'', notes: val('mat-notes'), status:'Pending', hasPhoto:false, photoKeys:[],
+    labelColor:'', secondaryColor:'', notes: val('mat-notes'), status:'Pending', hasPhoto:false, photoKeys:[], pdfFiles:[],
     drawingType:'', sketchNumber:'', materials, otherItems: val('mat-other'),
     manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Material order created by ${state.userName}.`}], qc:[]
   };
@@ -2861,6 +2954,12 @@ function openContactModal(existingId){
     if(existing){ state.contacts = state.contacts.map(c=>c.id===existing.id?record:c); }
     else{ state.contacts.push(record); }
     saveState(); closeModal('contact-modal'); toast('Contact saved.'); render();
+    if(pendingRequesterPickerPrefix){
+      refreshRequesterPickerIfOpen(pendingRequesterPickerPrefix);
+      const picker = document.getElementById(pendingRequesterPickerPrefix+'-email-picker');
+      if(picker && record.email) picker.value = record.email;
+      pendingRequesterPickerPrefix = null;
+    }
   };
   openModal('contact-modal');
 }
@@ -2955,6 +3054,7 @@ function renderDeletedJobsModal(){
 
 function openAddModal(){
   newJobPhotoDrafts = [];
+  newJobPdfDrafts = [];
   const isField = state.role==='field';
   document.getElementById('add-body').innerHTML = `
   <div class="form-grid">
@@ -2971,8 +3071,16 @@ function openAddModal(){
     <div class="field"><label>Job Number</label><input id="n-jobNumber" placeholder="e.g. 25-10-0054"></div>
     <div class="field"><label>Division / Company <span style="color:var(--red);">*</span></label><select id="n-division">${divisionOptionsHTML('')}</select></div>
     <div class="field"><label>Customer</label><input id="n-customer"></div>
-    <div class="field"><label>Requester <span style="color:var(--text-faint);font-size:10px;">(for order emails)</span></label><select id="n-email">${requesterOptionsHTML('')}</select></div>
-    <div class="field"><label>System</label><input id="n-system"></div>
+    <div class="field" style="grid-column:1/-1;">
+      <label>Requester <span style="color:var(--text-faint);font-size:10px;">(for order emails)</span></label>
+      <select id="n-email-picker" style="margin-bottom:6px;">
+        ${requesterOptionsHTML('')}
+        <option value="__custom__">✏️ Type a different email…</option>
+      </select>
+      <input id="n-email" type="email" placeholder="name@example.com" style="display:none;">
+      <button type="button" id="n-add-contact-link" style="background:none;border:none;color:var(--steel-bright);text-decoration:underline;font-size:11px;padding:6px 0 0;cursor:pointer;">+ Add New Contact</button>
+    </div>
+    <div class="field"><label>System <span style="color:var(--red);">*</span></label><input id="n-system"></div>
     <div class="field"><label>Area</label><input id="n-area"></div>
     <div class="field"><label>Date Submitted</label><input id="n-date" type="date" value="${todayISO()}"></div>
     <div class="field"><label>Need Date <span style="color:var(--red);">*</span></label><input id="n-needdate" type="date"></div>
@@ -2992,7 +3100,15 @@ function openAddModal(){
       <label class="btn-ghost">Take Photo<input type="file" accept="image/*" capture="environment" id="n-camera" style="display:none;"></label>
       <label class="btn-ghost">Upload Photos<input type="file" accept="image/*" multiple id="n-upload" style="display:none;"></label>
     </div>
+  </div>
+  <div class="section-title" style="margin-top:18px;"><span class="bar"></span>PDF Attachments <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(drawings, POs, etc.)</span></div>
+  <div class="photo-zone" style="padding:16px;">
+    <div id="n-pdf-list">No PDFs attached.</div>
+    <div class="photo-buttons">
+      <label class="btn-ghost">Upload PDF<input type="file" accept="application/pdf" multiple id="n-pdf-upload" style="display:none;"></label>
+    </div>
   </div>`;
+  wireRequesterPicker('n');
   const jobNamePicker = document.getElementById('n-jobName-picker');
   jobNamePicker.addEventListener('change', function(){
     const jobNumInput = document.getElementById('n-jobNumber');
@@ -3022,10 +3138,22 @@ function openAddModal(){
     renderNewJobPhotoGallery();
     upInput.value='';
   });
+  const pdfInput = document.getElementById('n-pdf-upload');
+  pdfInput.addEventListener('change', async ()=>{
+    for(const f of Array.from(pdfInput.files)){
+      if(f.size > 900*1024){ toast(`${f.name} is too large (max ~900KB). Skipped.`); continue; }
+      const dataUrl = await readFileAsDataURL(f);
+      newJobPdfDrafts.push({name: f.name, dataUrl});
+    }
+    renderNewJobPdfList();
+    pdfInput.value='';
+  });
   renderNewJobPhotoGallery();
+  renderNewJobPdfList();
   openModal('add-modal');
 }
 let newJobPhotoDrafts = [];
+let newJobPdfDrafts = [];
 function renderNewJobPhotoGallery(){
   const el = document.getElementById('n-photo-gallery'); if(!el) return;
   if(!newJobPhotoDrafts.length){ el.innerHTML = 'No photos attached.'; return; }
@@ -3035,14 +3163,27 @@ function renderNewJobPhotoGallery(){
     newJobPhotoDrafts.splice(Number(b.dataset.removeDraft),1); renderNewJobPhotoGallery();
   }));
 }
+function renderNewJobPdfList(){
+  const el = document.getElementById('n-pdf-list'); if(!el) return;
+  if(!newJobPdfDrafts.length){ el.innerHTML = 'No PDFs attached.'; return; }
+  el.innerHTML = newJobPdfDrafts.map((d,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft);gap:8px;">
+      <span style="font-size:12.5px;">📄 ${d.name}</span>
+      <button type="button" class="btn-danger" data-remove-pdf-draft="${i}" style="padding:4px 10px;font-size:11px;">Remove</button>
+    </div>`).join('');
+  el.querySelectorAll('[data-remove-pdf-draft]').forEach(b=>b.addEventListener('click', ()=>{
+    newJobPdfDrafts.splice(Number(b.dataset.removePdfDraft),1); renderNewJobPdfList();
+  }));
+}
 document.getElementById('add-save-btn').addEventListener('click', async ()=>{
   const name = val('n-jobName'); const num = val('n-jobNumber');
   if(!name || !num){ toast('Job name and number are required.'); return; }
+  if(!val('n-system').trim()){ toast('System is required.'); return; }
   const job = {
-    id: uid(), orderType:'Duct', jobName:name, jobNumber:num, division:val('n-division'), customer:val('n-customer'), requesterEmail:val('n-email'), system:val('n-system'), area:val('n-area'),
+    id: uid(), orderType:'Duct', jobName:name, jobNumber:num, division:val('n-division'), customer:val('n-customer'), requesterEmail:getPickedRequesterEmail('n'), system:val('n-system'), area:val('n-area'),
     trailer:'', dateSubmitted:val('n-date'), needDate:val('n-needdate'), shippingMethod:val('n-shipping'),
     qty:Number(val('n-qty')), weight:Number(val('n-weight')), priority:val('n-priority'), labelColor:val('n-color'), secondaryColor:val('n-color2'),
-    notes:val('n-notes'), status:'Pending', hasPhoto:false, photoKeys:[], drawingType:'Field Drwg', sketchNumber:'',
+    notes:val('n-notes'), status:'Pending', hasPhoto:false, photoKeys:[], pdfFiles:[], drawingType:'Field Drwg', sketchNumber:'',
     manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Job created by ${state.userName}.`}], qc:[]
   };
   if(newJobPhotoDrafts.length){
@@ -3052,6 +3193,13 @@ document.getElementById('add-save-btn').addEventListener('click', async ()=>{
       job.photoKeys.push(key);
     }
     job.hasPhoto = true;
+  }
+  if(newJobPdfDrafts.length){
+    for(const draft of newJobPdfDrafts){
+      const key = uid();
+      await saveFile(key, draft.dataUrl, draft.name);
+      job.pdfFiles.push({key, name: draft.name});
+    }
   }
   state.jobs.unshift(job);
   saveState(); closeModal('add-modal'); render(); toast('Job added to schedule.');
