@@ -715,10 +715,18 @@ const JOB_MASTER_SEED = [
   ['25-10-0053','Weeki Wachee CEP'],['24-44-1013','West Zephyrhills Elementry Sc'],['25-10-0018','WW Winding Water K-8 Bldg.']
 ];
 function ensureJobMasterSeeded(){
-  if(!state.jobMasterList || !state.jobMasterList.length){
-    state.jobMasterList = JOB_MASTER_SEED.map(([jobNumber,jobName])=>({id:uid(), jobNumber, jobName}));
-    saveState();
-  }
+  state.jobMasterList = state.jobMasterList || [];
+  const existingNumbers = new Set(state.jobMasterList.map(j=>(j.jobNumber||'').trim().toLowerCase()).filter(Boolean));
+  let added = 0;
+  JOB_MASTER_SEED.forEach(([jobNumber,jobName])=>{
+    const key = jobNumber.trim().toLowerCase();
+    if(!existingNumbers.has(key)){
+      state.jobMasterList.push({id:uid(), jobNumber, jobName});
+      existingNumbers.add(key);
+      added++;
+    }
+  });
+  if(added){ saveState(); toast(`Added ${added} job${added!==1?'s':''} to the job list.`); refreshJobNamePickerIfOpen(); }
 }
 function jobMasterOptionsHTML(){
   return (state.jobMasterList||[]).slice().sort((a,b)=>(a.jobName||'').localeCompare(b.jobName||''))
