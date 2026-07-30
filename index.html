@@ -2885,7 +2885,8 @@ function refreshJobNamePickerIfOpen(){
   const picker = document.getElementById('n-jobName-picker');
   if(picker && document.getElementById('add-modal').classList.contains('show')){
     const cur = picker.value;
-    picker.innerHTML = `<option value="">— Choose an existing job, or add new below —</option>${jobMasterOptionsHTML()}<option value="__new__">➕ Add New Job…</option>`;
+    const emptyNote = (!state.jobMasterList || !state.jobMasterList.length) ? `<option value="" disabled>(No jobs in the list yet — use "Manage Job List" below)</option>` : '';
+    picker.innerHTML = `<option value="">— Choose an existing job, or add new below —</option>${jobMasterOptionsHTML()}${emptyNote}<option value="__new__">➕ Add New Job…</option>`;
     picker.value = cur;
   }
 }
@@ -3066,6 +3067,7 @@ function openAddModal(){
       <select id="n-jobName-picker" style="margin-bottom:8px;">
         <option value="">— Choose an existing job, or add new below —</option>
         ${jobMasterOptionsHTML()}
+        ${(!state.jobMasterList || !state.jobMasterList.length) ? `<option value="" disabled>(No jobs in the list yet — use "Manage Job List" below)</option>` : ''}
         <option value="__new__">➕ Add New Job…</option>
       </select>
       <input id="n-jobName" placeholder="Type a new job name, or pick one above">
