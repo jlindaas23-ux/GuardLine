@@ -663,6 +663,11 @@ const DIVISION_COLOR = {'BCH Mechanical Inc.':'#4a7fd1','ConServ':'#4f9d69','Roy
 function divisionOptionsHTML(selected){
   return `<option value="">—</option>` + DIVISIONS.map(d=>`<option ${selected===d?'selected':''}>${d}</option>`).join('');
 }
+function requesterOptionsHTML(selectedEmail){
+  const contacts = (state.contacts||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const opts = contacts.filter(c=>c.email).map(c=>`<option value="${c.email}" ${selectedEmail===c.email?'selected':''}>${c.name}${c.title?' — '+c.title:''}</option>`).join('');
+  return `<option value="">— No requester selected —</option>${opts}`;
+}
 function divisionBadge(job){
   if(!job.division) return '';
   const c = DIVISION_COLOR[job.division] || 'var(--steel)';
@@ -820,9 +825,9 @@ const auxDocRef = db.collection('fabq').doc('aux-data');
 /* Fill these in once EmailJS is set up (see setup instructions). Leave EMAIL_ENABLED
    false until all three values below are real — otherwise emails will silently fail. */
 const EMAIL_ENABLED = false;
-const EMAILJS_SERVICE_ID = 'YOUR_SERVICE_ID';
-const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';
-const EMAILJS_PUBLIC_KEY = 'YOUR_PUBLIC_KEY';
+const EMAILJS_SERVICE_ID = 'service_3ci139g';
+const EMAILJS_TEMPLATE_ID = 'template_zp9cd4o';
+const EMAILJS_PUBLIC_KEY = 'anWjMuZ4sm3bfN4dp';
 const OWNER_EMAIL = 'YOUR_EMAIL_HERE';
 if(EMAIL_ENABLED && window.emailjs){ emailjs.init({publicKey: EMAILJS_PUBLIC_KEY}); }
 
@@ -2299,7 +2304,7 @@ async function renderJobModal(){
       <div class="field"><label>Job Number</label><input id="f-jobNumber" value="${job.jobNumber}" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>Division / Company</label><select id="f-division" ${canEdit?'':'disabled'}>${divisionOptionsHTML(job.division)}</select></div>
       <div class="field"><label>Customer</label><input id="f-customer" value="${job.customer||''}" ${canEdit?'':'disabled'}></div>
-      <div class="field"><label>Requester Email</label><input id="f-email" type="email" value="${job.requesterEmail||''}" ${canEdit?'':'disabled'}></div>
+      <div class="field"><label>Requester (for order emails)</label><select id="f-email" ${canEdit?'':'disabled'}>${requesterOptionsHTML(job.requesterEmail)}</select></div>
       <div class="field"><label>System</label><input id="f-system" value="${job.system||''}" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>Area</label><input id="f-area" value="${job.area||''}" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>Trailer / Location</label><select id="f-trailer" ${canEdit?'':'disabled'}>${trailerOptionsHTML(job.trailer)}</select></div>
@@ -2620,6 +2625,7 @@ function openMaterialModal(){
       <div class="field"><label>Job Name</label><input id="mat-jobName" placeholder="e.g. Site Material Order"></div>
       <div class="field"><label>Job Number</label><input id="mat-jobNumber" placeholder="optional"></div>
       <div class="field"><label>Division / Company <span style="color:var(--red);">*</span></label><select id="mat-division">${divisionOptionsHTML('')}</select></div>
+      <div class="field"><label>Requester <span style="color:var(--text-faint);font-size:10px;">(for order emails)</span></label><select id="mat-email">${requesterOptionsHTML('')}</select></div>
     </div>
     <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Materials Needed</div>
     <div class="form-grid">
@@ -2689,7 +2695,7 @@ document.getElementById('material-save-btn').addEventListener('click', async ()=
   const jobNumber = val('mat-jobNumber').trim() || ('MAT-'+uid().slice(1,6).toUpperCase());
   const leadTime = val('mat-leadtime');
   const job = {
-    id: uid(), orderType:'Material', jobName, jobNumber, division: val('mat-division'), customer:'', requesterEmail:'',
+    id: uid(), orderType:'Material', jobName, jobNumber, division: val('mat-division'), customer:'', requesterEmail: val('mat-email'),
     system:'', area:'', trailer:'', dateSubmitted: todayISO(),
     needDate: val('mat-dateneeded'), shippingMethod: val('mat-shipping'),
     qty:1, weight:0, priority: leadTime==='Urgent Order' ? 'Urgent' : 'Normal',
@@ -2710,6 +2716,7 @@ document.getElementById('material-save-btn').addEventListener('click', async ()=
   }
   state.jobs.unshift(job);
   saveState(); closeModal('material-modal'); toast('Material request added to the production schedule.'); render();
+  notifyNewJob(job);
 });
 
 let editingMetalId = null;
@@ -2849,7 +2856,7 @@ function openAddModal(){
     <div class="field"><label>Job Number</label><input id="n-jobNumber" placeholder="e.g. 25-10-0054"></div>
     <div class="field"><label>Division / Company <span style="color:var(--red);">*</span></label><select id="n-division">${divisionOptionsHTML('')}</select></div>
     <div class="field"><label>Customer</label><input id="n-customer"></div>
-    <div class="field"><label>Requester Email <span style="color:var(--text-faint);font-size:10px;">(for order emails)</span></label><input id="n-email" type="email" placeholder="name@example.com"></div>
+    <div class="field"><label>Requester <span style="color:var(--text-faint);font-size:10px;">(for order emails)</span></label><select id="n-email">${requesterOptionsHTML('')}</select></div>
     <div class="field"><label>System</label><input id="n-system"></div>
     <div class="field"><label>Area</label><input id="n-area"></div>
     <div class="field"><label>Date Submitted</label><input id="n-date" type="date" value="${todayISO()}"></div>
