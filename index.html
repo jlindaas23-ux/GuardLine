@@ -803,6 +803,7 @@ const ACCESS_CODE = 'FABQ2026';
 let pendingRole = null;
 let draggedJobId = null;
 let draggedRowJobId = null;
+const qcVerifiedJobIds = new Set();
 function persistRole(role){
   try{ localStorage.setItem('fabq-role', role); }catch(e){}
 }
@@ -2639,6 +2640,10 @@ async function renderJobModal(){
   }
 
   else if(state.jmTab==='qc'){
+    const hasRequester = !!job.requesterEmail;
+    const verified = qcVerifiedJobIds.has(job.id);
+    const showForm = !hasRequester || verified;
+    const requesterName = hasRequester ? (((state.contacts||[]).find(c=>c.email===job.requesterEmail)||{}).name || job.requesterEmail) : '';
     body.innerHTML = `
     <div id="qc-list">${(job.qc||[]).length ? job.qc.map(q=>`
       <div class="qc-item">
@@ -2649,6 +2654,7 @@ async function renderJobModal(){
         ${q.status==='Open' ? `<button class="btn-ghost resolve-btn" data-resolve="${q.id}">Mark Resolved</button>`:''}
       </div>`).join('') : '<div class="empty" style="padding:16px 0;">No callbacks reported.</div>'}
     </div>
+    ${showForm ? `
     <div class="form-grid" style="margin-top:16px;">
       <div class="field"><label>Sketch # / Order #</label><input id="qc-ref" placeholder="e.g. ${job.sketchNumber||job.jobNumber}"></div>
       <div class="field"><label>Issue Type</label><select id="qc-type">${ISSUE_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
@@ -2668,19 +2674,36 @@ async function renderJobModal(){
         <input type="checkbox" id="qc-remake" style="width:auto;flex-shrink:0;">
         <label style="margin:0;text-transform:none;font-size:13px;color:var(--text);" for="qc-remake">This needs a remake — automatically add it to the production schedule as <b style="color:var(--red);">Urgent</b></label>
       </div>
-    </div>`;
-    foot.innerHTML = `<button class="btn-primary" id="qc-submit-btn">Submit Callback</button>`;
-    let jmQcPhotoDraft = null;
-    wirePhotoInput('qc-camera','qc-photo-preview', (url)=>{ jmQcPhotoDraft = url; });
-    wirePhotoInput('qc-upload','qc-photo-preview', (url)=>{ jmQcPhotoDraft = url; });
-    document.getElementById('qc-submit-btn').onclick = async ()=>{
-      const desc = val('qc-desc'); if(!desc.trim()){ toast('Describe the issue first.'); return; }
-      await fileQcReport(job, {
-        ref: val('qc-ref'), issueType: val('qc-type'), priority: val('qc-priority'), division: job.division,
-        desc, photoDataUrl: jmQcPhotoDraft, remake: document.getElementById('qc-remake').checked
+    </div>` : `
+    <div class="card" style="padding:16px;margin-top:16px;background:var(--panel-2);">
+      <div style="font-size:13px;color:var(--text-dim);margin-bottom:12px;">This order was requested by <b style="color:var(--text);">${requesterName}</b>. Only they can file a Quality Control report directly on this order. Confirm that's you to continue — or anyone can use the <b>⚠ Report Issue</b> button at the top of the page to report an issue on any order.</div>
+      <select id="qc-verify-select" style="margin-bottom:10px;">${requesterOptionsHTML('')}</select>
+      <button class="btn-primary" id="qc-verify-btn">Confirm & Continue</button>
+    </div>`}
+    `;
+    foot.innerHTML = showForm ? `<button class="btn-primary" id="qc-submit-btn">Submit Callback</button>` : '';
+    if(!showForm){
+      document.getElementById('qc-verify-btn').addEventListener('click', ()=>{
+        const picked = val('qc-verify-select');
+        if(!picked){ toast('Select your name first.'); return; }
+        if(picked !== job.requesterEmail){ toast(`Only ${requesterName} can file a callback directly on this order.`); return; }
+        qcVerifiedJobIds.add(job.id);
+        renderJobModal();
       });
-      toast('Callback submitted.'); renderJobModal();
-    };
+    }
+    let jmQcPhotoDraft = null;
+    if(showForm){
+      wirePhotoInput('qc-camera','qc-photo-preview', (url)=>{ jmQcPhotoDraft = url; });
+      wirePhotoInput('qc-upload','qc-photo-preview', (url)=>{ jmQcPhotoDraft = url; });
+      document.getElementById('qc-submit-btn').onclick = async ()=>{
+        const desc = val('qc-desc'); if(!desc.trim()){ toast('Describe the issue first.'); return; }
+        await fileQcReport(job, {
+          ref: val('qc-ref'), issueType: val('qc-type'), priority: val('qc-priority'), division: job.division,
+          desc, photoDataUrl: jmQcPhotoDraft, remake: document.getElementById('qc-remake').checked
+        });
+        toast('Callback submitted.'); renderJobModal();
+      };
+    }
     body.querySelectorAll('[data-resolve]').forEach(b=>b.addEventListener('click',()=>{
       const q = (job.qc||[]).find(x=>x.id===b.dataset.resolve); if(!q) return;
       q.status='Resolved';
