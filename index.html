@@ -721,8 +721,8 @@ function ensureJobMasterSeeded(){
   }
 }
 function jobMasterOptionsHTML(){
-  return state.jobMasterList.slice().sort((a,b)=>a.jobName.localeCompare(b.jobName))
-    .map(j=>`<option value="${j.jobName.replace(/"/g,'&quot;')}" data-jobnum="${j.jobNumber.replace(/"/g,'&quot;')}">${j.jobName} (${j.jobNumber})</option>`).join('');
+  return (state.jobMasterList||[]).slice().sort((a,b)=>(a.jobName||'').localeCompare(b.jobName||''))
+    .map(j=>`<option value="${(j.jobName||'').replace(/"/g,'&quot;')}" data-jobnum="${(j.jobNumber||'').replace(/"/g,'&quot;')}">${j.jobName||''} (${j.jobNumber||'no #'})</option>`).join('');
 }
 function requesterOptionsHTML(selectedEmail){
   const contacts = (state.contacts||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));
@@ -1039,6 +1039,7 @@ function startLiveSync(onFirstLoad){
       state.metalUsage = JSON.parse(data.metalUsageJson || '[]');
       state.contacts = JSON.parse(data.contactsJson || '[]');
       state.jobMasterList = JSON.parse(data.jobMasterListJson || '[]');
+      refreshJobNamePickerIfOpen();
     } else {
       /* One-time migration: older data may still have these fields on the
          main document. Pull them over once, then future saves go to aux-data. */
@@ -1052,8 +1053,10 @@ function startLiveSync(onFirstLoad){
           if(d.contactsJson) state.contacts = JSON.parse(d.contactsJson);
         }
         ensureContactsSeeded();
+        ensureJobMasterSeeded();
         saveStateNow();
         if(state.role){ render(); }
+        refreshJobNamePickerIfOpen();
       }).catch(()=>{});
     }
     auxLoaded = true;
@@ -3084,10 +3087,10 @@ function openAddModal(){
     <div class="field"><label>Area</label><input id="n-area"></div>
     <div class="field"><label>Date Submitted</label><input id="n-date" type="date" value="${todayISO()}"></div>
     <div class="field"><label>Need Date <span style="color:var(--red);">*</span></label><input id="n-needdate" type="date"></div>
-    <div class="field"><label>Shipping Method</label><select id="n-shipping"><option>Deliver</option><option>Pickup</option></select></div>
-    <div class="field"><label>Order Qty</label><input id="n-qty" type="number" value="1"></div>
+    <div class="field"><label>Shipping Method <span style="color:var(--red);">*</span></label><select id="n-shipping"><option value="">— Select —</option><option>Deliver</option><option>Pickup</option></select></div>
+    <div class="field"><label>Order Qty <span style="color:var(--red);">*</span></label><input id="n-qty" type="number" value="1" min="1"></div>
     ${isField ? '' : `<div class="field"><label>Weight (lbs)</label><input id="n-weight" type="number" value="0"></div>`}
-    <div class="field"><label>Priority</label><select id="n-priority"><option>Normal</option><option>Urgent</option></select></div>
+    <div class="field"><label>Priority <span style="color:var(--red);">*</span></label><select id="n-priority"><option value="">— Select —</option><option>Normal</option><option>Urgent</option></select></div>
     ${isField ? '' : `
     <div class="field"><label>Label Color</label><select id="n-color"><option value="">—</option>${Object.keys(COLOR_HEX).map(c=>`<option>${c}</option>`).join('')}</select></div>
     <div class="field"><label>Secondary Color</label><select id="n-color2"><option value="">—</option>${Object.keys(COLOR_HEX).map(c=>`<option>${c}</option>`).join('')}</select></div>`}
@@ -3179,6 +3182,9 @@ document.getElementById('add-save-btn').addEventListener('click', async ()=>{
   const name = val('n-jobName'); const num = val('n-jobNumber');
   if(!name || !num){ toast('Job name and number are required.'); return; }
   if(!val('n-system').trim()){ toast('System is required.'); return; }
+  if(!val('n-shipping')){ toast('Shipping Method is required.'); return; }
+  if(!val('n-priority')){ toast('Priority is required.'); return; }
+  if(!val('n-qty') || Number(val('n-qty'))<=0){ toast('Order Qty must be at least 1.'); return; }
   const job = {
     id: uid(), orderType:'Duct', jobName:name, jobNumber:num, division:val('n-division'), customer:val('n-customer'), requesterEmail:getPickedRequesterEmail('n'), system:val('n-system'), area:val('n-area'),
     trailer:'', dateSubmitted:val('n-date'), needDate:val('n-needdate'), shippingMethod:val('n-shipping'),
