@@ -814,6 +814,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const stateDocRef = db.collection('fabq').doc('production-state');
+const auxDocRef = db.collection('fabq').doc('aux-data');
 
 /* ============================ EMAIL NOTIFICATIONS ============================ */
 /* Fill these in once EmailJS is set up (see setup instructions). Leave EMAIL_ENABLED
@@ -848,6 +849,7 @@ function notifyJobComplete(job){
 
 let saveTimer = null;
 let suppressNextSnapshot = false;
+let suppressNextAuxSnapshot = false;
 let firestoreReady = false;
 
 function saveStateNow(){
@@ -855,13 +857,18 @@ function saveStateNow(){
   stateDocRef.set({
     jobsJson: JSON.stringify(state.jobs),
     goal: state.goal,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(err=>{ console.error('Save failed', err); toast('Could not save — check connection.'); });
+
+  suppressNextAuxSnapshot = true;
+  auxDocRef.set({
     trailersJson: JSON.stringify(state.trailers),
     deletedJobsJson: JSON.stringify(state.deletedJobs),
     hoursLogJson: JSON.stringify(state.hoursLog),
     metalUsageJson: JSON.stringify(state.metalUsage),
     contactsJson: JSON.stringify(state.contacts),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).catch(err=>{ console.error('Save failed', err); toast('Could not save — check connection.'); });
+  }).catch(err=>{ console.error('Aux save failed', err); toast('Could not save — check connection.'); });
 }
 function saveState(){
   clearTimeout(saveTimer);
@@ -877,29 +884,61 @@ async function savePhoto(jobId, dataUrl){
   await db.collection('fabq_photos').doc(jobId).set({dataUrl});
 }
 
-/* Real-time sync: any change anyone makes shows up immediately for everyone else */
+/* Real-time sync: any change anyone makes shows up immediately for everyone else.
+   Jobs live in one document, everything else (trailers, contacts, metal usage log,
+   hours log, deleted-jobs archive) lives in a second document — splitting keeps
+   each document well under Firestore's per-document size ceiling as history grows. */
+let mainLoaded = false, auxLoaded = false, pendingFirstLoad = null;
+function checkBothLoaded(onFirstLoad){
+  if(mainLoaded && auxLoaded){
+    if(onFirstLoad){ onFirstLoad(firestoreReady); }
+    else if(state.role){ render(); }
+  }
+}
 function startLiveSync(onFirstLoad){
+  pendingFirstLoad = onFirstLoad;
   stateDocRef.onSnapshot((doc)=>{
     if(suppressNextSnapshot){ suppressNextSnapshot = false; return; }
     if(doc.exists){
       const data = doc.data();
       state.jobs = JSON.parse(data.jobsJson || '[]');
       state.goal = data.goal || 22000;
+      firestoreReady = true;
+    } else { firestoreReady = false; }
+    mainLoaded = true;
+    checkBothLoaded(pendingFirstLoad); pendingFirstLoad = null;
+  }, (err)=>{
+    console.error('Sync error', err);
+    toast('Live sync lost connection — check your internet.');
+  });
+  auxDocRef.onSnapshot((doc)=>{
+    if(suppressNextAuxSnapshot){ suppressNextAuxSnapshot = false; return; }
+    if(doc.exists){
+      const data = doc.data();
       state.trailers = JSON.parse(data.trailersJson || '[]');
       state.deletedJobs = JSON.parse(data.deletedJobsJson || '[]');
       state.hoursLog = JSON.parse(data.hoursLogJson || '{}');
       state.metalUsage = JSON.parse(data.metalUsageJson || '[]');
       state.contacts = JSON.parse(data.contactsJson || '[]');
-      firestoreReady = true;
-      if(onFirstLoad){ onFirstLoad(true); onFirstLoad = null; }
-      else if(state.role){ render(); }
     } else {
-      firestoreReady = true;
-      if(onFirstLoad){ onFirstLoad(false); onFirstLoad = null; }
+      /* One-time migration: older data may still have these fields on the
+         main document. Pull them over once, then future saves go to aux-data. */
+      stateDocRef.get().then(legacyDoc=>{
+        if(legacyDoc.exists){
+          const d = legacyDoc.data();
+          if(d.trailersJson) state.trailers = JSON.parse(d.trailersJson);
+          if(d.deletedJobsJson) state.deletedJobs = JSON.parse(d.deletedJobsJson);
+          if(d.hoursLogJson) state.hoursLog = JSON.parse(d.hoursLogJson);
+          if(d.metalUsageJson) state.metalUsage = JSON.parse(d.metalUsageJson);
+          if(d.contactsJson) state.contacts = JSON.parse(d.contactsJson);
+        }
+        ensureContactsSeeded();
+        saveStateNow();
+        if(state.role){ render(); }
+      }).catch(()=>{});
     }
-  }, (err)=>{
-    console.error('Sync error', err);
-    toast('Live sync lost connection — check your internet.');
+    auxLoaded = true;
+    checkBothLoaded(pendingFirstLoad); pendingFirstLoad = null;
   });
 }
 
@@ -1066,6 +1105,30 @@ const REAL_SCHEDULE_IMPORT = [
   {jobName:'USF SCHOOL OF NURSING', jobNumber:'23-41-1017', division:'RoyalAire', email:'James.Griffin@royalaire.com', system:'AHU-3', area:'3rd Floor', notes:'Exhaust and misc.', drawingType:'Field Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-07-28', needDate:'2026-08-05', status:'Pending', qty:1, labelColor:'', secondaryColor:''},
   {jobName:'ED WHITE HOSP.', jobNumber:'24-41-1034', division:'RoyalAire', email:'KEVIN.LOVELACE@ROYALAIRE.COM', system:'1', area:'', notes:'Note, duct needs to finish ...', drawingType:'Field Drawing', sketchNumber:'', shippingMethod:'Pickup', dateSubmitted:'2026-07-29', needDate:'2026-08-07', status:'Pending', qty:1, labelColor:'', secondaryColor:''}
 ];
+function exportScheduleCSV(){
+  const cols = [
+    ['orderType','Order Type'],['jobName','Job Name'],['jobNumber','Job Number'],['division','Division'],
+    ['customer','Customer'],['requesterEmail','Requester Email'],['system','System'],['area','Area'],
+    ['notes','Notes'],['drawingType','Drawing Type'],['sketchNumber','Sketch #'],['shippingMethod','Shipping'],
+    ['dateSubmitted','Date Submitted'],['needDate','Need Date'],['status','Status'],['qty','Qty'],
+    ['weight','Weight (Lbs)'],['priority','Priority'],['labelColor','Label Color'],['secondaryColor','Secondary Color'],
+    ['trailer','Trailer'],['completedAt','Completed At'],['deliveredAt','Delivered At']
+  ];
+  const esc = (v)=>{
+    const s = (v===undefined||v===null) ? '' : String(v);
+    return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  };
+  const rows = [cols.map(([,label])=>esc(label)).join(',')];
+  state.jobs.forEach(j=>{ rows.push(cols.map(([key])=>esc(j[key])).join(',')); });
+  const csv = rows.join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `fabq-schedule-export-${todayISO()}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Schedule exported.');
+}
 function importRealSchedule(){
   if(!confirm(`This will permanently delete everything currently on the Production Schedule, Completed, and Delivered/Picked Up tabs (${state.jobs.length} job${state.jobs.length!==1?'s':''}) and replace it with the ${REAL_SCHEDULE_IMPORT.length} real jobs from your uploaded schedule. This cannot be undone. Continue?`)) return;
   state.jobs = REAL_SCHEDULE_IMPORT.map(r=>({
@@ -1365,16 +1428,7 @@ function viewDashboard(){
   const hoursWeek = state.hoursWeek;
 
   return `
-  ${state.role==='master' ? `
-  <div class="card" style="padding:16px;margin-bottom:20px;border:1px solid rgba(209,69,59,.4);background:rgba(209,69,59,.06);">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;">
-      <div>
-        <div style="font-family:'Oswald';font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#e88b83;">Data Tools — Executive Only</div>
-        <div style="font-size:12px;color:var(--text-dim);margin-top:4px;">One-time import: replace every job on the schedule with the real data from your uploaded spreadsheet.</div>
-      </div>
-      <button class="btn-danger" id="import-real-schedule-btn">📥 Replace All Jobs With Real Schedule</button>
-    </div>
-  </div>` : ''}
+  ${canEdit ? `<div class="toolbar" style="margin-bottom:16px;"><div></div><button class="btn-ghost" id="export-csv-btn">⬇ Export Full Schedule (CSV)</button></div>` : ''}
   <div class="dash-grid">
     <div>
       <div class="card gauge-card">
@@ -2066,7 +2120,7 @@ function bindMainEvents(){
   const newBtn = document.getElementById('new-job-btn'); if(newBtn) newBtn.addEventListener('click', openAddModal);
   const viewDeletedBtn = document.getElementById('view-deleted-btn'); if(viewDeletedBtn) viewDeletedBtn.addEventListener('click', ()=>{ renderDeletedJobsModal(); openModal('deleted-jobs-modal'); });
   const dashLogMetalBtn = document.getElementById('dash-log-metal-btn'); if(dashLogMetalBtn) dashLogMetalBtn.addEventListener('click', ()=> openMetalModal(null));
-  const importBtn = document.getElementById('import-real-schedule-btn'); if(importBtn) importBtn.addEventListener('click', importRealSchedule);
+  const exportCsvBtn = document.getElementById('export-csv-btn'); if(exportCsvBtn) exportCsvBtn.addEventListener('click', exportScheduleCSV);
   const contactSearch = document.getElementById('contact-search');
   if(contactSearch) contactSearch.addEventListener('input', ()=>{ state.contactSearch = contactSearch.value; renderContactsOnly(); });
   const newContactBtn = document.getElementById('new-contact-btn'); if(newContactBtn) newContactBtn.addEventListener('click', ()=> openContactModal(null));
