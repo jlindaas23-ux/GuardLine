@@ -290,6 +290,12 @@ tbody tr:last-child td{border-bottom:none;}
 }
 .field textarea{resize:vertical;min-height:60px;}
 .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--steel-bright);}
+input[type="date"]{color-scheme:dark;}
+input[type="date"]::-webkit-calendar-picker-indicator{
+  filter:invert(66%) sepia(20%) saturate(830%) hue-rotate(152deg) brightness(103%) contrast(94%);
+  cursor:pointer; border-radius:4px; padding:2px;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
 .modal-foot{padding:16px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;background:var(--panel-2);}
 
 .timeline{display:flex;flex-direction:column;gap:0;}
@@ -2459,6 +2465,63 @@ function compressImage(file){
 /* ============================ ADD JOB MODAL ============================ */
 /* ============================ DELETED JOBS ARCHIVE ============================ */
 /* ============================ MATERIAL REQUEST MODAL ============================ */
+function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight){
+  const words = (text||'').split(' ');
+  let line = '', lines = 0;
+  for(let i=0;i<words.length;i++){
+    const test = line + words[i] + ' ';
+    if(ctx.measureText(test).width > maxWidth && line){
+      ctx.fillText(line, x, y + lines*lineHeight);
+      line = words[i] + ' '; lines++;
+    } else { line = test; }
+  }
+  ctx.fillText(line, x, y + lines*lineHeight);
+  return lines + 1;
+}
+function generateMaterialCardImage(job){
+  const canvas = document.createElement('canvas');
+  canvas.width = 760; canvas.height = 1000;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = '#111111';
+  ctx.font = 'bold 30px Arial';
+  ctx.fillText(job.jobName || 'Material Request', 34, 56);
+  ctx.font = '15px Arial'; ctx.fillStyle = '#444';
+  ctx.fillText(`Job #: ${job.jobNumber||'—'}    Division: ${job.division||'—'}`, 34, 84);
+  ctx.fillText(`Priority: ${job.priority||'Normal'}    Need Date: ${needDateLabel(job.needDate)}    Ship: ${job.shippingMethod||''}`, 34, 106);
+  ctx.strokeStyle = '#ccc'; ctx.beginPath(); ctx.moveTo(34,124); ctx.lineTo(726,124); ctx.stroke();
+
+  ctx.font = 'bold 18px Arial'; ctx.fillStyle = '#111';
+  ctx.fillText('MATERIALS NEEDED', 34, 156);
+  let y = 190;
+  ctx.font = '16px Arial';
+  let anyItem = false;
+  MATERIAL_ITEMS.forEach(([k,label])=>{
+    const m = job.materials && job.materials[k];
+    if(m && (m.checked || m.qty)){
+      anyItem = true;
+      ctx.fillStyle = '#111';
+      ctx.fillText(`☑  ${label}${m.qty ? '   —   Qty: '+m.qty : ''}`, 34, y);
+      y += 30;
+    }
+  });
+  if(!anyItem){ ctx.fillStyle = '#888'; ctx.fillText('No standard items checked.', 34, y); y += 30; }
+
+  if(job.otherItems){
+    y += 14;
+    ctx.font = 'bold 16px Arial'; ctx.fillStyle = '#111'; ctx.fillText('Other Items Required:', 34, y); y += 26;
+    ctx.font = '15px Arial'; ctx.fillStyle = '#222';
+    const linesUsed = wrapCanvasText(ctx, job.otherItems, 34, y, 690, 22);
+    y += linesUsed*22 + 10;
+  }
+  if(job.notes){
+    y += 6;
+    ctx.font = 'bold 16px Arial'; ctx.fillStyle = '#111'; ctx.fillText('Notes:', 34, y); y += 26;
+    ctx.font = '15px Arial'; ctx.fillStyle = '#222';
+    wrapCanvasText(ctx, job.notes, 34, y, 690, 22);
+  }
+  return canvas.toDataURL('image/jpeg', 0.88);
+}
 function openMaterialModal(){
   materialPhotoDrafts = [];
   document.getElementById('material-modal-title').textContent = 'New Material Request';
@@ -2491,7 +2554,7 @@ function openMaterialModal(){
         <select id="mat-shipping"><option>Delivery</option><option>Pickup</option></select>
       </div>
     </div>
-    <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Photo — What's Needed</div>
+    <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Extra Photo <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(optional — a checklist image is added automatically)</span></div>
     <div class="photo-zone" style="padding:16px;">
       <div id="mat-photo-gallery">No photos attached.</div>
       <div class="photo-buttons">
@@ -2544,13 +2607,16 @@ document.getElementById('material-save-btn').addEventListener('click', async ()=
     drawingType:'', sketchNumber:'', materials, otherItems: val('mat-other'),
     manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Material order created by ${state.userName}.`}], qc:[]
   };
+  const cardImage = generateMaterialCardImage(job);
+  await savePhoto(job.id, cardImage);
+  job.photoKeys.push(job.id);
+  job.hasPhoto = true;
   if(materialPhotoDrafts.length){
     for(const draft of materialPhotoDrafts){
-      const key = job.photoKeys.length ? uid() : job.id;
+      const key = uid();
       await savePhoto(key, draft.dataUrl);
       job.photoKeys.push(key);
     }
-    job.hasPhoto = true;
   }
   state.jobs.unshift(job);
   saveState(); closeModal('material-modal'); toast('Material request added to the production schedule.'); render();
