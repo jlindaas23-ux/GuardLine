@@ -788,6 +788,18 @@ const COLOR_HEX = {
   'Black-Line':'#15171b','Pink-Line':'#b23d76','Purple-Line':'#733d8f','Green-Line':'#357a4c','Red-Line':'#a3352c',
   'Grey-Line':'#6f7882','Olive-Line':'#4d4d18'
 };
+function colorTextContrast(hex){
+  const c = (hex||'#888888').replace('#','');
+  const r = parseInt(c.substr(0,2),16), g = parseInt(c.substr(2,2),16), b = parseInt(c.substr(4,2),16);
+  const luminance = (0.299*r + 0.587*g + 0.114*b)/255;
+  return luminance > 0.6 ? '#111' : '#fff';
+}
+function colorOptionsHTML(selected){
+  return `<option value="">—</option>` + Object.keys(COLOR_HEX).map(c=>{
+    const hex = COLOR_HEX[c];
+    return `<option style="background-color:${hex};color:${colorTextContrast(hex)};" ${selected===c?'selected':''}>${c}</option>`;
+  }).join('');
+}
 
 const ROLE_VIEWS = {
   master:  ['dashboard','managers','completed','delivered','calendar','trailer','contacts'],
@@ -1399,7 +1411,7 @@ document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',(e)=
 /* ============================ RENDER: SHELL ============================ */
 function renderNav(){
   const views = ROLE_VIEWS[state.role];
-  const labelMap = {dashboard:'Executive Dashboard',managers:'Production Schedule',completed:'Completed',delivered:'Delivered / Picked Up',calendar:'Delivery Calendar',trailer:'Trailer Dashboard',contacts:'Contacts'};
+  const labelMap = {dashboard:'Executive Dashboard',managers:'Production Schedule',completed:'Orders Ready',delivered:'Completed',calendar:'Delivery Calendar',trailer:'Trailer Dashboard',contacts:'Contacts'};
   const html = views.map(v=>`<button data-view="${v}" class="${state.view===v?'active':''}">${labelMap[v]}</button>`).join('');
   document.getElementById('nav-tabs').innerHTML = html;
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{ state.view=b.dataset.view; render(); }));
@@ -1930,13 +1942,13 @@ function viewCompleted(){
   }).sort((a,b)=> (b.completedAt||'').localeCompare(a.completedAt||''));
   return `
   <div class="toolbar">
-    <div class="section-title" style="margin:0;"><span class="bar" style="background:var(--green)"></span>Completed — ready to deliver or pick up</div>
+    <div class="section-title" style="margin:0;"><span class="bar" style="background:var(--green)"></span>Orders Ready — ready to deliver or pick up</div>
     <div style="display:flex;gap:10px;">
       ${searchFieldSelectHTML('completed-search-field', field)}
       <input class="search-box" id="completed-search" placeholder="Search…" value="${state.completedSearch||''}">
     </div>
   </div>
-  ${renderJobsTable(jobs, {tableId:'completed', showDelivery: canDeliver, emptyText:'No completed jobs right now.'})}`;
+  ${renderJobsTable(jobs, {tableId:'completed', showDelivery: canDeliver, emptyText:'No orders ready right now.'})}`;
 }
 
 function viewDelivered(){
@@ -1948,13 +1960,13 @@ function viewDelivered(){
   }).sort((a,b)=> (b.deliveredAt||b.completedAt||'').localeCompare(a.deliveredAt||a.completedAt||''));
   return `
   <div class="toolbar">
-    <div class="section-title" style="margin:0;"><span class="bar" style="background:var(--steel-bright)"></span>Delivered / Picked Up — permanent record</div>
+    <div class="section-title" style="margin:0;"><span class="bar" style="background:var(--steel-bright)"></span>Completed — permanent record</div>
     <div style="display:flex;gap:10px;">
       ${searchFieldSelectHTML('delivered-search-field', field)}
       <input class="search-box" id="delivered-search" placeholder="Search…" value="${state.deliveredSearch||''}">
     </div>
   </div>
-  ${renderJobsTable(jobs, {tableId:'delivered', emptyText:'Nothing delivered or picked up yet.'})}`;
+  ${renderJobsTable(jobs, {tableId:'delivered', emptyText:'Nothing completed yet.'})}`;
 }
 
 /* ============================ CALENDAR VIEW ============================ */
@@ -2447,10 +2459,10 @@ async function renderJobModal(){
         <select id="f-priority" ${canEdit?'':'disabled'}><option ${job.priority==='Normal'?'selected':''}>Normal</option><option ${job.priority==='Urgent'?'selected':''}>Urgent</option></select>
       </div>
       <div class="field"><label>Label Color</label>
-        <select id="f-color" ${canEdit?'':'disabled'}><option value="">—</option>${Object.keys(COLOR_HEX).map(c=>`<option ${job.labelColor===c?'selected':''}>${c}</option>`).join('')}</select>
+        <select id="f-color" ${canEdit?'':'disabled'}>${colorOptionsHTML(job.labelColor)}</select>
       </div>
       <div class="field"><label>Secondary Color</label>
-        <select id="f-color2" ${canEdit?'':'disabled'}><option value="">—</option>${Object.keys(COLOR_HEX).map(c=>`<option ${job.secondaryColor===c?'selected':''}>${c}</option>`).join('')}</select>
+        <select id="f-color2" ${canEdit?'':'disabled'}>${colorOptionsHTML(job.secondaryColor)}</select>
       </div>
       <div class="field" style="grid-column:1/-1;"><label>Notes / Duct Sections</label><textarea id="f-notes" ${canEdit?'':'disabled'}>${job.notes||''}</textarea></div>
     </div>`;
@@ -3125,8 +3137,8 @@ function openAddModal(){
     ${isField ? '' : `<div class="field"><label>Weight (lbs)</label><input id="n-weight" type="number" value="0"></div>`}
     <div class="field"><label>Priority <span style="color:var(--red);">*</span></label><select id="n-priority"><option value="">— Select —</option><option>Normal</option><option>Urgent</option></select></div>
     ${isField ? '' : `
-    <div class="field"><label>Label Color</label><select id="n-color"><option value="">—</option>${Object.keys(COLOR_HEX).map(c=>`<option>${c}</option>`).join('')}</select></div>
-    <div class="field"><label>Secondary Color</label><select id="n-color2"><option value="">—</option>${Object.keys(COLOR_HEX).map(c=>`<option>${c}</option>`).join('')}</select></div>`}
+    <div class="field"><label>Label Color</label><select id="n-color">${colorOptionsHTML('')}</select></div>
+    <div class="field"><label>Secondary Color</label><select id="n-color2">${colorOptionsHTML('')}</select></div>`}
     <div class="field" style="grid-column:1/-1;"><label>Notes / Duct Sections</label><textarea id="n-notes"></textarea></div>
   </div>
   <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Photos</div>
