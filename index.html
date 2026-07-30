@@ -613,6 +613,24 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
   </div>
 </div>
 
+<!-- JOB MASTER LIST MODAL -->
+<div class="overlay" id="job-master-modal">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-head">
+      <div><h2>Manage Job List</h2><div class="sub">The list everyone picks from when starting a New Duct Order</div></div>
+      <button class="modal-close" data-close="job-master-modal">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid" style="margin-bottom:16px;">
+        <div class="field"><label>Job Number</label><input id="jm-new-number" placeholder="e.g. 25-10-0054"></div>
+        <div class="field"><label>Job Name</label><input id="jm-new-name" placeholder="e.g. TPA Airside D Upgrades"></div>
+      </div>
+      <button class="btn-primary" id="jm-add-btn" style="margin-bottom:16px;">+ Add to List</button>
+      <div id="job-master-list-body"></div>
+    </div>
+  </div>
+</div>
+
 <!-- MATERIAL REQUEST MODAL -->
 <div class="overlay" id="material-modal">
   <div class="modal" style="max-width:720px;">
@@ -662,6 +680,49 @@ const DIVISIONS = ['BCH Mechanical Inc.','ConServ','RoyalAire'];
 const DIVISION_COLOR = {'BCH Mechanical Inc.':'#4a7fd1','ConServ':'#4f9d69','RoyalAire':'#d4a339'};
 function divisionOptionsHTML(selected){
   return `<option value="">—</option>` + DIVISIONS.map(d=>`<option ${selected===d?'selected':''}>${d}</option>`).join('');
+}
+const JOB_MASTER_SEED = [
+  ['26-44-1010','2026 Time & Material Projects'],['26-10-0022','AHT CIE Renovations PH 2'],
+  ['00-OH-0002','BCH IT, BLDG Welfare'],['00-OH-0001','BCH Prepaids, Assets, ConSrv'],['00-OH-0003','BCH :Safety'],
+  ['00-OH-0009','BCH Closed Job Material Costs'],['00-OH-0007','BCH OH: Tools/ SheetMetal Ind'],['00-OH-0008','BCH Warehouse Inventory'],
+  ['26-10-0012','Beck Office Tenant Improvemnt'],['26-10-0018',"BJ's Wholesale Lecanto SM Fab"],['26-44-1004','Bloomingdale High School'],
+  ['25-10-0048','Brandon MOB TI'],['26-10-0010','Camp Brorein Dining Facility'],['26-10-0006','CCBF Tampa Ammonia Room'],
+  ['25-10-0008','Coca Cola Line 5 Reno'],['26-10-0038','Conserv 2026 Misc. Fab. Etc.'],['24-10-0038','ConServ BCH 2024 Misc. Fab.'],
+  ['25-44-1015','Eastside Elemenatry'],['24-44-1034','Ed White Hospital'],['25-44-1030','Giunta MS'],
+  ['25-10-0007','HCA North Tampa FSER'],['25-44-1024','HCC Plant City Nursing'],['25-10-0052','Honeywell Assembly 2 Expansn'],
+  ['26-44-1012','Hyde Park Block F1'],['26-44-1006','Jesuit Demo'],['26-44-1011','Jesuit Student and Scienc Ctr'],
+  ['26-10-0002','JHACH BAT Bldg Rooftop AHU'],['24-10-0002','Lakeland Highland Hospital'],['25-44-1004','Lakeland Highlands MOB'],
+  ['26-44-1009','Lakewood HS Canopy'],['25-44-1101','Loaned Labor 2025 and 2026'],['25-10-0019','MCC BCH 2025 Projects'],
+  ['26-10-0019','MCC BCH 2026 Projects'],['22-10-0026','MCC New CEP Upgrades Phase 3'],['24-10-0007','MCC Pasco Research Facility'],
+  ['26-44-1007','North County Service Center'],['26-10-0024','OH Bayfront Hospitl 701 (T&M)'],['26-10-0014','OHBFH Baby Place OR 1&2 Upgrd'],
+  ['22-10-0027','Pasco County Jail'],['23-44-1013','Pasco K-8'],['25-44-1033','Phillies Hydrotherapy'],
+  ['00-44-0001','RoyalAire Assets and Prepaids'],['00-44-0002','RoyalAire Overhead Expenses'],['26-10-0021','Sheetmetal Misc Fabricatn 26'],
+  ['24-44-1017','SPC Epicenter'],['26-44-1003','SPC midtown gym buildout phas'],['24-44-1035','SPC Tarpon Springs PH1 Leep R'],
+  ['24-44-1036','SPC Tarpon Springs PH2 Bet, L'],['26-10-0011','Springstead High School'],['25-10-0050','St Regis Misc T&M Work'],
+  ['25-44-1021','Straz Redesign'],['26-44-1005','SWC Building Sewer Main'],['25-10-0036','Tampa Museum of Art Expansion'],
+  ['26-44-1001','Tara ES Pump Seal Replacement'],['26-10-0005','TECO SEC Airflow Monitors'],['25-10-0056','TGH 2E Dialysis Renovation'],
+  ['25-10-0063','TGH 2K ED Toilet Conversion'],['25-10-0055','TGH 3A NIC Renovation'],['25-10-0031','TGH 3K Cath Lab 4'],
+  ['26-10-0015','TGH 3K Flooring Refresh'],['25-10-0030','TGH 3K IR2'],['25-10-0046','TGH 5A2 Stepdown Conversion'],
+  ['26-10-0025','TGH AHU-2-4-OA Upgrades'],['26-10-0004','TGH BCH 2026 Projects'],['26-10-0023','TGH Biomed AC Raplement'],
+  ['26-10-0013','TGH Cath Lab 3 Equip. Replace'],['24-10-0025','TGH Corp. Center HVAC Replace'],['25-10-0049','TGH CVTOR Renovations'],
+  ['25-10-0026','TGH Generator Ventilation Fns'],['24-10-0044','TGH Infusion & Oncology Reno'],['25-10-0057','TGH LifePoint BHH L4 Buildout'],
+  ['25-10-0004','TGH MISC. BCH 2025 Projects'],['25-10-0003','TGH Pharmacy Renovation'],['23-10-0017','TGH R.O. Water Systems'],
+  ['26-10-0003','TGH SPD Flooring & Washr Rplc'],['24-44-1028','Tinker K-8'],['25-10-0054','TPA Airside D Upgrades'],
+  ['25-10-0062','TPA Airside E Roof Replacemnt'],['25-10-0064','UF Center for Applied AI'],['26-44-1008','USF ALN Building Reno'],
+  ['26-10-0007','USF ALZ 6th FL RO Piping'],['25-10-0060','USF HBOT Expansion'],['25-10-0013','USF LIB Security'],
+  ['25-10-0020','USF MDH 3rd Floor IVHI'],['26-10-0008','USF MDL Cryo Micro Lab'],['24-10-0031','USF Morsani 9th FL Buildout'],
+  ['23-44-1017','USF School of Nursing'],['25-10-0042','USFRF IDRB Rm 105 Helium Lab'],['25-10-0025','UTC DSG Mall Connector'],
+  ['25-10-0053','Weeki Wachee CEP'],['24-44-1013','West Zephyrhills Elementry Sc'],['25-10-0018','WW Winding Water K-8 Bldg.']
+];
+function ensureJobMasterSeeded(){
+  if(!state.jobMasterList || !state.jobMasterList.length){
+    state.jobMasterList = JOB_MASTER_SEED.map(([jobNumber,jobName])=>({id:uid(), jobNumber, jobName}));
+    saveState();
+  }
+}
+function jobMasterOptionsHTML(){
+  return state.jobMasterList.slice().sort((a,b)=>a.jobName.localeCompare(b.jobName))
+    .map(j=>`<option value="${j.jobName.replace(/"/g,'&quot;')}" data-jobnum="${j.jobNumber.replace(/"/g,'&quot;')}">${j.jobName} (${j.jobNumber})</option>`).join('');
 }
 function requesterOptionsHTML(selectedEmail){
   const contacts = (state.contacts||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));
@@ -757,6 +818,7 @@ let state = {
   hoursLog: {},
   metalUsage: [],
   contacts: [],
+  jobMasterList: [],
   search: '',
   searchField: 'jobName',
   completedSearch: '',
@@ -872,6 +934,7 @@ function saveStateNow(){
     hoursLogJson: JSON.stringify(state.hoursLog),
     metalUsageJson: JSON.stringify(state.metalUsage),
     contactsJson: JSON.stringify(state.contacts),
+    jobMasterListJson: JSON.stringify(state.jobMasterList),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).catch(err=>{ console.error('Aux save failed', err); toast('Could not save — check connection.'); });
 }
@@ -925,6 +988,7 @@ function startLiveSync(onFirstLoad){
       state.hoursLog = JSON.parse(data.hoursLogJson || '{}');
       state.metalUsage = JSON.parse(data.metalUsageJson || '[]');
       state.contacts = JSON.parse(data.contactsJson || '[]');
+      state.jobMasterList = JSON.parse(data.jobMasterListJson || '[]');
     } else {
       /* One-time migration: older data may still have these fields on the
          main document. Pull them over once, then future saves go to aux-data. */
@@ -2721,6 +2785,48 @@ document.getElementById('material-save-btn').addEventListener('click', async ()=
 
 let editingMetalId = null;
 let editingContactId = null;
+function refreshJobNamePickerIfOpen(){
+  const picker = document.getElementById('n-jobName-picker');
+  if(picker && document.getElementById('add-modal').classList.contains('show')){
+    const cur = picker.value;
+    picker.innerHTML = `<option value="">— Choose an existing job, or add new below —</option>${jobMasterOptionsHTML()}<option value="__new__">➕ Add New Job…</option>`;
+    picker.value = cur;
+  }
+}
+function renderJobMasterListModal(){
+  const list = (state.jobMasterList||[]).slice().sort((a,b)=>a.jobName.localeCompare(b.jobName));
+  document.getElementById('job-master-list-body').innerHTML = list.length ? `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Job Name</th><th>Job #</th><th></th></tr></thead>
+      <tbody>
+        ${list.map(j=>`<tr><td><b>${j.jobName}</b></td><td class="mono">${j.jobNumber}</td><td><button class="btn-danger" data-remove-master-job="${j.id}">Remove</button></td></tr>`).join('')}
+      </tbody>
+    </table></div>` : `<div class="empty">No jobs on the list yet.</div>`;
+  document.querySelectorAll('[data-remove-master-job]').forEach(b=>b.addEventListener('click', ()=>{
+    const j = state.jobMasterList.find(x=>x.id===b.dataset.removeMasterJob);
+    if(j && !confirm(`Remove "${j.jobName}" from the job list?`)) return;
+    state.jobMasterList = state.jobMasterList.filter(x=>x.id!==b.dataset.removeMasterJob);
+    saveState(); toast('Removed from job list.'); renderJobMasterListModal(); refreshJobNamePickerIfOpen();
+  }));
+}
+function openJobMasterListModal(){
+  document.getElementById('jm-new-number').value = '';
+  document.getElementById('jm-new-name').value = '';
+  renderJobMasterListModal();
+  openModal('job-master-modal');
+}
+document.getElementById('jm-add-btn').addEventListener('click', ()=>{
+  const jobNumber = val('jm-new-number').trim();
+  const jobName = val('jm-new-name').trim();
+  if(!jobName){ toast('Job name is required.'); return; }
+  state.jobMasterList = state.jobMasterList || [];
+  state.jobMasterList.push({id:uid(), jobNumber, jobName});
+  saveState(); toast('Added to job list.');
+  document.getElementById('jm-new-number').value = '';
+  document.getElementById('jm-new-name').value = '';
+  renderJobMasterListModal();
+  refreshJobNamePickerIfOpen();
+});
 function openContactModal(existingId){
   editingContactId = existingId || null;
   const existing = existingId ? (state.contacts||[]).find(c=>c.id===existingId) : null;
@@ -2852,7 +2958,16 @@ function openAddModal(){
   const isField = state.role==='field';
   document.getElementById('add-body').innerHTML = `
   <div class="form-grid">
-    <div class="field"><label>Job Name</label><input id="n-jobName" placeholder="e.g. TPA-AIRSIDE-D"></div>
+    <div class="field" style="grid-column:1/-1;">
+      <label>Job Name</label>
+      <select id="n-jobName-picker" style="margin-bottom:8px;">
+        <option value="">— Choose an existing job, or add new below —</option>
+        ${jobMasterOptionsHTML()}
+        <option value="__new__">➕ Add New Job…</option>
+      </select>
+      <input id="n-jobName" placeholder="Type a new job name, or pick one above">
+      ${(state.role==='master'||state.role==='manager') ? `<button type="button" id="manage-job-list-link" style="background:none;border:none;color:var(--steel-bright);text-decoration:underline;font-size:11px;padding:6px 0 0;cursor:pointer;">Manage Job List</button>` : ''}
+    </div>
     <div class="field"><label>Job Number</label><input id="n-jobNumber" placeholder="e.g. 25-10-0054"></div>
     <div class="field"><label>Division / Company <span style="color:var(--red);">*</span></label><select id="n-division">${divisionOptionsHTML('')}</select></div>
     <div class="field"><label>Customer</label><input id="n-customer"></div>
@@ -2878,6 +2993,24 @@ function openAddModal(){
       <label class="btn-ghost">Upload Photos<input type="file" accept="image/*" multiple id="n-upload" style="display:none;"></label>
     </div>
   </div>`;
+  const jobNamePicker = document.getElementById('n-jobName-picker');
+  jobNamePicker.addEventListener('change', function(){
+    const jobNumInput = document.getElementById('n-jobNumber');
+    const nameInput = document.getElementById('n-jobName');
+    if(this.value==='' || this.value==='__new__'){
+      nameInput.value = '';
+      jobNumInput.value = '';
+      jobNumInput.disabled = false;
+      nameInput.focus();
+      return;
+    }
+    const opt = this.selectedOptions[0];
+    nameInput.value = this.value;
+    jobNumInput.value = opt.dataset.jobnum || '';
+    jobNumInput.disabled = true;
+  });
+  const manageJobListLink = document.getElementById('manage-job-list-link');
+  if(manageJobListLink) manageJobListLink.addEventListener('click', openJobMasterListModal);
   const camInput = document.getElementById('n-camera');
   camInput.addEventListener('change', async ()=>{
     if(camInput.files[0]){ newJobPhotoDrafts.push({dataUrl: await compressImage(camInput.files[0])}); renderNewJobPhotoGallery(); }
@@ -3028,6 +3161,7 @@ function boot(){
     }
     addStandardTrailers(true);
     ensureContactsSeeded();
+    ensureJobMasterSeeded();
     if(state.role){ render(); }
   });
 }
