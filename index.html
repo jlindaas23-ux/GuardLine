@@ -249,6 +249,33 @@ tbody tr:last-child td{border-bottom:none;}
 .job-name-cell .sub{color:var(--text-faint);font-size:10px;}
 .weight-cell{font-family:'IBM Plex Mono'; font-weight:600;}
 
+/* ---------- MOBILE: turn dense schedule tables into stacked cards ---------- */
+@media(max-width:760px){
+  .table-wrap{overflow-x:visible;border:none;background:none;}
+  table{table-layout:auto;}
+  thead{display:none;}
+  tbody{display:block;}
+  tbody tr{
+    display:block; cursor:pointer; margin-bottom:12px; border:1px solid var(--border);
+    border-radius:10px; padding:4px 12px; background:var(--panel); box-shadow:var(--shadow);
+  }
+  tbody tr:hover{background:var(--panel);}
+  tbody td{
+    display:flex; justify-content:space-between; align-items:center; gap:12px;
+    padding:9px 0; border-bottom:1px solid var(--border-soft); text-align:right; white-space:normal;
+  }
+  tbody td:last-child{border-bottom:none;}
+  tbody td::before{
+    content:attr(data-label); font-family:'Oswald'; font-size:9.5px; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--text-faint); text-align:left; flex-shrink:0;
+  }
+  tbody td.job-name-cell{flex-direction:column; align-items:flex-start; text-align:left; padding-top:12px;}
+  tbody td.job-name-cell::before{margin-bottom:5px;}
+  tbody td.job-name-cell b{font-size:15px;}
+  tbody td[colspan]{display:block; text-align:center;}
+  tbody td[colspan]::before{content:none;}
+}
+
 /* ---------- SHOP CARDS ---------- */
 .shop-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:16px;}
 .job-card{padding:16px; display:flex; flex-direction:column; gap:10px; position:relative;}
@@ -278,6 +305,15 @@ tbody tr:last-child td{border-bottom:none;}
 .modal-close{background:none;border:none;color:var(--text-faint);font-size:22px;line-height:1;}
 .modal-close:hover{color:var(--text);}
 .modal-tabs{display:flex;gap:2px;padding:0 22px;background:var(--panel-2);border-bottom:1px solid var(--border);}
+@media(max-width:640px){
+  .modal{max-width:100%;max-height:100vh;border-radius:0;}
+  .overlay{padding:0;}
+  .modal-head{padding:14px 16px;}
+  .modal-body{padding:16px;}
+  .modal-foot{padding:12px 16px;flex-wrap:wrap;}
+  .modal-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 12px;}
+  .modal-tabs button{flex-shrink:0;padding:11px 10px;font-size:11px;margin-right:4px;}
+}
 .modal-tabs button{background:none;border:none;color:var(--text-faint);padding:11px 4px;margin-right:20px;font-family:'Oswald';font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;border-bottom:2px solid transparent;}
 .modal-tabs button.active{color:var(--text);border-bottom:2px solid var(--steel-bright);}
 .modal-body{padding:22px;overflow-y:auto;}
@@ -1654,22 +1690,22 @@ function renderJobsTable(jobs, opts){
       <tbody>
         ${rows.length ? rows.map(j=>`
         <tr data-open="${j.id}" ${state.role!=='field'?`draggable="true" data-drag-row="${j.id}"`:''}>
-          <td data-col="needDate" class="need-date ${needDateClass(j)}">${needDateLabel(j.needDate)}</td>
-          <td data-col="jobName" class="job-name-cell">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}</td>
-          <td data-col="jobNumber" class="mono">${j.jobNumber}</td>
-          <td data-col="division">${j.division||'—'}</td>
-          <td data-col="customer">${j.customer||'—'}</td>
-          <td data-col="system">${j.system||''}${j.area?`<div class="sub" style="color:var(--text-faint);font-size:11px;">${j.area}</div>`:''}</td>
-          <td data-col="notes" style="max-width:180px;white-space:normal;color:var(--text-dim);">${j.notes||''}</td>
-          <td data-col="ship">${j.shippingMethod}</td>
-          <td data-col="status"><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></td>
-          <td data-col="qty" class="mono">${j.qty}</td>
-          <td data-col="weight" class="weight-cell">${fmt(j.weight)}</td>
-          <td data-col="colors">${swatch(j.labelColor,j.secondaryColor)}</td>
-          <td data-col="trailer">${j.trailer || '<span style="color:var(--text-faint);font-style:italic;">Unassigned</span>'}</td>
-          <td data-col="sketch"><div class="thumb-cell" data-thumb="${j.id}" data-thumb-open="${j.id}">${thumbHTML(j)}</div></td>
-          ${opts.showAdvance ? `<td>${ADVANCE_MAP[j.status] ? `<button class="btn-ghost" data-quickstatus="${j.id}">Advance → ${ADVANCE_MAP[j.status]}</button>` : '—'}</td>` : ''}
-          ${opts.showDelivery ? `<td>${j.status!=='Delivered/Picked Up' ? `<button class="btn-primary" data-mark-delivered="${j.id}">Mark ${j.shippingMethod==='Pickup'?'Picked Up':'Delivered'}</button>` : `<span class="status delivered">Done</span>`}</td>` : ''}
+          <td data-col="needDate" data-label="Need Date" class="need-date ${needDateClass(j)}">${needDateLabel(j.needDate)}</td>
+          <td data-col="jobName" data-label="Job Name" class="job-name-cell">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}</td>
+          <td data-col="jobNumber" data-label="Job #" class="mono">${j.jobNumber}</td>
+          <td data-col="division" data-label="Division">${j.division||'—'}</td>
+          <td data-col="customer" data-label="Customer">${j.customer||'—'}</td>
+          <td data-col="system" data-label="System / Area">${j.system||''}${j.area?`<div class="sub" style="color:var(--text-faint);font-size:11px;">${j.area}</div>`:''}</td>
+          <td data-col="notes" data-label="Notes" style="max-width:180px;white-space:normal;color:var(--text-dim);">${j.notes||''}</td>
+          <td data-col="ship" data-label="Ship">${j.shippingMethod}</td>
+          <td data-col="status" data-label="Status"><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></td>
+          <td data-col="qty" data-label="Qty" class="mono">${j.qty}</td>
+          <td data-col="weight" data-label="Weight" class="weight-cell">${fmt(j.weight)}</td>
+          <td data-col="colors" data-label="Colors">${swatch(j.labelColor,j.secondaryColor)}</td>
+          <td data-col="trailer" data-label="Trailer">${j.trailer || '<span style="color:var(--text-faint);font-style:italic;">Unassigned</span>'}</td>
+          <td data-col="sketch" data-label="Sketch"><div class="thumb-cell" data-thumb="${j.id}" data-thumb-open="${j.id}">${thumbHTML(j)}</div></td>
+          ${opts.showAdvance ? `<td data-label="Action">${ADVANCE_MAP[j.status] ? `<button class="btn-ghost" data-quickstatus="${j.id}">Advance → ${ADVANCE_MAP[j.status]}</button>` : '—'}</td>` : ''}
+          ${opts.showDelivery ? `<td data-label="Delivery">${j.status!=='Delivered/Picked Up' ? `<button class="btn-primary" data-mark-delivered="${j.id}">Mark ${j.shippingMethod==='Pickup'?'Picked Up':'Delivered'}</button>` : `<span class="status delivered">Done</span>`}</td>` : ''}
         </tr>`).join('') : `<tr><td colspan="${colCount}"><div class="empty"><div class="big">No jobs match</div>${opts.emptyText||'Try clearing filters or search.'}</div></td></tr>`}
       </tbody>
     </table>
