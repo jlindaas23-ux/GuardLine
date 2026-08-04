@@ -249,6 +249,43 @@ tbody tr:last-child td{border-bottom:none;}
 .job-name-cell .sub{color:var(--text-faint);font-size:10px;}
 .weight-cell{font-family:'IBM Plex Mono'; font-weight:600;}
 
+/* ---------- MOBILE BOTTOM NAV + FAB ---------- */
+.mobile-tabbar{display:none;}
+.mobile-fab{display:none;}
+.mobile-fab-menu{display:none;}
+@media(max-width:760px){
+  header.topbar nav.tabs{display:none;}
+  #new-order-btn,#new-material-btn-global,#new-metal-btn-global,#report-issue-btn,#switch-role-btn{display:none !important;}
+  main{padding-bottom:84px !important;}
+  .mobile-tabbar{
+    display:flex; position:fixed; bottom:0; left:0; right:0; z-index:150;
+    background:var(--panel-2); border-top:1px solid var(--border);
+    padding:6px 0 max(6px, env(safe-area-inset-bottom));
+  }
+  .mtab{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none;
+    color:var(--text-faint); font-family:'Oswald'; font-size:9.5px; letter-spacing:.03em; text-transform:uppercase;
+    padding:6px 0; cursor:pointer; position:relative;
+  }
+  .mtab-icon{font-size:19px; line-height:1; position:relative;}
+  .mtab.active{color:var(--steel-bright);}
+  .mtab-dot{position:absolute; top:-2px; right:-7px; width:7px; height:7px; border-radius:50%; background:var(--red); display:none;}
+  .mtab-dot.show{display:block;}
+  .mobile-fab{
+    display:flex; position:fixed; bottom:78px; right:16px; z-index:151;
+    width:52px; height:52px; border-radius:50%; background:var(--steel-bright); color:#0d1418;
+    border:none; font-size:26px; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,.4); cursor:pointer;
+  }
+  .mobile-fab-menu.show{display:flex;}
+  .mobile-fab-menu{
+    flex-direction:column; position:fixed; bottom:136px; right:16px; z-index:151;
+    background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden; box-shadow:var(--shadow);
+  }
+  .mobile-fab-menu button{background:none;border:none;color:var(--text);padding:13px 18px;text-align:left;font-size:13px;white-space:nowrap;border-bottom:1px solid var(--border-soft);cursor:pointer;}
+  .mobile-fab-menu button:last-child{border-bottom:none;}
+  .mobile-fab-menu button:hover{background:var(--panel-2);}
+}
+
 /* ---------- MOBILE: turn dense schedule tables into stacked cards ---------- */
 @media(max-width:760px){
   .table-wrap{overflow-x:visible;border:none;background:none;}
@@ -274,6 +311,10 @@ tbody tr:last-child td{border-bottom:none;}
   tbody td.job-name-cell b{font-size:15px;}
   tbody td[colspan]{display:block; text-align:center;}
   tbody td[colspan]::before{content:none;}
+  /* Keep mobile cards clean by default — Columns toggle can still bring these back */
+  tbody td[data-col="notes"],tbody td[data-col="ship"],tbody td[data-col="qty"],
+  tbody td[data-col="weight"],tbody td[data-col="colors"],tbody td[data-col="sketch"],
+  tbody td[data-col="customer"]{display:none;}
 }
 
 /* ---------- SHOP CARDS ---------- */
@@ -355,6 +396,29 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
 .photo-gallery-item img{width:100%;height:100%;object-fit:cover;display:block;max-width:none;max-height:none;border-radius:0;}
 .photo-gallery-item button{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(20,24,29,.85);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:14px;line-height:1;cursor:pointer;}
 .photo-gallery-item button:hover{background:var(--red);}
+
+/* ---------- MORE VIEW ---------- */
+.more-profile{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px;}
+.more-avatar{width:42px;height:42px;border-radius:50%;background:var(--steel);color:#0d1418;display:flex;align-items:center;justify-content:center;font-family:'Oswald';font-weight:700;font-size:18px;flex-shrink:0;}
+.more-name{font-weight:700;font-size:15px;}
+.more-sub{color:var(--text-faint);font-size:12px;margin-top:2px;}
+.more-group{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px;}
+.more-item{
+  display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;
+  background:none;border:none;border-bottom:1px solid var(--border-soft);padding:15px 16px;
+  font-size:14px;color:var(--text);cursor:pointer;font-family:'Inter';
+}
+.more-item:last-child{border-bottom:none;}
+.more-item:hover{background:var(--panel-2);}
+.more-item-link{color:var(--steel-bright);font-weight:600;}
+.more-item-danger{color:var(--red);font-weight:600;}
+.more-count{color:var(--text-faint);font-size:13px;}
+.more-toggle{position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;}
+.more-toggle input{opacity:0;width:0;height:0;}
+.more-toggle-track{position:absolute;inset:0;background:var(--border);border-radius:24px;transition:.15s;cursor:pointer;}
+.more-toggle-track::before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s;}
+.more-toggle input:checked + .more-toggle-track{background:var(--steel-bright);}
+.more-toggle input:checked + .more-toggle-track::before{transform:translateX(18px);}
 
 .toast-wrap{position:fixed;bottom:20px;right:20px;z-index:200;display:flex;flex-direction:column;gap:8px;}
 .toast{background:var(--panel-2);border:1px solid var(--steel);color:var(--text);padding:12px 18px;border-radius:8px;font-size:13px;box-shadow:var(--shadow);animation:slidein .2s ease;}
@@ -457,6 +521,20 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
     </div>
   </header>
   <main id="main"></main>
+
+  <!-- MOBILE BOTTOM NAV -->
+  <nav class="mobile-tabbar no-print">
+    <button class="mtab" data-mtab="managers"><span class="mtab-icon">&#9776;</span><span>Schedule</span></button>
+    <button class="mtab" data-mtab="calendar"><span class="mtab-icon">&#9638;</span><span>Calendar</span></button>
+    <button class="mtab" data-mtab="trailer"><span class="mtab-icon">&#9645;</span><span>Trailer</span></button>
+    <button class="mtab" data-mtab="more"><span class="mtab-icon">&#8942;<span class="mtab-dot" id="mtab-dot"></span></span><span>More</span></button>
+  </nav>
+  <button class="mobile-fab no-print" id="mobile-fab-btn">+</button>
+  <div class="mobile-fab-menu no-print" id="mobile-fab-menu">
+    <button data-fab-action="order">&#128230; New Duct Order</button>
+    <button data-fab-action="material">&#128200; New Material Request</button>
+    <button data-fab-action="qc">&#9888; Report QC Issue</button>
+  </div>
 </div>
 
 <div class="toast-wrap" id="toast-wrap"></div>
@@ -802,9 +880,9 @@ function colorOptionsHTML(selected){
 }
 
 const ROLE_VIEWS = {
-  master:  ['dashboard','managers','completed','delivered','calendar','trailer','contacts'],
-  manager: ['dashboard','managers','completed','delivered','calendar','trailer','contacts'],
-  field:   ['managers','completed','delivered','calendar','trailer','contacts']
+  master:  ['dashboard','managers','completed','delivered','calendar','trailer','contacts','more'],
+  manager: ['dashboard','managers','completed','delivered','calendar','trailer','contacts','more'],
+  field:   ['managers','completed','delivered','calendar','trailer','contacts','more']
 };
 const ROLE_LABEL = {master:'Executive',manager:'Managers',field:'Field'};
 
@@ -868,6 +946,7 @@ let state = {
   metalUsage: [],
   contacts: [],
   jobMasterList: [],
+  pushNotifsEnabled: false,
   search: '',
   searchField: 'jobName',
   completedSearch: '',
@@ -1410,7 +1489,7 @@ document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',(e)=
 
 /* ============================ RENDER: SHELL ============================ */
 function renderNav(){
-  const views = ROLE_VIEWS[state.role];
+  const views = ROLE_VIEWS[state.role].filter(v=>v!=='more');
   const labelMap = {dashboard:'Executive Dashboard',managers:'Production Schedule',completed:'Orders Ready',delivered:'Completed',calendar:'Delivery Calendar',trailer:'Trailer Dashboard',contacts:'Contacts'};
   const html = views.map(v=>`<button data-view="${v}" class="${state.view===v?'active':''}">${labelMap[v]}</button>`).join('');
   document.getElementById('nav-tabs').innerHTML = html;
@@ -1430,8 +1509,10 @@ function render(){
   else if(state.view==='calendar') main.innerHTML = viewCalendar();
   else if(state.view==='trailer') main.innerHTML = viewTrailer();
   else if(state.view==='contacts') main.innerHTML = viewContacts();
+  else if(state.view==='more') main.innerHTML = viewMore();
   bindMainEvents();
   hydratePhotoThumbs();
+  updateMobileTabbar();
 }
 let lightboxCurrent = {url:null, caption:''};
 function openLightbox(url, caption){
@@ -2124,6 +2205,48 @@ function viewTrailer(){
 }
 
 /* ============================ CONTACT LIST ============================ */
+/* ============================ MORE (mobile hub) ============================ */
+function viewMore(){
+  const canEdit = state.role==='master'||state.role==='manager';
+  const readyCount = state.jobs.filter(j=>j.status==='Complete').length;
+  const doneCount = state.jobs.filter(j=>j.status==='Delivered/Picked Up').length;
+  return `
+  <div class="more-profile">
+    <div class="more-avatar">${(state.userName||'U').charAt(0)}</div>
+    <div>
+      <div class="more-name">${state.userName}</div>
+      <div class="more-sub">${ROLE_LABEL[state.role]} &middot; FabQ Shop</div>
+    </div>
+  </div>
+
+  <div class="more-group">
+    <button class="more-item more-item-link" id="more-new-order">New Duct Order</button>
+    <button class="more-item more-item-link" id="more-new-material">New Material Request</button>
+    <button class="more-item more-item-link" id="more-report-issue">Report QC Issue</button>
+    ${canEdit ? `<button class="more-item more-item-link" id="more-log-metal">Log Metal Usage</button>` : ''}
+  </div>
+
+  <div class="more-group">
+    <button class="more-item" data-view="completed"><span>Orders Ready</span><span class="more-count">${readyCount} &rsaquo;</span></button>
+    <button class="more-item" data-view="delivered"><span>Completed &amp; Delivered</span><span class="more-count">${doneCount} &rsaquo;</span></button>
+    <button class="more-item" data-view="contacts"><span>Contacts</span><span class="more-count">&rsaquo;</span></button>
+    ${canEdit ? `<button class="more-item" data-view="dashboard"><span>Executive Dashboard</span><span class="more-count">&rsaquo;</span></button>` : ''}
+    <button class="more-item" data-view="trailer"><span>Trailer Dashboard</span><span class="more-count">&rsaquo;</span></button>
+  </div>
+
+  <div class="more-group">
+    <div class="more-item" style="cursor:default;">
+      <span>Push Notifications</span>
+      <label class="more-toggle">
+        <input type="checkbox" id="more-push-toggle" ${state.pushNotifsEnabled?'checked':''}>
+        <span class="more-toggle-track"></span>
+      </label>
+    </div>
+    <button class="more-item more-item-danger" id="more-switch-role">Switch Role</button>
+  </div>
+  `;
+}
+
 function viewContacts(){
   const canEdit = state.role==='master'||state.role==='manager';
   const s = (state.contactSearch||'').toLowerCase();
@@ -2169,6 +2292,17 @@ function materialSummary(m){
 }
 
 function bindMainEvents(){
+  document.querySelectorAll('#main [data-view]').forEach(b=>b.addEventListener('click',()=>{ state.view=b.dataset.view; render(); }));
+  const moreNewOrder = document.getElementById('more-new-order'); if(moreNewOrder) moreNewOrder.addEventListener('click', openAddModal);
+  const moreNewMaterial = document.getElementById('more-new-material'); if(moreNewMaterial) moreNewMaterial.addEventListener('click', ()=> openMaterialModal());
+  const moreLogMetal = document.getElementById('more-log-metal'); if(moreLogMetal) moreLogMetal.addEventListener('click', ()=> openMetalModal(null));
+  const moreReportIssue = document.getElementById('more-report-issue'); if(moreReportIssue) moreReportIssue.addEventListener('click', ()=> document.getElementById('report-issue-btn').click());
+  const morePushToggle = document.getElementById('more-push-toggle');
+  if(morePushToggle) morePushToggle.addEventListener('change', ()=>{
+    state.pushNotifsEnabled = morePushToggle.checked;
+    toast(morePushToggle.checked ? 'Push notifications are not yet connected — this will start working once that feature is built.' : 'Push notifications turned off.');
+  });
+  const moreSwitchRole = document.getElementById('more-switch-role'); if(moreSwitchRole) moreSwitchRole.addEventListener('click', ()=> document.getElementById('switch-role-btn').click());
   document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{ state.statusFilter=b.dataset.filter; render(); }));
   document.querySelectorAll('[data-colvis]').forEach(cb=>cb.addEventListener('change', ()=>{
     const [t,key] = cb.dataset.colvis.split('|');
@@ -3307,6 +3441,28 @@ document.getElementById('new-order-btn').addEventListener('click', openAddModal)
 document.getElementById('new-material-btn-global').addEventListener('click', ()=> openMaterialModal());
 document.getElementById('new-metal-btn-global').addEventListener('click', ()=> openMetalModal(null));
 document.getElementById('lightbox-print-btn').addEventListener('click', ()=> printImage(lightboxCurrent.url, lightboxCurrent.caption));
+document.querySelectorAll('.mtab').forEach(b=>b.addEventListener('click', ()=>{
+  state.view = b.dataset.mtab; render();
+  document.getElementById('mobile-fab-menu').classList.remove('show');
+}));
+document.getElementById('mobile-fab-btn').addEventListener('click', ()=>{
+  document.getElementById('mobile-fab-menu').classList.toggle('show');
+});
+document.querySelectorAll('[data-fab-action]').forEach(b=>b.addEventListener('click', ()=>{
+  document.getElementById('mobile-fab-menu').classList.remove('show');
+  const action = b.dataset.fabAction;
+  if(action==='order') openAddModal();
+  else if(action==='material') openMaterialModal();
+  else if(action==='qc') document.getElementById('report-issue-btn').click();
+}));
+function updateMobileTabbar(){
+  document.querySelectorAll('.mtab').forEach(b=>{
+    const mapped = b.dataset.mtab==='managers' ? ['managers'] : b.dataset.mtab==='more' ? ['more','dashboard','completed','delivered','contacts'] : [b.dataset.mtab];
+    b.classList.toggle('active', mapped.includes(state.view));
+  });
+  const openQc = state.jobs.some(j=>(j.qc||[]).some(q=>q.status==='Open'));
+  const dot = document.getElementById('mtab-dot'); if(dot) dot.classList.toggle('show', openQc);
+}
 document.getElementById('report-issue-btn').addEventListener('click', ()=>{
   const sel = document.getElementById('qc-report-job');
   const sorted = [...state.jobs].sort((a,b)=> a.jobName.localeCompare(b.jobName));
