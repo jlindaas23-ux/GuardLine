@@ -666,12 +666,12 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
 const STATUSES = ['Pending','In Shop','QC Hold','Complete','Delivered/Picked Up'];
 const ISSUE_TYPES = ['Wrong Dimensions','Fabrication Defect','Wrong Gauge / Material','Wrong Connection / Hardware','Damaged in Transit','Missing Item','Incorrect Liner / Insulation','Other'];
 const MATERIAL_ITEMS = [
-  ['hangerStrap','Hanger Strap'],['slipAndDrive','Slip and Drive'],['angle','Angle'],['cleats','Cleats'],
-  ['ductSealer','Duct Sealer'],['stickyGasket','Sticky Gasket (Butyl)'],['allThread38','3/8" All Thread Rod'],
-  ['allThread12','1/2" All Thread Rod'],['blackSprayPaint','Black Spray Paint'],['rags','Rags'],
-  ['greyDuctTape','Grey Duct Tape'],['blackDuctTape','Black Duct Tape'],['silverTape','Silver Tape'],
-  ['redLetterSilverTape','Red Letter Silver Tape'],['ductGuard','Duct Guard'],['visqueen','Visqueen'],
-  ['toolsEquipment','Tools and Equipment']
+  ['hangerStrap','Hanger Strap','ft'],['slipAndDrive','Slip and Drive','ft'],['angle','Angle','ft'],['cleats','Cleats','box'],
+  ['ductSealer','Duct Sealer','box'],['stickyGasket','Sticky Gasket (Butyl)','roll'],['allThread38','3/8" All Thread Rod','ft'],
+  ['allThread12','1/2" All Thread Rod','ft'],['blackSprayPaint','Black Spray Paint','can'],['rags','Rags','box'],
+  ['greyDuctTape','Grey Duct Tape','roll'],['blackDuctTape','Black Duct Tape','roll'],['silverTape','Silver Tape','roll'],
+  ['redLetterSilverTape','Red Letter Silver Tape','roll'],['ductGuard','Duct Guard','roll'],['visqueen','Visqueen','roll'],
+  ['toolsEquipment','Tools and Equipment','each']
 ];
 const STATUS_CLASS = {'Pending':'pending','In Shop':'inshop','QC Hold':'qchold','Complete':'complete','Delivered/Picked Up':'delivered'};
 const ADVANCE_MAP = {'Pending':'In Shop','In Shop':'Complete','QC Hold':'In Shop'};
@@ -2163,7 +2163,7 @@ function viewContacts(){
 /* ============================ MATERIAL LIST ============================ */
 function materialSummary(m){
   const checked = MATERIAL_ITEMS.filter(([k])=> m.materials && m.materials[k] && m.materials[k].checked)
-    .map(([k,label])=> m.materials[k].qty ? `${label} (${m.materials[k].qty})` : label);
+    .map(([k,label,unit])=> m.materials[k].qty ? `${label} (${m.materials[k].qty} ${unit})` : label);
   if(m.otherItems) checked.push(m.otherItems);
   return checked.length ? checked.join(', ') : 'No items selected';
 }
@@ -2610,11 +2610,11 @@ async function renderJobModal(){
     const mat = job.materials || {};
     body.innerHTML = `
     <div class="form-grid">
-      ${MATERIAL_ITEMS.map(([k,label])=>`
+      ${MATERIAL_ITEMS.map(([k,label,unit])=>`
         <div class="field" style="display:flex;align-items:center;gap:8px;flex-direction:row;">
           <input type="checkbox" id="jm-mat-chk-${k}" style="width:auto;" ${mat[k]&&mat[k].checked?'checked':''} ${canEdit?'':'disabled'}>
-          <label style="margin:0;text-transform:none;font-size:13px;flex:1;">${label}</label>
-          <input id="jm-mat-qty-${k}" placeholder="qty" value="${mat[k]?mat[k].qty||'':''}" style="width:70px;" ${canEdit?'':'disabled'}>
+          <label style="margin:0;text-transform:none;font-size:13px;flex:1;">${label} <span style="color:var(--text-faint);font-size:10.5px;">(${unit})</span></label>
+          <input id="jm-mat-qty-${k}" placeholder="${unit}" value="${mat[k]?mat[k].qty||'':''}" style="width:70px;" ${canEdit?'':'disabled'}>
         </div>`).join('')}
     </div>
     <div class="field" style="margin-top:14px;"><label>Other Items Required</label><textarea id="jm-mat-other" ${canEdit?'':'disabled'}>${job.otherItems||''}</textarea></div>
@@ -2785,12 +2785,12 @@ function generateMaterialCardImage(job){
   let y = 190;
   ctx.font = '16px Arial';
   let anyItem = false;
-  MATERIAL_ITEMS.forEach(([k,label])=>{
+  MATERIAL_ITEMS.forEach(([k,label,unit])=>{
     const m = job.materials && job.materials[k];
     if(m && (m.checked || m.qty)){
       anyItem = true;
       ctx.fillStyle = '#111';
-      ctx.fillText(`☑  ${label}${m.qty ? '   —   Qty: '+m.qty : ''}`, 34, y);
+      ctx.fillText(`☑  ${label}${m.qty ? '   —   Qty: '+m.qty+' '+unit : ''}`, 34, y);
       y += 30;
     }
   });
@@ -2816,7 +2816,17 @@ function openMaterialModal(){
   document.getElementById('material-modal-title').textContent = 'New Material Request';
   document.getElementById('material-modal-body').innerHTML = `
     <div class="form-grid">
-      <div class="field"><label>Job Name</label><input id="mat-jobName" placeholder="e.g. Site Material Order"></div>
+      <div class="field" style="grid-column:1/-1;">
+        <label>Job Name</label>
+        <select id="mat-jobName-picker" style="margin-bottom:8px;">
+          <option value="">— Choose an existing job, or add new below —</option>
+          ${jobMasterOptionsHTML()}
+          ${(!state.jobMasterList || !state.jobMasterList.length) ? `<option value="" disabled>(No jobs in the list yet — use "Manage Job List" below)</option>` : ''}
+          <option value="__new__">➕ Add New Job…</option>
+        </select>
+        <input id="mat-jobName" placeholder="Type a new job name, or pick one above">
+        ${(state.role==='master'||state.role==='manager') ? `<button type="button" id="mat-manage-job-list-link" style="background:none;border:none;color:var(--steel-bright);text-decoration:underline;font-size:11px;padding:6px 0 0;cursor:pointer;">Manage Job List</button>` : ''}
+      </div>
       <div class="field"><label>Job Number</label><input id="mat-jobNumber" placeholder="optional"></div>
       <div class="field"><label>Division / Company <span style="color:var(--red);">*</span></label><select id="mat-division">${divisionOptionsHTML('')}</select></div>
       <div class="field" style="grid-column:1/-1;">
@@ -2831,11 +2841,11 @@ function openMaterialModal(){
     </div>
     <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Materials Needed</div>
     <div class="form-grid">
-      ${MATERIAL_ITEMS.map(([k,label])=>`
+      ${MATERIAL_ITEMS.map(([k,label,unit])=>`
         <div class="field" style="display:flex;align-items:center;gap:8px;flex-direction:row;">
           <input type="checkbox" id="mat-chk-${k}" style="width:auto;">
-          <label style="margin:0;text-transform:none;font-size:13px;flex:1;">${label}</label>
-          <input id="mat-qty-${k}" placeholder="qty" style="width:70px;">
+          <label style="margin:0;text-transform:none;font-size:13px;flex:1;">${label} <span style="color:var(--text-faint);font-size:10.5px;">(${unit})</span></label>
+          <input id="mat-qty-${k}" placeholder="${unit}" style="width:70px;">
         </div>`).join('')}
     </div>
     <div class="form-grid" style="margin-top:6px;">
@@ -2862,6 +2872,24 @@ function openMaterialModal(){
     </div>
   `;
   wireRequesterPicker('mat');
+  const matJobNamePicker = document.getElementById('mat-jobName-picker');
+  matJobNamePicker.addEventListener('change', function(){
+    const jobNumInput = document.getElementById('mat-jobNumber');
+    const nameInput = document.getElementById('mat-jobName');
+    if(this.value==='' || this.value==='__new__'){
+      nameInput.value = '';
+      jobNumInput.value = '';
+      jobNumInput.disabled = false;
+      nameInput.focus();
+      return;
+    }
+    const opt = this.selectedOptions[0];
+    nameInput.value = this.value;
+    jobNumInput.value = opt.dataset.jobnum || '';
+    jobNumInput.disabled = true;
+  });
+  const matManageJobListLink = document.getElementById('mat-manage-job-list-link');
+  if(matManageJobListLink) matManageJobListLink.addEventListener('click', openJobMasterListModal);
   const matCamInput = document.getElementById('mat-camera');
   matCamInput.addEventListener('change', async ()=>{
     if(matCamInput.files[0]){ materialPhotoDrafts.push({dataUrl: await compressImage(matCamInput.files[0])}); renderMaterialPhotoGallery(); }
@@ -2925,12 +2953,19 @@ document.getElementById('material-save-btn').addEventListener('click', async ()=
 let editingMetalId = null;
 let editingContactId = null;
 function refreshJobNamePickerIfOpen(){
+  const emptyNote = (!state.jobMasterList || !state.jobMasterList.length) ? `<option value="" disabled>(No jobs in the list yet — use "Manage Job List" below)</option>` : '';
+  const optionsHTML = `<option value="">— Choose an existing job, or add new below —</option>${jobMasterOptionsHTML()}${emptyNote}<option value="__new__">➕ Add New Job…</option>`;
   const picker = document.getElementById('n-jobName-picker');
   if(picker && document.getElementById('add-modal').classList.contains('show')){
     const cur = picker.value;
-    const emptyNote = (!state.jobMasterList || !state.jobMasterList.length) ? `<option value="" disabled>(No jobs in the list yet — use "Manage Job List" below)</option>` : '';
-    picker.innerHTML = `<option value="">— Choose an existing job, or add new below —</option>${jobMasterOptionsHTML()}${emptyNote}<option value="__new__">➕ Add New Job…</option>`;
+    picker.innerHTML = optionsHTML;
     picker.value = cur;
+  }
+  const matPicker = document.getElementById('mat-jobName-picker');
+  if(matPicker && document.getElementById('material-modal').classList.contains('show')){
+    const cur = matPicker.value;
+    matPicker.innerHTML = optionsHTML;
+    matPicker.value = cur;
   }
 }
 function renderJobMasterListModal(){
