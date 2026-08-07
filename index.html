@@ -717,6 +717,35 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
   </div>
 </div>
 
+<!-- TRAILER LOCATION MODAL -->
+<div class="overlay" id="trailer-location-modal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-head">
+      <div><h2 id="trailer-location-title">Trailer Location</h2><div class="sub">Where is this trailer right now?</div></div>
+      <button class="modal-close" data-close="trailer-location-modal">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Location</label>
+        <select id="trailer-location-picker">
+          <option value="Yard">Yard</option>
+          <option value="Sheet Metal Shop">Sheet Metal Shop</option>
+          <option value="Empty">Empty</option>
+          <option value="__custom__">✏️ Type a jobsite…</option>
+        </select>
+      </div>
+      <div class="field" id="trailer-location-custom-wrap" style="display:none;">
+        <label>Jobsite Name</label>
+        <input id="trailer-location-custom" placeholder="e.g. Pasco Co. Jail">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" data-close="trailer-location-modal">Cancel</button>
+      <button class="btn-primary" id="trailer-location-save-btn">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- MATERIAL REQUEST MODAL -->
 <div class="overlay" id="material-modal">
   <div class="modal" style="max-width:720px;">
@@ -2118,7 +2147,12 @@ function trailerCard(t, isMaster){
       <div class="disp" style="font-size:15px;">${t.name}</div>
       <div class="mono" style="font-weight:700;font-size:13px;">${fmt(totalW)} lbs</div>
     </div>
-    <div style="color:var(--text-faint);font-size:11.5px;margin-bottom:12px;">${jobs.length ? `${jobs.length} completed job${jobs.length!==1?'s':''} loaded` : 'Empty — available to load'}</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
+      <div style="color:${t.siteNote?'var(--steel-bright)':'var(--text-faint)'};font-size:11.5px;flex:1;">
+        ${t.siteNote ? `📍 ${t.siteNote}` : (jobs.length ? `${jobs.length} completed job${jobs.length!==1?'s':''} loaded` : 'Empty — available to load')}
+      </div>
+      ${isMaster ? `<button data-edit-site="${t.id}" style="background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:12px;padding:2px 4px;" title="Edit current location">✎</button>` : ''}
+    </div>
     ${jobs.length ? jobs.map(j=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft);gap:8px;cursor:pointer;" data-open="${j.id}">
         <div style="flex:1;min-width:0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${j.jobName}${priorityBadge(j)}</div>
@@ -2334,6 +2368,7 @@ function bindMainEvents(){
   });
   const addStdTrailersBtn = document.getElementById('add-standard-trailers-btn');
   if(addStdTrailersBtn) addStdTrailersBtn.addEventListener('click', addStandardTrailers);
+  document.querySelectorAll('[data-edit-site]').forEach(b=>b.addEventListener('click', ()=> openTrailerLocationModal(b.dataset.editSite)));
   document.querySelectorAll('[data-remove-trailer]').forEach(b=>b.addEventListener('click', ()=>{
     const t = (state.trailers||[]).find(x=>x.id===b.dataset.removeTrailer);
     if(t && !confirm(`Remove "${t.name}" from the trailer list?`)) return;
@@ -2360,6 +2395,7 @@ function bindMainEvents(){
   document.querySelectorAll('[data-trailer-toshop]').forEach(b=>b.addEventListener('click', ()=>{
     const t = (state.trailers||[]).find(x=>x.id===b.dataset.trailerToshop); if(!t) return;
     t.location = 'At Shop';
+    t.siteNote = '';
     t.history = t.history || [];
     t.history.unshift({when:nowStr(), note:`Marked back at shop by ${state.userName}.`});
     saveState(); toast(`${t.name} marked back at shop.`); render();
@@ -3132,6 +3168,46 @@ function openJobMasterListModal(){
   renderJobMasterListModal();
   openModal('job-master-modal');
 }
+let editingTrailerLocationId = null;
+const TRAILER_PRESETS = ['Yard','Sheet Metal Shop','Empty'];
+function openTrailerLocationModal(trailerId){
+  const t = (state.trailers||[]).find(x=>x.id===trailerId); if(!t) return;
+  editingTrailerLocationId = trailerId;
+  document.getElementById('trailer-location-title').textContent = `${t.name} — Location`;
+  const picker = document.getElementById('trailer-location-picker');
+  const customWrap = document.getElementById('trailer-location-custom-wrap');
+  const customInput = document.getElementById('trailer-location-custom');
+  const current = t.siteNote || '';
+  if(TRAILER_PRESETS.includes(current) || !current){
+    picker.value = current || 'Empty';
+    customWrap.style.display = 'none';
+    customInput.value = '';
+  } else {
+    picker.value = '__custom__';
+    customWrap.style.display = '';
+    customInput.value = current;
+  }
+  openModal('trailer-location-modal');
+}
+document.getElementById('trailer-location-picker').addEventListener('change', function(){
+  document.getElementById('trailer-location-custom-wrap').style.display = this.value==='__custom__' ? '' : 'none';
+});
+document.getElementById('trailer-location-save-btn').addEventListener('click', ()=>{
+  const t = (state.trailers||[]).find(x=>x.id===editingTrailerLocationId); if(!t) return;
+  const picked = val('trailer-location-picker');
+  let note = '';
+  if(picked==='__custom__'){
+    note = val('trailer-location-custom').trim();
+    if(!note){ toast('Type a jobsite name first.'); return; }
+  } else if(picked!=='Empty'){
+    note = picked;
+  }
+  t.siteNote = note;
+  t.location = note ? (TRAILER_PRESETS.includes(note) ? 'At Shop' : 'On Site') : 'At Shop';
+  t.history = t.history || [];
+  t.history.unshift({when:nowStr(), note: note ? `Location updated by ${state.userName}: ${note}` : `Location cleared by ${state.userName} — marked back at shop.`});
+  saveState(); closeModal('trailer-location-modal'); toast('Trailer location updated.'); render();
+});
 document.getElementById('jm-add-btn').addEventListener('click', ()=>{
   const jobNumber = val('jm-new-number').trim();
   const jobName = val('jm-new-name').trim();
