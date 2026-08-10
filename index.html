@@ -353,15 +353,24 @@ tbody tr:last-child td{border-bottom:none;}
 .modal-head .sub{color:var(--text-faint);font-size:12px;margin-top:3px;}
 .modal-close{background:none;border:none;color:var(--text-faint);font-size:22px;line-height:1;}
 .modal-close:hover{color:var(--text);}
-.modal-tabs{display:flex;gap:2px;padding:0 22px;background:var(--panel-2);border-bottom:1px solid var(--border);}
+.modal-tabs{display:flex;gap:2px;padding:0 22px;background:var(--panel-2);border-bottom:1px solid var(--border);position:relative;}
 @media(max-width:640px){
   .modal{max-width:100%;max-height:100vh;border-radius:0;}
   .overlay{padding:0;}
   .modal-head{padding:14px 16px;}
   .modal-body{padding:16px;}
   .modal-foot{padding:12px 16px;flex-wrap:wrap;}
-  .modal-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 12px;}
-  .modal-tabs button{flex-shrink:0;padding:11px 10px;font-size:11px;margin-right:4px;}
+  .modal-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 10px;background:var(--panel);}
+  .modal-tabs::after{content:"";position:absolute;top:0;right:0;bottom:0;width:24px;background:linear-gradient(90deg,transparent,var(--panel));pointer-events:none;}
+  .modal-tabs button{flex-shrink:0;padding:13px 12px;font-size:0;margin-right:2px;color:var(--text-dim);border-bottom:3px solid transparent;}
+  .modal-tabs button.active{background:var(--panel-2);color:var(--text);}
+  .modal-tabs button::before{font-size:12px;font-family:'Oswald';letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;}
+  .modal-tabs button[data-tab="info"]::before{content:"Info";}
+  .modal-tabs button[data-tab="photo"]::before{content:"Photo";}
+  .modal-tabs button[data-tab="materials"]::before{content:"Materials";}
+  .modal-tabs button[data-tab="metalUsage"]::before{content:"Metal";}
+  .modal-tabs button[data-tab="history"]::before{content:"History";}
+  .modal-tabs button[data-tab="qc"]::before{content:"QC";}
 }
 .modal-tabs button{background:none;border:none;color:var(--text-faint);padding:11px 4px;margin-right:20px;font-family:'Oswald';font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;border-bottom:2px solid transparent;}
 .modal-tabs button.active{color:var(--text);border-bottom:2px solid var(--steel-bright);}
@@ -1671,7 +1680,19 @@ function viewDashboard(){
     return {wk, lbs, hrs, rate: lbsPerHr(lbs,hrs)};
   });
 
-  const allWithLead = state.jobs.filter(j=>leadTimeDays(j)!==null);
+  const allWithLeadRaw = state.jobs.filter(j=>leadTimeDays(j)!==null);
+  if(!state.shortOrdersRange) state.shortOrdersRange = 'all';
+  const shortOrdersRange = state.shortOrdersRange;
+  function inRange(j){
+    if(shortOrdersRange==='all' || !j.needDate) return true;
+    const d = new Date(j.needDate+'T00:00:00');
+    const now = new Date();
+    if(shortOrdersRange==='month') return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
+    if(shortOrdersRange==='quarter'){ const cutoff = new Date(now); cutoff.setMonth(cutoff.getMonth()-3); return d>=cutoff && d<=now; }
+    if(shortOrdersRange==='year') return d.getFullYear()===now.getFullYear();
+    return true;
+  }
+  const allWithLead = allWithLeadRaw.filter(inRange);
   const shortOrders = allWithLead.filter(isShortOrder);
   const normalOrders = allWithLead.filter(j=>!isShortOrder(j));
   const shortOnTime = onTimeRate(shortOrders);
@@ -1777,7 +1798,15 @@ function viewDashboard(){
     </table>
   </div>
 
-  <div class="section-title"><span class="bar"></span>Short Orders — On Time vs. Short Order</div>
+  <div class="toolbar">
+    <div class="section-title" style="margin:0;"><span class="bar"></span>Short Orders — On Time vs. Short Order</div>
+    <select id="short-orders-range" class="search-box" style="min-width:150px;">
+      <option value="all" ${shortOrdersRange==='all'?'selected':''}>All Time</option>
+      <option value="month" ${shortOrdersRange==='month'?'selected':''}>This Month</option>
+      <option value="quarter" ${shortOrdersRange==='quarter'?'selected':''}>Last 3 Months</option>
+      <option value="year" ${shortOrdersRange==='year'?'selected':''}>This Year</option>
+    </select>
+  </div>
   <div class="stat-row">
     <div class="card stat-box"><div class="val mono">${shortOrders.length}</div><div class="lbl">Short Orders (&lt; 1 Wk Lead)</div></div>
     <div class="card stat-box"><div class="val mono">${normalOrders.length}</div><div class="lbl">Normal Lead Time Orders</div></div>
@@ -2495,6 +2524,8 @@ function bindMainEvents(){
     const v = prompt('Set weekly weight goal (lbs):', state.goal);
     if(v && !isNaN(v)){ state.goal = Number(v); saveState(); render(); }
   });
+  const shortOrdersRangeSel = document.getElementById('short-orders-range');
+  if(shortOrdersRangeSel) shortOrdersRangeSel.addEventListener('change', ()=>{ state.shortOrdersRange = shortOrdersRangeSel.value; render(); });
   const hoursWeekPrev = document.getElementById('hours-week-prev');
   if(hoursWeekPrev) hoursWeekPrev.addEventListener('click', ()=>{ const d=new Date(state.hoursWeek+'T00:00:00'); d.setDate(d.getDate()-7); state.hoursWeek=mondayISO(d.toISOString().slice(0,10)); render(); });
   const hoursWeekNext = document.getElementById('hours-week-next');
