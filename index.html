@@ -354,10 +354,12 @@ tbody tr:last-child td{border-bottom:none;}
 .modal-close{background:none;border:none;color:var(--text-faint);font-size:22px;line-height:1;}
 .modal-close:hover{color:var(--text);}
 .modal-tabs{display:flex;gap:2px;padding:0 22px;background:var(--panel-2);border-bottom:1px solid var(--border);position:relative;}
+.modal-tabs button{background:none;border:none;color:var(--text-faint);padding:11px 4px;margin-right:20px;font-family:'Oswald';font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;border-bottom:2px solid transparent;}
+.modal-tabs button.active{color:var(--text);border-bottom:2px solid var(--steel-bright);}
 @media(max-width:640px){
   .modal{max-width:100%;max-height:100vh;border-radius:0;}
   .overlay{padding:0;}
-  .modal-head{padding:14px 16px;}
+  .modal-head{padding:max(14px, env(safe-area-inset-top)) 16px 14px;}
   .modal-body{padding:16px;}
   .modal-foot{padding:12px 16px;flex-wrap:wrap;}
   .modal-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 10px;background:var(--panel);}
@@ -372,8 +374,6 @@ tbody tr:last-child td{border-bottom:none;}
   .modal-tabs button[data-tab="history"]::before{content:"History";}
   .modal-tabs button[data-tab="qc"]::before{content:"QC";}
 }
-.modal-tabs button{background:none;border:none;color:var(--text-faint);padding:11px 4px;margin-right:20px;font-family:'Oswald';font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;border-bottom:2px solid transparent;}
-.modal-tabs button.active{color:var(--text);border-bottom:2px solid var(--steel-bright);}
 .modal-body{padding:22px;overflow-y:auto;}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;}
 @media(max-width:560px){.form-grid{grid-template-columns:1fr;}}
