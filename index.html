@@ -605,7 +605,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
         </div>
         <div class="field">
           <label>Division / Company <span style="color:var(--red);">*</span></label>
-          <select id="qc-report-division">${divisionOptionsHTML('')}</select>
+          <select id="qc-report-division"></select>
         </div>
         <div class="field">
           <label>Sketch # / Order #</label>
@@ -613,7 +613,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
         </div>
         <div class="field">
           <label>Issue Type</label>
-          <select id="qc-report-type">${ISSUE_TYPES.map(t=>`<option>${t}</option>`).join('')}</select>
+          <select id="qc-report-type"></select>
         </div>
         <div class="field">
           <label>Priority</label>
@@ -3541,6 +3541,8 @@ document.getElementById('add-save-btn').addEventListener('click', async ()=>{
 let qcReportPhotoDraft = null;
 function resetQcReportForm(){
   qcReportPhotoDraft = null;
+  document.getElementById('qc-report-division').innerHTML = divisionOptionsHTML('');
+  document.getElementById('qc-report-type').innerHTML = ISSUE_TYPES.map(t=>`<option>${t}</option>`).join('');
   document.getElementById('qc-report-ref').value = '';
   document.getElementById('qc-report-desc').value = '';
   document.getElementById('qc-report-remake').checked = false;
