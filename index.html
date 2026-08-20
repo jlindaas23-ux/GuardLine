@@ -441,7 +441,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
 .empty .big{font-family:'Oswald';font-size:16px;color:var(--text-dim);margin-bottom:6px;}
 
 /* ---------- INLINE SKETCH THUMBNAILS ---------- */
-.thumb-cell{width:38px;height:38px;border-radius:6px;overflow:hidden;background:var(--panel-2);display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--border);flex-shrink:0;margin:0 auto;}
+.thumb-cell{width:38px;height:38px;border-radius:6px;overflow:hidden;background:var(--panel-2);display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--border);flex-shrink:0;margin:0 auto;position:relative;}
+.thumb-count-badge{position:absolute;bottom:0;right:0;background:var(--steel-bright);color:#0b0f13;font-size:9px;font-weight:800;line-height:1;padding:2px 4px;border-radius:5px 0 0 0;}
 .thumb-cell:hover{border-color:var(--steel);}
 .thumb-cell img{width:100%;height:100%;object-fit:cover;display:block;}
 .thumb-none{color:var(--text-faint);font-size:18px;}
@@ -1711,6 +1712,8 @@ function viewPdfFile(key, filename, caption){
 }
 async function openThumbLightbox(jobId){
   const job = jobById(jobId); if(!job) return;
+  const photoCount = (job.photoKeys && job.photoKeys.length) ? job.photoKeys.length : (job.hasPhoto ? 1 : 0);
+  if(photoCount > 1){ openJobPhoto(jobId); return; }
   let url = state.photoCache[jobId];
   if(!url && job.hasPhoto){ url = await loadPhoto(jobId); if(url) state.photoCache[jobId] = url; }
   if(url){ openLightbox(url, `${job.jobName} — ${job.jobNumber}`); return; }
@@ -1719,7 +1722,9 @@ async function openThumbLightbox(jobId){
   toast('No photo or PDF attached to this job yet.');
 }
 function thumbHTML(job){
-  if(state.photoCache[job.id]) return `<img src="${state.photoCache[job.id]}">`;
+  const photoCount = (job.photoKeys && job.photoKeys.length) ? job.photoKeys.length : (job.hasPhoto ? 1 : 0);
+  const badge = photoCount > 1 ? `<span class="thumb-count-badge">${photoCount}</span>` : '';
+  if(state.photoCache[job.id]) return `<img src="${state.photoCache[job.id]}">${badge}`;
   if(job.hasPhoto) return `<span class="thumb-loading">loading…</span>`;
   if(job.pdfFiles && job.pdfFiles.length) return `<span class="thumb-pdf" title="${job.pdfFiles.length} PDF${job.pdfFiles.length>1?'s':''} attached">📄</span>`;
   return `<span class="thumb-none">—</span>`;
@@ -1729,7 +1734,9 @@ function hydratePhotoThumbs(){
     loadPhoto(j.id).then(url=>{
       if(!url) return;
       state.photoCache[j.id] = url;
-      document.querySelectorAll(`[data-thumb="${j.id}"]`).forEach(el=>{ el.innerHTML = `<img src="${url}">`; el.classList.remove('empty'); });
+      const photoCount = (j.photoKeys && j.photoKeys.length) ? j.photoKeys.length : 1;
+      const badge = photoCount > 1 ? `<span class="thumb-count-badge">${photoCount}</span>` : '';
+      document.querySelectorAll(`[data-thumb="${j.id}"]`).forEach(el=>{ el.innerHTML = `<img src="${url}">${badge}`; el.classList.remove('empty'); });
     });
   });
 }
