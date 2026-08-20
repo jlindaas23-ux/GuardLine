@@ -1407,6 +1407,43 @@ function importRealSchedule(){
   saveState(); toast('Schedule replaced with real data.'); render();
 }
 
+/* ---- One-time ADDITIVE import: new jobs from 8/20-8/21/2026 schedule screenshot ---- */
+const NEW_JOBS_8_20_2026 = [
+  {jobName:'PASCO COUNTY JAIL', jobNumber:'22-10-0027', division:'BCH Mechanical Inc.', email:'ACANNAMELA@BCHMECHANICAL.COM', system:'LPSA', area:'', notes:'', drawingType:'Field Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-19', status:'In Shop', qty:2, labelColor:'Pink', secondaryColor:''},
+  {jobName:'SHEET-METAL-MISC-2026', jobNumber:'26-10-0021', division:'BCH Mechanical Inc.', email:'JOSH...', system:'LPSA', area:'', notes:'Right Way Plumbing', drawingType:'Field Drawing', sketchNumber:'', shippingMethod:'Pickup', dateSubmitted:'2026-08-19', status:'', qty:8, labelColor:'', secondaryColor:''},
+  {jobName:'SHEET-METAL-MISC-2026', jobNumber:'26-10-0021', division:'BCH Mechanical Inc.', email:'JOSH...', system:'N/A', area:'N/A', notes:'Sent via email', drawingType:'Field Drawing', sketchNumber:'', shippingMethod:'Pickup', dateSubmitted:'2026-08-19', status:'In Shop', qty:5, labelColor:'Blue', secondaryColor:''},
+  {jobName:'TGH BIO MED AC', jobNumber:'26-10-0023', division:'BCH Mechanical Inc.', email:'STEPHEN.CROWELL@BCHMECHANICAL.COM', system:'EXHAUST', area:'', notes:'', drawingType:'Field Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-19', status:'In Shop', qty:7, labelColor:'FL Orange', secondaryColor:''},
+  {jobName:"BJ'S WHOLESALE LECANTO SM FAB", jobNumber:'26-10-0018', division:'BCH Mechanical Inc.', email:'JOSH...', system:'SA', area:'', notes:'Out piece', drawingType:'Field Drawing', sketchNumber:'', shippingMethod:'Pickup', dateSubmitted:'', status:'', qty:1, labelColor:'', secondaryColor:''},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'SAM-RUN-1', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-17', status:'Complete', qty:33, labelColor:'Yellow', secondaryColor:'Green'},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'SAM-RUN-2', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-17', status:'Complete', qty:27, labelColor:'Yellow', secondaryColor:'Green'},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'RAMP', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-17', status:'Complete', qty:21, labelColor:'Pink', secondaryColor:'Green'},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'SAM-RUN-1', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-17', status:'Complete', qty:2, labelColor:'Blue', secondaryColor:'Green'},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'SAM-RUN-2', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-17', status:'Complete', qty:22, labelColor:'Blue', secondaryColor:'Green'},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'SAM-RUN-3', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-17', status:'In Shop', qty:33, labelColor:'Blue', secondaryColor:'Green'},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'RAMP', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-18', status:'In Shop', qty:16, labelColor:'Green', secondaryColor:'Green'},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'LPSA', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-18', status:'In Shop', qty:6, labelColor:'FL Pink', secondaryColor:'Green'},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'EA', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-18', status:'In Shop', qty:9, labelColor:'FL Red', secondaryColor:'Green'},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'SAM-RUN-1', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-18', status:'In Shop', qty:22, labelColor:'FL Orange', secondaryColor:'Green'},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'SAM-RUN-2', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-18', status:'In Shop', qty:11, labelColor:'FL Orange', secondaryColor:'Green'},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'RAMP', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-19', status:'In Shop', qty:35, labelColor:'FL Green', secondaryColor:'Green'},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'LPSA', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-19', status:'In Shop', qty:15, labelColor:'FL-Yellow', secondaryColor:'Green'},
+  {jobName:'TPA-AIRSIDE-D', jobNumber:'25-10-0054', division:'BCH Mechanical Inc.', email:'SBROWER...', system:'EA', area:'CONCOURSE', notes:'Date-Pending', drawingType:'CAM Drawing', sketchNumber:'', shippingMethod:'Deliver', dateSubmitted:'2026-08-19', status:'In Shop', qty:20, labelColor:'White', secondaryColor:'Green'}
+];
+function importNewJobsBatch_8_20_2026(){
+  if(!confirm(`This will ADD ${NEW_JOBS_8_20_2026.length} new jobs from the 8/20/2026 schedule screenshot to your existing ${state.jobs.length} jobs (nothing gets deleted or replaced). Continue?`)) return;
+  const added = NEW_JOBS_8_20_2026.map(r=>({
+    id: uid(), orderType:'Duct', jobName:r.jobName, jobNumber:r.jobNumber, division:r.division,
+    customer:r.email, requesterEmail:r.email, system:r.system, area:r.area, notes:r.notes,
+    drawingType:r.drawingType, sketchNumber:r.sketchNumber, shippingMethod:r.shippingMethod,
+    trailer:'Parking Area/Shop', dateSubmitted:r.dateSubmitted, needDate:r.needDate||'', status:r.status,
+    qty:r.qty, weight:0, priority:'Normal', labelColor:r.labelColor, secondaryColor:r.secondaryColor,
+    hasPhoto:false, photoKeys:[], pdfFiles:[],
+    manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Imported from 8/20/2026 schedule batch by ${state.userName}.`}], qc:[]
+  }));
+  state.jobs = state.jobs.concat(added);
+  saveState(); toast(`Added ${added.length} jobs from the 8/20 batch.`); render();
+}
+
 function jobAnalysisRows(){
   const byNumber = {};
   state.jobs.forEach(j=>{
@@ -1706,7 +1743,7 @@ function viewDashboard(){
   const hoursWeek = state.hoursWeek;
 
   return `
-  ${canEdit ? `<div class="toolbar" style="margin-bottom:16px;"><div></div><button class="btn-ghost" id="export-csv-btn">⬇ Export Full Schedule (CSV)</button></div>` : ''}
+  ${canEdit ? `<div class="toolbar" style="margin-bottom:16px;"><div></div><button class="btn-ghost" id="export-csv-btn">⬇ Export Full Schedule (CSV)</button> <button class="btn-ghost" id="import-8-20-btn" style="border-color:var(--steel-bright);color:var(--steel-bright);">⬆ Import 8/20 Batch (19 jobs)</button></div>` : ''}
   <div class="dash-grid">
     <div>
       <div class="card gauge-card">
@@ -2467,6 +2504,7 @@ function bindMainEvents(){
   const viewDeletedBtn = document.getElementById('view-deleted-btn'); if(viewDeletedBtn) viewDeletedBtn.addEventListener('click', ()=>{ renderDeletedJobsModal(); openModal('deleted-jobs-modal'); });
   const dashLogMetalBtn = document.getElementById('dash-log-metal-btn'); if(dashLogMetalBtn) dashLogMetalBtn.addEventListener('click', ()=> openMetalModal(null));
   const exportCsvBtn = document.getElementById('export-csv-btn'); if(exportCsvBtn) exportCsvBtn.addEventListener('click', exportScheduleCSV);
+  const import820Btn = document.getElementById('import-8-20-btn'); if(import820Btn) import820Btn.addEventListener('click', importNewJobsBatch_8_20_2026);
   const contactSearch = document.getElementById('contact-search');
   if(contactSearch) contactSearch.addEventListener('input', ()=>{ state.contactSearch = contactSearch.value; renderContactsOnly(); });
   const newContactBtn = document.getElementById('new-contact-btn'); if(newContactBtn) newContactBtn.addEventListener('click', ()=> openContactModal(null));
