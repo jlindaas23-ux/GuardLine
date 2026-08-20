@@ -2732,7 +2732,7 @@ async function renderJobModal(){
         ${canEdit ? `<button class="btn-danger" data-remove-pdf="${f.key}" style="padding:4px 10px;font-size:11px;">Remove</button>` : ''}
       </div>`).join('') : `<div class="empty" style="padding:12px 0;">No PDFs attached.</div>`}
     </div>
-    ${canEdit ? `<div class="photo-buttons" style="margin-top:10px;"><label class="btn-ghost">Upload PDF<input type="file" accept="application/pdf" multiple id="jm-pdf-upload" style="display:none;"></label></div>` : ''}`;
+    ${canEdit ? `<div class="photo-buttons" style="margin-top:10px;"><label class="btn-ghost">Upload PDF<input type="file" accept="application/pdf" multiple id="jm-pdf-upload" style="display:none;"></label><span style="font-size:10px;color:var(--text-faint);margin-left:8px;">Max ~650KB per file</span></div>` : ''}`;
     foot.innerHTML = '';
     const printAllBtn = document.getElementById('print-all-photos-btn');
     if(printAllBtn) printAllBtn.addEventListener('click', ()=>{
@@ -2780,15 +2780,24 @@ async function renderJobModal(){
       pdfUpInput.addEventListener('change', async ()=>{
         const files = Array.from(pdfUpInput.files);
         job.pdfFiles = job.pdfFiles || [];
+        let savedCount = 0;
         for(const f of files){
-          if(f.size > 900*1024){ toast(`${f.name} is too large (max ~900KB). Skipped.`); continue; }
-          const dataUrl = await readFileAsDataURL(f);
-          const key = uid();
-          await saveFile(key, dataUrl, f.name);
-          job.pdfFiles.push({key, name:f.name});
+          if(f.size > 650*1024){ toast(`${f.name} is too large (max ~650KB — Firestore's storage limit). Skipped.`); continue; }
+          try{
+            const dataUrl = await readFileAsDataURL(f);
+            const key = uid();
+            await saveFile(key, dataUrl, f.name);
+            job.pdfFiles.push({key, name:f.name});
+            savedCount++;
+          }catch(err){
+            console.error('PDF save failed', f.name, err);
+            toast(`${f.name} failed to upload. Try again or use a smaller file.`);
+          }
         }
-        addHistory(job, `${files.length>1?files.length+' PDFs':'PDF'} attached by ${state.userName}.`);
-        saveState(); toast('PDF(s) saved.'); renderJobModal();
+        if(savedCount){
+          addHistory(job, `${savedCount>1?savedCount+' PDFs':'PDF'} attached by ${state.userName}.`);
+          saveState(); toast('PDF(s) saved.'); renderJobModal();
+        }
         pdfUpInput.value='';
       });
       body.querySelectorAll('[data-remove-pdf]').forEach(b=>b.addEventListener('click', ()=>{
@@ -3430,7 +3439,7 @@ function openAddModal(){
       <label class="btn-ghost">Upload Photos<input type="file" accept="image/*" multiple id="n-upload" style="display:none;"></label>
     </div>
   </div>
-  <div class="section-title" style="margin-top:18px;"><span class="bar"></span>PDF Attachments <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(drawings, POs, etc.)</span></div>
+  <div class="section-title" style="margin-top:18px;"><span class="bar"></span>PDF Attachments <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(drawings, POs, etc. — max ~650KB per file)</span></div>
   <div class="photo-zone" style="padding:16px;">
     <div id="n-pdf-list">No PDFs attached.</div>
     <div class="photo-buttons">
@@ -3470,7 +3479,7 @@ function openAddModal(){
   const pdfInput = document.getElementById('n-pdf-upload');
   pdfInput.addEventListener('change', async ()=>{
     for(const f of Array.from(pdfInput.files)){
-      if(f.size > 900*1024){ toast(`${f.name} is too large (max ~900KB). Skipped.`); continue; }
+      if(f.size > 650*1024){ toast(`${f.name} is too large (max ~650KB — Firestore's storage limit). Skipped.`); continue; }
       const dataUrl = await readFileAsDataURL(f);
       newJobPdfDrafts.push({name: f.name, dataUrl});
     }
@@ -3528,9 +3537,14 @@ document.getElementById('add-save-btn').addEventListener('click', async ()=>{
   }
   if(newJobPdfDrafts.length){
     for(const draft of newJobPdfDrafts){
-      const key = uid();
-      await saveFile(key, draft.dataUrl, draft.name);
-      job.pdfFiles.push({key, name: draft.name});
+      try{
+        const key = uid();
+        await saveFile(key, draft.dataUrl, draft.name);
+        job.pdfFiles.push({key, name: draft.name});
+      }catch(err){
+        console.error('PDF save failed', draft.name, err);
+        toast(`${draft.name} failed to upload — the job was still added, but you'll need to re-attach that PDF.`);
+      }
     }
   }
   state.jobs.unshift(job);
