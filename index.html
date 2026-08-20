@@ -898,15 +898,6 @@ const GAUGE_TYPES = [
   ['g26','26 Ga'],['g24','24 Ga'],['g22','22 Ga'],['g20','20 Ga'],
   ['g18','18 Ga'],['g16','16 Ga'],['perforated','Perforated Metal'],['stainless','Stainless Steel Coil']
 ];
-/* Manufacturers' Standard Gauge weight-per-square-foot for galvanized sheet steel (industry standard),
-   used only by the one-time historical-data fix below — the live form takes lbs directly. */
-const GAUGE_LBS_PER_SQFT = { g26:0.906, g24:1.156, g22:1.406, g20:1.656, g18:2.156, g16:2.656 };
-const COIL_WIDTH_IN = 60;
-function linearFtToLbs(gaugeKey, linearFt){
-  const perSqft = GAUGE_LBS_PER_SQFT[gaugeKey];
-  if(!perSqft || !linearFt) return 0;
-  return Number(linearFt) * (COIL_WIDTH_IN/12) * perSqft;
-}
 const SEARCH_FIELDS = [
   ['jobName','Job Name'],['jobNumber','Job Number'],['needDate','Date Needed'],
   ['dateSubmitted','Date Required'],['sketchNumber','Sketch #'],['drawingType','Drawing Type'],['trailer','Trailer #']
@@ -1942,7 +1933,6 @@ function viewDashboard(){
       <button class="btn-ghost" id="report-week-today">This Week</button>
     </div>
     <button class="btn-primary" id="print-metal-report-btn">🖨 Print This Report</button>
-    <button class="btn-ghost" id="fix-metal-lf-btn" style="border-color:var(--steel-bright);color:var(--steel-bright);">🔧 Fix Linear Feet → Lbs</button>
   </div>
   <div class="table-wrap" style="margin-bottom:16px;">
     <table>
@@ -2544,8 +2534,6 @@ function bindMainEvents(){
   if(reportToday) reportToday.addEventListener('click', ()=>{ state.reportWeek = mondayISO(todayISO()); render(); });
   const printBtn = document.getElementById('print-metal-report-btn');
   if(printBtn) printBtn.addEventListener('click', printMetalReport);
-  const fixMetalLfBtn = document.getElementById('fix-metal-lf-btn');
-  if(fixMetalLfBtn) fixMetalLfBtn.addEventListener('click', fixMetalUsageLinearFeetToLbs);
   document.querySelectorAll('[data-edit-metal-log]').forEach(el=>el.addEventListener('click',()=> openMetalModal(el.dataset.editMetalLog)));
 
   /* Delivery Calendar drag-and-drop rescheduling */
@@ -3434,33 +3422,6 @@ document.getElementById('metal-save-btn').addEventListener('click', ()=>{
   saveState(); closeModal('metal-modal'); toast('Metal usage saved.'); render();
   if(state.openJobId && state.jmTab==='metalUsage'){ renderJobModal(); }
 });
-
-/* ---- One-time FIX: entries logged before this conversion existed actually have linear feet
-   stored in the numbered-gauge fields, mislabeled as lbs. Entries saved during the brief window
-   the linear-feet UI was live already have a `linearFeet` property and are correctly in lbs —
-   those are skipped so nothing gets double-converted. ---- */
-function fixMetalUsageLinearFeetToLbs(){
-  const numberedKeys = Object.keys(GAUGE_LBS_PER_SQFT);
-  const toFix = (state.metalUsage||[]).filter(e => !e.linearFeet && numberedKeys.some(k => e.gauges && e.gauges[k]));
-  if(!toFix.length){ toast('No entries need converting — everything already looks like it\'s in lbs.'); return; }
-  let oldTotal = 0, newTotal = 0;
-  const preview = toFix.map(e=>{
-    let entryOld=0, entryNew=0;
-    numberedKeys.forEach(k=>{
-      if(e.gauges[k]){ entryOld += Number(e.gauges[k]); entryNew += linearFtToLbs(k, e.gauges[k]); }
-    });
-    oldTotal += entryOld; newTotal += entryNew;
-    return {e, entryOld, entryNew};
-  });
-  const msg = `This will convert ${toFix.length} entr${toFix.length!==1?'ies':'y'} — treating the numbers currently stored as linear feet and recalculating true lbs at 60" width.\n\nCombined total across those entries: ${fmt(oldTotal)} → ${fmt(newTotal)} lbs.\n\nPerforated Metal and Stainless Steel Coil entries are not touched.\n\nContinue?`;
-  if(!confirm(msg)) return;
-  preview.forEach(({e})=>{
-    numberedKeys.forEach(k=>{
-      if(e.gauges[k]) e.gauges[k] = Math.round(linearFtToLbs(k, e.gauges[k])*100)/100;
-    });
-  });
-  saveState(); toast(`Converted ${toFix.length} entr${toFix.length!==1?'ies':'y'} to lbs.`); render();
-}
 
 function openDayDetailModal(iso){
   const jobs = state.jobs.filter(j=>j.status!=='Delivered/Picked Up' && j.needDate===iso)
