@@ -1577,11 +1577,20 @@ function printImage(url, caption){
     </div>`;
   setTimeout(()=> window.print(), 50);
 }
+function viewPdfFile(key, filename){
+  const win = window.open('', '_blank');
+  loadFile(key).then(file=>{
+    if(!file){ if(win) win.close(); toast('Could not load that PDF.'); return; }
+    if(win){ win.location.href = file.dataUrl; }
+    else { downloadDataUrl(file.dataUrl, file.name || filename); toast('Pop-up blocked — downloaded instead. Allow pop-ups to view PDFs directly.'); }
+  }).catch(()=>{ if(win) win.close(); toast('Could not load that PDF.'); });
+}
 async function openThumbLightbox(jobId){
   const job = jobById(jobId); if(!job) return;
   let url = state.photoCache[jobId];
   if(!url && job.hasPhoto){ url = await loadPhoto(jobId); if(url) state.photoCache[jobId] = url; }
   if(url){ openLightbox(url, `${job.jobName} — ${job.jobNumber}`); return; }
+  if(job.pdfFiles && job.pdfFiles.length===1){ viewPdfFile(job.pdfFiles[0].key, job.pdfFiles[0].name); return; }
   if(job.pdfFiles && job.pdfFiles.length){ openJobPhoto(jobId); return; }
   toast('No photo or PDF attached to this job yet.');
 }
@@ -2734,7 +2743,10 @@ async function renderJobModal(){
     <div id="jm-pdf-list">${(job.pdfFiles&&job.pdfFiles.length) ? job.pdfFiles.map(f=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-soft);gap:8px;">
         <span style="font-size:12.5px;cursor:pointer;color:var(--steel-bright);" data-open-pdf="${f.key}" data-pdf-name="${f.name}">📄 ${f.name}</span>
-        ${canEdit ? `<button class="btn-danger" data-remove-pdf="${f.key}" style="padding:4px 10px;font-size:11px;">Remove</button>` : ''}
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="btn-ghost" data-save-pdf="${f.key}" data-pdf-name="${f.name}" style="padding:4px 10px;font-size:11px;">⬇ Save</button>
+          ${canEdit ? `<button class="btn-danger" data-remove-pdf="${f.key}" style="padding:4px 10px;font-size:11px;">Remove</button>` : ''}
+        </div>
       </div>`).join('') : `<div class="empty" style="padding:12px 0;">No PDFs attached.</div>`}
     </div>
     ${canEdit ? `<div class="photo-buttons" style="margin-top:10px;"><label class="btn-ghost">Upload PDF<input type="file" accept="application/pdf" multiple id="jm-pdf-upload" style="display:none;"></label><span style="font-size:10px;color:var(--text-faint);margin-left:8px;">Max ~650KB per file</span></div>` : ''}`;
@@ -2822,8 +2834,11 @@ async function renderJobModal(){
         saveState(); toast('PDF removed.'); renderJobModal(); render();
       }));
     }
-    body.querySelectorAll('[data-open-pdf]').forEach(el=>el.addEventListener('click', async ()=>{
-      const file = await loadFile(el.dataset.openPdf);
+    body.querySelectorAll('[data-open-pdf]').forEach(el=>el.addEventListener('click', ()=>{
+      viewPdfFile(el.dataset.openPdf, el.dataset.pdfName);
+    }));
+    body.querySelectorAll('[data-save-pdf]').forEach(el=>el.addEventListener('click', async ()=>{
+      const file = await loadFile(el.dataset.savePdf);
       if(!file){ toast('Could not load that PDF.'); return; }
       downloadDataUrl(file.dataUrl, file.name || el.dataset.pdfName);
     }));
