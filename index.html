@@ -1407,6 +1407,49 @@ function importRealSchedule(){
   saveState(); toast('Schedule replaced with real data.'); render();
 }
 
+/* ---- One-time FIX: correct truncated area/email/jobName on the 8/20-8/21 batch ---- */
+const FIX_8_20_BATCH = [
+  {jobNumber:'26-10-0021', system:'LPSA', dateSubmitted:'2026-08-19', qty:8, email:'JOSH.LINDAAS@BCHMECHANICAL.COM'},
+  {jobNumber:'26-10-0021', system:'N/A', dateSubmitted:'2026-08-19', qty:5, email:'JOSH.LINDAAS@BCHMECHANICAL.COM'},
+  {jobNumber:'26-10-0023', system:'EXHAUST', dateSubmitted:'2026-08-19', qty:7, email:'STEPHEN.CROWELL@BCHMECHANICAL.COM', jobName:'TGH BIO MED AC REPLACEMENT'},
+  {jobNumber:'26-10-0018', system:'SA', dateSubmitted:'', qty:1, email:'JOSH.LINDAAS@BCHMECHANICAL.COM', jobName:'BJ-WHOLESALE-LECANTO'},
+  {jobNumber:'25-10-0054', system:'SAM-RUN-1', dateSubmitted:'2026-08-17', qty:33, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H1'},
+  {jobNumber:'25-10-0054', system:'SAM-RUN-2', dateSubmitted:'2026-08-17', qty:27, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H1'},
+  {jobNumber:'25-10-0054', system:'RAMP', dateSubmitted:'2026-08-17', qty:21, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H1'},
+  {jobNumber:'25-10-0054', system:'SAM-RUN-1', dateSubmitted:'2026-08-17', qty:2, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H2'},
+  {jobNumber:'25-10-0054', system:'SAM-RUN-2', dateSubmitted:'2026-08-17', qty:22, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H2'},
+  {jobNumber:'25-10-0054', system:'SAM-RUN-3', dateSubmitted:'2026-08-17', qty:33, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H2'},
+  {jobNumber:'25-10-0054', system:'RAMP', dateSubmitted:'2026-08-18', qty:16, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H2'},
+  {jobNumber:'25-10-0054', system:'LPSA', dateSubmitted:'2026-08-18', qty:6, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H1'},
+  {jobNumber:'25-10-0054', system:'EA', dateSubmitted:'2026-08-18', qty:9, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H2'},
+  {jobNumber:'25-10-0054', system:'SAM-RUN-1', dateSubmitted:'2026-08-18', qty:22, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H4'},
+  {jobNumber:'25-10-0054', system:'SAM-RUN-2', dateSubmitted:'2026-08-18', qty:11, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H4'},
+  {jobNumber:'25-10-0054', system:'RAMP', dateSubmitted:'2026-08-19', qty:35, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H4'},
+  {jobNumber:'25-10-0054', system:'LPSA', dateSubmitted:'2026-08-19', qty:15, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H4'},
+  {jobNumber:'25-10-0054', system:'EA', dateSubmitted:'2026-08-19', qty:20, email:'SBROWER@BCHMECHANICAL.COM', area:'CONCOURSE-S1-H4'}
+];
+function fixNewJobsBatch_8_20_2026(){
+  const matches = [];
+  const unmatched = [];
+  FIX_8_20_BATCH.forEach(fix=>{
+    const job = state.jobs.find(j=>
+      j.jobNumber===fix.jobNumber && j.system===fix.system &&
+      j.dateSubmitted===fix.dateSubmitted && Number(j.qty)===Number(fix.qty)
+    );
+    if(!job){ unmatched.push(`${fix.jobNumber} / ${fix.system} / qty ${fix.qty}`); return; }
+    matches.push({job, fix});
+  });
+  let msg = `This will correct ${matches.length} of ${FIX_8_20_BATCH.length} jobs (area/email/job name only — nothing else changes).`;
+  if(unmatched.length) msg += `\n\nCould not find a match for: ${unmatched.join('; ')}`;
+  if(!confirm(msg + '\n\nContinue?')) return;
+  matches.forEach(({job, fix})=>{
+    if(fix.email){ job.customer = fix.email; job.requesterEmail = fix.email; }
+    if(fix.area) job.area = fix.area;
+    if(fix.jobName) job.jobName = fix.jobName;
+  });
+  saveState(); toast(`Corrected ${matches.length} job${matches.length!==1?'s':''}.`); render();
+}
+
 
 function jobAnalysisRows(){
   const byNumber = {};
@@ -1707,7 +1750,7 @@ function viewDashboard(){
   const hoursWeek = state.hoursWeek;
 
   return `
-  ${canEdit ? `<div class="toolbar" style="margin-bottom:16px;"><div></div><button class="btn-ghost" id="export-csv-btn">⬇ Export Full Schedule (CSV)</button></div>` : ''}
+  ${canEdit ? `<div class="toolbar" style="margin-bottom:16px;"><div></div><button class="btn-ghost" id="export-csv-btn">⬇ Export Full Schedule (CSV)</button> <button class="btn-ghost" id="fix-8-20-btn" style="border-color:var(--steel-bright);color:var(--steel-bright);">🔧 Fix 8/20 Batch (area/email)</button></div>` : ''}
   <div class="dash-grid">
     <div>
       <div class="card gauge-card">
@@ -2468,6 +2511,7 @@ function bindMainEvents(){
   const viewDeletedBtn = document.getElementById('view-deleted-btn'); if(viewDeletedBtn) viewDeletedBtn.addEventListener('click', ()=>{ renderDeletedJobsModal(); openModal('deleted-jobs-modal'); });
   const dashLogMetalBtn = document.getElementById('dash-log-metal-btn'); if(dashLogMetalBtn) dashLogMetalBtn.addEventListener('click', ()=> openMetalModal(null));
   const exportCsvBtn = document.getElementById('export-csv-btn'); if(exportCsvBtn) exportCsvBtn.addEventListener('click', exportScheduleCSV);
+  const fix820Btn = document.getElementById('fix-8-20-btn'); if(fix820Btn) fix820Btn.addEventListener('click', fixNewJobsBatch_8_20_2026);
   const contactSearch = document.getElementById('contact-search');
   if(contactSearch) contactSearch.addEventListener('input', ()=>{ state.contactSearch = contactSearch.value; renderContactsOnly(); });
   const newContactBtn = document.getElementById('new-contact-btn'); if(newContactBtn) newContactBtn.addEventListener('click', ()=> openContactModal(null));
