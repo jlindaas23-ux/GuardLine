@@ -1459,6 +1459,90 @@ function weeklyGaugeTotals(weekStartISO){
   metalUsageInWeek(weekStartISO).forEach(e=> GAUGE_TYPES.forEach(([k])=>{ totals[k]+=Number((e.gauges||{})[k]||0); }));
   return totals;
 }
+/* ---- Yearly Metal Usage Report (for discrepancy checks / annual purchasing review) ---- */
+function metalUsageInYear(year){
+  return (state.metalUsage||[]).filter(e=> e.dateISO && Number(e.dateISO.slice(0,4))===Number(year));
+}
+function yearsWithMetalUsage(){
+  const years = new Set([new Date().getFullYear()]);
+  (state.metalUsage||[]).forEach(e=>{ if(e.dateISO) years.add(Number(e.dateISO.slice(0,4))); });
+  return Array.from(years).sort((a,b)=>b-a);
+}
+function yearlyMetalByJob(year){
+  const entries = metalUsageInYear(year);
+  const byJob = {};
+  entries.forEach(e=>{
+    const key = (e.jobNumber||e.jobName||e.id).trim().toLowerCase();
+    if(!byJob[key]) byJob[key] = {jobName:e.jobName, jobNumber:e.jobNumber||'—', company:e.company||'—', gauges:{}, total:0};
+    GAUGE_TYPES.forEach(([k])=>{
+      const v = Number((e.gauges||{})[k]||0);
+      if(v) byJob[key].gauges[k] = (byJob[key].gauges[k]||0) + v;
+    });
+    byJob[key].total += gaugeWeightTotal(e);
+  });
+  return Object.values(byJob).sort((a,b)=> b.total-a.total);
+}
+function yearlyGaugeTotals(year){
+  const totals = {}; GAUGE_TYPES.forEach(([k])=> totals[k]=0);
+  metalUsageInYear(year).forEach(e=> GAUGE_TYPES.forEach(([k])=>{ totals[k]+=Number((e.gauges||{})[k]||0); }));
+  return totals;
+}
+function printYearlyMetalReport(){
+  const year = Number(val('yearly-metal-year-select')) || new Date().getFullYear();
+  const rows = yearlyMetalByJob(year);
+  const totals = yearlyGaugeTotals(year);
+  const grandTotal = rows.reduce((s,r)=>s+r.total,0);
+  const logoEl = document.querySelector('.fabq-logo-sm, .fabq-logo-lg');
+  const logoSrc = logoEl ? logoEl.src : '';
+  const usedGauges = GAUGE_TYPES.filter(([k])=> totals[k] > 0);
+
+  document.getElementById('print-report').innerHTML = `
+    <div class="pr-head">
+      <div class="pr-brand">
+        ${logoSrc ? `<img src="${logoSrc}" class="pr-logo">` : `<div class="pr-brand-text">FabQ</div>`}
+        <div>
+          <div class="pr-title">Yearly Metal Usage Report</div>
+          <div class="pr-sub">Jan 1 – Dec 31, ${year}</div>
+        </div>
+      </div>
+      <div class="pr-meta">Generated ${nowStr()}<br>Prepared for: Purchasing — Annual Metal Charge-Out Review</div>
+    </div>
+
+    <div class="pr-section-label">Usage by Job &amp; Gauge</div>
+    <table class="pr-table">
+      <thead><tr><th>Job Name</th><th>Job #</th><th>Company</th>${GAUGE_TYPES.map(([k,label])=>`<th>${label}</th>`).join('')}<th>Job Total (Lbs)</th></tr></thead>
+      <tbody>
+        ${rows.length ? rows.map(r=>`
+        <tr>
+          <td>${r.jobName}</td><td>${r.jobNumber}</td><td>${r.company}</td>
+          ${GAUGE_TYPES.map(([k])=>`<td>${r.gauges[k]?fmt(r.gauges[k]):'—'}</td>`).join('')}
+          <td><b>${fmt(r.total)}</b></td>
+        </tr>`).join('') : `<tr><td colspan="${3+GAUGE_TYPES.length+1}">No metal usage logged for ${year}.</td></tr>`}
+      </tbody>
+    </table>
+
+    <div class="pr-section-label" style="margin-top:24px;">Summary</div>
+    <div class="pr-summary-wrap">
+      <table class="pr-summary-table">
+        <thead><tr><th>Gauge / Material</th><th>Total Weight Used (All Jobs, Lbs)</th></tr></thead>
+        <tbody>
+          ${usedGauges.length ? usedGauges.map(([k,label])=>`<tr><td>${label}</td><td>${fmt(totals[k])}</td></tr>`).join('') : `<tr><td colspan="2">No usage recorded.</td></tr>`}
+        </tbody>
+      </table>
+      <div class="pr-grand-total">
+        <div class="pr-gt-label">Grand Total — All Gauges, All Jobs — ${year}</div>
+        <div class="pr-gt-value">${fmt(grandTotal)} <span>lbs</span></div>
+      </div>
+    </div>
+
+    <div class="pr-sign">
+      <div class="line">Purchasing Agent Signature</div>
+      <div class="line">Date</div>
+    </div>
+    <div class="pr-footer">FabQ — The Operating System for Fabrication</div>
+  `;
+  setTimeout(()=> window.print(), 50);
+}
 function printMetalReport(){
   const weekStart = state.reportWeek || mondayISO(todayISO());
   const rows = weeklyMetalByJob(weekStart);
@@ -1966,6 +2050,14 @@ function viewDashboard(){
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin-bottom:8px;">Grand Total — All Gauges, All Jobs</div>
         <div class="mono" style="font-size:28px;font-weight:800;color:var(--steel-bright);">${fmt(weeklyRows.reduce((s,r)=>s+r.total,0))} <span style="font-size:13px;font-weight:400;color:var(--text-dim);">lbs</span></div>
       </div>
+    </div>
+  </div>
+
+  <div class="toolbar" style="margin-bottom:26px;">
+    <div class="section-title" style="margin:0;"><span class="bar"></span>Yearly Metal Usage Report</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <select id="yearly-metal-year-select">${yearsWithMetalUsage().map(y=>`<option value="${y}">${y}</option>`).join('')}</select>
+      <button class="btn-primary" id="print-yearly-metal-report-btn">🖨 Print Yearly Report</button>
     </div>
   </div>
 
@@ -2534,6 +2626,8 @@ function bindMainEvents(){
   if(reportToday) reportToday.addEventListener('click', ()=>{ state.reportWeek = mondayISO(todayISO()); render(); });
   const printBtn = document.getElementById('print-metal-report-btn');
   if(printBtn) printBtn.addEventListener('click', printMetalReport);
+  const printYearlyBtn = document.getElementById('print-yearly-metal-report-btn');
+  if(printYearlyBtn) printYearlyBtn.addEventListener('click', printYearlyMetalReport);
   document.querySelectorAll('[data-edit-metal-log]').forEach(el=>el.addEventListener('click',()=> openMetalModal(el.dataset.editMetalLog)));
 
   /* Delivery Calendar drag-and-drop rescheduling */
