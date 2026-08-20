@@ -1091,14 +1091,14 @@ let firestoreReady = false;
 
 function saveStateNow(){
   suppressNextSnapshot = true;
-  stateDocRef.set({
+  const p1 = stateDocRef.set({
     jobsJson: JSON.stringify(state.jobs),
     goal: state.goal,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).catch(err=>{ console.error('Save failed', err); toast('Could not save — check connection.'); });
+  }).catch(err=>{ console.error('Save failed', err); toast('Could not save — check connection.'); throw err; });
 
   suppressNextAuxSnapshot = true;
-  auxDocRef.set({
+  const p2 = auxDocRef.set({
     trailersJson: JSON.stringify(state.trailers),
     deletedJobsJson: JSON.stringify(state.deletedJobs),
     hoursLogJson: JSON.stringify(state.hoursLog),
@@ -1106,7 +1106,9 @@ function saveStateNow(){
     contactsJson: JSON.stringify(state.contacts),
     jobMasterListJson: JSON.stringify(state.jobMasterList),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).catch(err=>{ console.error('Aux save failed', err); toast('Could not save — check connection.'); });
+  }).catch(err=>{ console.error('Aux save failed', err); toast('Could not save — check connection.'); throw err; });
+
+  return Promise.all([p1, p2]);
 }
 function saveState(){
   clearTimeout(saveTimer);
@@ -2825,6 +2827,7 @@ async function renderJobModal(){
         const files = Array.from(pdfUpInput.files);
         job.pdfFiles = job.pdfFiles || [];
         let savedCount = 0;
+        const savedKeys = [];
         for(const f of files){
           if(f.size > 650*1024){ toast(`${f.name} is too large (max ~650KB — Firestore's storage limit). Skipped.`); continue; }
           try{
@@ -2832,6 +2835,7 @@ async function renderJobModal(){
             const key = uid();
             await saveFile(key, dataUrl, f.name);
             job.pdfFiles.push({key, name:f.name});
+            savedKeys.push(key);
             savedCount++;
           }catch(err){
             console.error('PDF save failed', f.name, err);
@@ -2840,7 +2844,15 @@ async function renderJobModal(){
         }
         if(savedCount){
           addHistory(job, `${savedCount>1?savedCount+' PDFs':'PDF'} attached by ${state.userName}.`);
-          saveState(); toast('PDF(s) saved.'); renderJobModal();
+          try{
+            await saveStateNow();
+            toast('PDF(s) saved.');
+          }catch(err){
+            console.error('Schedule save failed after PDF upload', err);
+            job.pdfFiles = job.pdfFiles.filter(f=>!savedKeys.includes(f.key));
+            toast("The PDF uploaded, but the schedule couldn't be updated — check your connection and try attaching it again.");
+          }
+          renderJobModal();
         }
         pdfUpInput.value='';
       });
@@ -3571,29 +3583,45 @@ document.getElementById('add-save-btn').addEventListener('click', async ()=>{
     notes:val('n-notes'), status:'Pending', hasPhoto:false, photoKeys:[], pdfFiles:[], drawingType:'Field Drwg', sketchNumber:'',
     manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Job created by ${state.userName}.`}], qc:[]
   };
-  if(newJobPhotoDrafts.length){
-    for(const draft of newJobPhotoDrafts){
-      const key = job.photoKeys.length ? uid() : job.id;
-      await savePhoto(key, draft.dataUrl);
-      job.photoKeys.push(key);
+  const saveBtn = document.getElementById('add-save-btn');
+  saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+  try{
+    if(newJobPhotoDrafts.length){
+      for(const draft of newJobPhotoDrafts){
+        try{
+          const key = job.photoKeys.length ? uid() : job.id;
+          await savePhoto(key, draft.dataUrl);
+          job.photoKeys.push(key);
+        }catch(err){
+          console.error('Photo save failed', err);
+          toast('A photo failed to upload — you can re-attach it after the job is added.');
+        }
+      }
+      job.hasPhoto = job.photoKeys.length>0;
     }
-    job.hasPhoto = true;
-  }
-  if(newJobPdfDrafts.length){
-    for(const draft of newJobPdfDrafts){
-      try{
-        const key = uid();
-        await saveFile(key, draft.dataUrl, draft.name);
-        job.pdfFiles.push({key, name: draft.name});
-      }catch(err){
-        console.error('PDF save failed', draft.name, err);
-        toast(`${draft.name} failed to upload — the job was still added, but you'll need to re-attach that PDF.`);
+    if(newJobPdfDrafts.length){
+      for(const draft of newJobPdfDrafts){
+        try{
+          const key = uid();
+          await saveFile(key, draft.dataUrl, draft.name);
+          job.pdfFiles.push({key, name: draft.name});
+        }catch(err){
+          console.error('PDF save failed', draft.name, err);
+          toast(`${draft.name} failed to upload — you can re-attach it after the job is added.`);
+        }
       }
     }
+    state.jobs.unshift(job);
+    await saveStateNow();
+    closeModal('add-modal'); render(); toast('Job added to schedule.');
+    notifyNewJob(job);
+  }catch(err){
+    console.error('Job save failed', err);
+    state.jobs = state.jobs.filter(j=>j.id!==job.id);
+    toast('Could not add the job — check your connection and try again. Your entries are still filled in.');
+  }finally{
+    saveBtn.disabled = false; saveBtn.textContent = 'Add Job';
   }
-  state.jobs.unshift(job);
-  saveState(); closeModal('add-modal'); render(); toast('Job added to schedule.');
-  notifyNewJob(job);
 });
 
 /* ============================ GLOBAL QC / CALLBACK REPORT ============================ */
