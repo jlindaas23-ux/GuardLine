@@ -684,8 +684,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
 <div class="overlay" id="lightbox-modal" style="background:rgba(5,7,9,.92);">
   <div style="max-width:95vw;max-height:92vh;position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;">
     <img id="lightbox-img" style="max-width:95vw;max-height:80vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.6);">
+    <iframe id="lightbox-pdf" style="width:90vw;height:80vh;max-width:900px;border:none;border-radius:8px;background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.6);display:none;"></iframe>
     <div id="lightbox-caption" style="color:var(--text-dim);font-size:13px;"></div>
     <button class="btn-primary" id="lightbox-print-btn" style="margin-top:4px;">🖨 Print This Image</button>
+    <button class="btn-primary" id="lightbox-download-pdf-btn" style="margin-top:4px;display:none;">⬇ Save PDF</button>
     <button class="btn-ghost" data-close="lightbox-modal" style="position:absolute;top:-10px;right:-10px;width:36px;height:36px;border-radius:50%;font-size:18px;padding:0;">×</button>
   </div>
 </div>
@@ -1532,6 +1534,9 @@ function openModal(id){ document.getElementById(id).classList.add('show'); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeModal(b.dataset.close)));
 document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',(e)=>{ if(e.target===o) o.classList.remove('show'); }));
+document.getElementById('lightbox-modal').addEventListener('click', (e)=>{
+  if(e.target.id==='lightbox-modal' || e.target.dataset.close==='lightbox-modal') revokeLightboxPdfBlob();
+});
 
 /* ============================ RENDER: SHELL ============================ */
 function renderNav(){
@@ -1561,11 +1566,39 @@ function render(){
   updateMobileTabbar();
 }
 let lightboxCurrent = {url:null, caption:''};
+let lightboxPdfBlobUrl = null;
+function revokeLightboxPdfBlob(){
+  if(lightboxPdfBlobUrl){ URL.revokeObjectURL(lightboxPdfBlobUrl); lightboxPdfBlobUrl = null; }
+}
 function openLightbox(url, caption){
   if(!url) return;
+  revokeLightboxPdfBlob();
   lightboxCurrent = {url, caption: caption||''};
-  document.getElementById('lightbox-img').src = url;
+  const img = document.getElementById('lightbox-img'); img.src = url; img.style.display = '';
+  document.getElementById('lightbox-pdf').style.display = 'none';
+  document.getElementById('lightbox-print-btn').style.display = '';
+  document.getElementById('lightbox-download-pdf-btn').style.display = 'none';
   document.getElementById('lightbox-caption').textContent = caption || '';
+  openModal('lightbox-modal');
+}
+function openLightboxPdf(dataUrl, caption, filename){
+  if(!dataUrl) return;
+  revokeLightboxPdfBlob();
+  try{
+    lightboxPdfBlobUrl = URL.createObjectURL(dataURLtoBlob(dataUrl));
+  }catch(err){
+    console.error('PDF blob conversion failed', err);
+    downloadDataUrl(dataUrl, filename);
+    toast('Could not preview that PDF — downloaded instead.');
+    return;
+  }
+  document.getElementById('lightbox-img').style.display = 'none';
+  const frame = document.getElementById('lightbox-pdf'); frame.src = lightboxPdfBlobUrl; frame.style.display = '';
+  document.getElementById('lightbox-print-btn').style.display = 'none';
+  const dlBtn = document.getElementById('lightbox-download-pdf-btn');
+  dlBtn.style.display = '';
+  dlBtn.onclick = ()=> downloadDataUrl(dataUrl, filename);
+  document.getElementById('lightbox-caption').textContent = caption || filename || '';
   openModal('lightbox-modal');
 }
 function printImage(url, caption){
@@ -1577,20 +1610,27 @@ function printImage(url, caption){
     </div>`;
   setTimeout(()=> window.print(), 50);
 }
-function viewPdfFile(key, filename){
-  const win = window.open('', '_blank');
+function dataURLtoBlob(dataUrl){
+  const [header, base64] = dataUrl.split(',');
+  const mimeMatch = header.match(/data:(.*?);base64/);
+  const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], {type: mime});
+}
+function viewPdfFile(key, filename, caption){
   loadFile(key).then(file=>{
-    if(!file){ if(win) win.close(); toast('Could not load that PDF.'); return; }
-    if(win){ win.location.href = file.dataUrl; }
-    else { downloadDataUrl(file.dataUrl, file.name || filename); toast('Pop-up blocked — downloaded instead. Allow pop-ups to view PDFs directly.'); }
-  }).catch(()=>{ if(win) win.close(); toast('Could not load that PDF.'); });
+    if(!file){ toast('Could not load that PDF.'); return; }
+    openLightboxPdf(file.dataUrl, caption || file.name || filename, file.name || filename);
+  }).catch(()=>{ toast('Could not load that PDF.'); });
 }
 async function openThumbLightbox(jobId){
   const job = jobById(jobId); if(!job) return;
   let url = state.photoCache[jobId];
   if(!url && job.hasPhoto){ url = await loadPhoto(jobId); if(url) state.photoCache[jobId] = url; }
   if(url){ openLightbox(url, `${job.jobName} — ${job.jobNumber}`); return; }
-  if(job.pdfFiles && job.pdfFiles.length===1){ viewPdfFile(job.pdfFiles[0].key, job.pdfFiles[0].name); return; }
+  if(job.pdfFiles && job.pdfFiles.length===1){ viewPdfFile(job.pdfFiles[0].key, job.pdfFiles[0].name, `${job.jobName} — ${job.jobNumber}`); return; }
   if(job.pdfFiles && job.pdfFiles.length){ openJobPhoto(jobId); return; }
   toast('No photo or PDF attached to this job yet.');
 }
