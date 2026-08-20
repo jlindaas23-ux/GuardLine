@@ -1559,12 +1559,12 @@ function printMetalReport(){
   setTimeout(()=> window.print(), 50);
 }
 
-function toast(msg){
+function toast(msg, duration){
   const wrap = document.getElementById('toast-wrap');
   const el = document.createElement('div');
   el.className='toast'; el.textContent = msg;
   wrap.appendChild(el);
-  setTimeout(()=>el.remove(), 3200);
+  setTimeout(()=>el.remove(), duration || 3200);
 }
 function addHistory(job, note){
   job.history = job.history || [];
@@ -2839,7 +2839,7 @@ async function renderJobModal(){
             savedCount++;
           }catch(err){
             console.error('PDF save failed', f.name, err);
-            toast(`${f.name} failed to upload. Try again or use a smaller file.`);
+            toast(`${f.name} failed to upload: ${err.message || err.code || 'unknown error'}`, 7000);
           }
         }
         if(savedCount){
@@ -3594,7 +3594,7 @@ document.getElementById('add-save-btn').addEventListener('click', async ()=>{
           job.photoKeys.push(key);
         }catch(err){
           console.error('Photo save failed', err);
-          toast('A photo failed to upload — you can re-attach it after the job is added.');
+          toast(`Photo failed to upload: ${err.message || err.code || 'unknown error'}`, 7000);
         }
       }
       job.hasPhoto = job.photoKeys.length>0;
@@ -3607,7 +3607,7 @@ document.getElementById('add-save-btn').addEventListener('click', async ()=>{
           job.pdfFiles.push({key, name: draft.name});
         }catch(err){
           console.error('PDF save failed', draft.name, err);
-          toast(`${draft.name} failed to upload — you can re-attach it after the job is added.`);
+          toast(`${draft.name} failed to upload: ${err.message || err.code || 'unknown error'}`, 7000);
         }
       }
     }
@@ -3618,7 +3618,7 @@ document.getElementById('add-save-btn').addEventListener('click', async ()=>{
   }catch(err){
     console.error('Job save failed', err);
     state.jobs = state.jobs.filter(j=>j.id!==job.id);
-    toast('Could not add the job — check your connection and try again. Your entries are still filled in.');
+    toast('Could not add the job — check your connection and try again. Your entries are still filled in.', 7000);
   }finally{
     saveBtn.disabled = false; saveBtn.textContent = 'Add Job';
   }
