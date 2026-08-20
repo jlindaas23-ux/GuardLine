@@ -446,6 +446,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
 .thumb-cell img{width:100%;height:100%;object-fit:cover;display:block;}
 .thumb-none{color:var(--text-faint);font-size:18px;}
 .thumb-loading{color:var(--text-faint);font-size:10px;}
+.thumb-pdf{font-size:19px;}
 .sketch-thumb{width:100%;height:132px;border-radius:8px;overflow:hidden;background:var(--panel-2);display:flex;align-items:center;justify-content:center;border:1px solid var(--border-soft);cursor:pointer;margin:-16px -16px 2px -16px;width:calc(100% + 32px);}
 .sketch-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
 .sketch-thumb.empty{color:var(--text-faint);font-size:11px;letter-spacing:.05em;text-transform:uppercase;}
@@ -1622,13 +1623,15 @@ function printImage(url, caption){
 async function openThumbLightbox(jobId){
   const job = jobById(jobId); if(!job) return;
   let url = state.photoCache[jobId];
-  if(!url){ url = await loadPhoto(jobId); if(url) state.photoCache[jobId] = url; }
-  if(!url){ toast('No photo attached to this job yet.'); return; }
-  openLightbox(url, `${job.jobName} — ${job.jobNumber}`);
+  if(!url && job.hasPhoto){ url = await loadPhoto(jobId); if(url) state.photoCache[jobId] = url; }
+  if(url){ openLightbox(url, `${job.jobName} — ${job.jobNumber}`); return; }
+  if(job.pdfFiles && job.pdfFiles.length){ openJobPhoto(jobId); return; }
+  toast('No photo or PDF attached to this job yet.');
 }
 function thumbHTML(job){
   if(state.photoCache[job.id]) return `<img src="${state.photoCache[job.id]}">`;
   if(job.hasPhoto) return `<span class="thumb-loading">loading…</span>`;
+  if(job.pdfFiles && job.pdfFiles.length) return `<span class="thumb-pdf" title="${job.pdfFiles.length} PDF${job.pdfFiles.length>1?'s':''} attached">📄</span>`;
   return `<span class="thumb-none">—</span>`;
 }
 function hydratePhotoThumbs(){
@@ -2809,7 +2812,7 @@ async function renderJobModal(){
         }
         job.hasPhoto = job.photoKeys.length>0;
         addHistory(job, `${files.length>1?files.length+' photos':'Photo'} attached by ${state.userName}.`);
-        saveState(); toast('Photo(s) saved.'); renderJobModal();
+        saveState(); toast('Photo(s) saved.'); renderJobModal(); render();
       };
       const camInput = document.getElementById('camera-input');
       camInput.addEventListener('change', ()=>{ if(camInput.files[0]) addPhotos([camInput.files[0]]); camInput.value=''; });
@@ -2820,7 +2823,7 @@ async function renderJobModal(){
         job.photoKeys = (job.photoKeys||[]).filter(k=>k!==b.dataset.removeJobPhoto);
         job.hasPhoto = job.photoKeys.length>0;
         addHistory(job, `Photo removed by ${state.userName}.`);
-        saveState(); toast('Photo removed.'); renderJobModal();
+        saveState(); toast('Photo removed.'); renderJobModal(); render();
       }));
       const pdfUpInput = document.getElementById('jm-pdf-upload');
       pdfUpInput.addEventListener('change', async ()=>{
@@ -2852,7 +2855,7 @@ async function renderJobModal(){
             job.pdfFiles = job.pdfFiles.filter(f=>!savedKeys.includes(f.key));
             toast("The PDF uploaded, but the schedule couldn't be updated — check your connection and try attaching it again.");
           }
-          renderJobModal();
+          renderJobModal(); render();
         }
         pdfUpInput.value='';
       });
@@ -2860,7 +2863,7 @@ async function renderJobModal(){
         if(!confirm('Remove this PDF?')) return;
         job.pdfFiles = (job.pdfFiles||[]).filter(f=>f.key!==b.dataset.removePdf);
         addHistory(job, `PDF removed by ${state.userName}.`);
-        saveState(); toast('PDF removed.'); renderJobModal();
+        saveState(); toast('PDF removed.'); renderJobModal(); render();
       }));
     }
     body.querySelectorAll('[data-open-pdf]').forEach(el=>el.addEventListener('click', async ()=>{
