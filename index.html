@@ -292,6 +292,9 @@ tbody tr:last-child td{border-bottom:none;}
   .mobile-fab-menu button{background:none;border:none;color:var(--text);padding:13px 18px;text-align:left;font-size:13px;white-space:nowrap;border-bottom:1px solid var(--border-soft);cursor:pointer;}
   .mobile-fab-menu button:last-child{border-bottom:none;}
   .mobile-fab-menu button:hover{background:var(--panel-2);}
+  body.modal-open .mobile-tabbar,
+  body.modal-open .mobile-fab,
+  body.modal-open .mobile-fab-menu{display:none !important;}
 }
 
 /* ---------- MOBILE: turn dense schedule tables into stacked cards ---------- */
@@ -1615,10 +1618,14 @@ function addHistory(job, note){
   job.history = job.history || [];
   job.history.unshift({when: nowStr(), note});
 }
-function openModal(id){ document.getElementById(id).classList.add('show'); }
-function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+function updateMobileNavVisibility(){
+  const anyOpen = document.querySelector('.overlay.show') !== null;
+  document.body.classList.toggle('modal-open', anyOpen);
+}
+function openModal(id){ document.getElementById(id).classList.add('show'); updateMobileNavVisibility(); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); updateMobileNavVisibility(); }
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeModal(b.dataset.close)));
-document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',(e)=>{ if(e.target===o) o.classList.remove('show'); }));
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',(e)=>{ if(e.target===o){ o.classList.remove('show'); updateMobileNavVisibility(); } }));
 document.getElementById('lightbox-modal').addEventListener('click', (e)=>{
   if(e.target.id==='lightbox-modal' || e.target.dataset.close==='lightbox-modal') revokeLightboxPdfBlob();
 });
