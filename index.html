@@ -141,6 +141,9 @@ main{flex:1; padding:20px; max-width:1900px; margin:0 auto; width:100%;}
 .stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px;}
 @media(max-width:760px){.stat-row{grid-template-columns:repeat(2,1fr);}}
 .stat-box{padding:16px; }
+.stat-box.clickable{cursor:pointer;transition:border-color .15s,background .15s;}
+.stat-box.clickable:hover{border-color:var(--steel);}
+.stat-box.clickable.active{border-color:var(--steel-bright);background:var(--panel-2);}
 .stat-box .val{font-family:'IBM Plex Mono'; font-size:26px; font-weight:600;}
 .stat-box .lbl{color:var(--text-faint); font-size:11px; letter-spacing:.06em; text-transform:uppercase; margin-top:4px;}
 
@@ -1831,6 +1834,7 @@ function viewDashboard(){
 
   const allWithLeadRaw = state.jobs.filter(j=>leadTimeDays(j)!==null);
   if(!state.shortOrdersRange) state.shortOrdersRange = 'all';
+  if(!state.shortOrdersView) state.shortOrdersView = 'short';
   const shortOrdersRange = state.shortOrdersRange;
   function inRange(j){
     if(shortOrdersRange==='all' || !j.needDate) return true;
@@ -1957,16 +1961,18 @@ function viewDashboard(){
     </select>
   </div>
   <div class="stat-row">
-    <div class="card stat-box"><div class="val mono">${shortOrders.length}</div><div class="lbl">Short Orders (&lt; 1 Wk Lead)</div></div>
-    <div class="card stat-box"><div class="val mono">${normalOrders.length}</div><div class="lbl">Normal Lead Time Orders</div></div>
+    <div class="card stat-box clickable ${state.shortOrdersView==='short'?'active':''}" data-orders-view="short"><div class="val mono">${shortOrders.length}</div><div class="lbl">Short Orders (&lt; 1 Wk Lead)</div></div>
+    <div class="card stat-box clickable ${state.shortOrdersView==='normal'?'active':''}" data-orders-view="normal"><div class="val mono">${normalOrders.length}</div><div class="lbl">Normal Lead Time Orders</div></div>
     <div class="card stat-box"><div class="val mono">${shortOnTime!==null?shortOnTime+'%':'—'}</div><div class="lbl">Short Orders On Time</div></div>
     <div class="card stat-box"><div class="val mono">${normalOnTime!==null?normalOnTime+'%':'—'}</div><div class="lbl">Normal Orders On Time</div></div>
   </div>
+  <div class="section-title" style="margin-top:6px;"><span class="bar"></span>${state.shortOrdersView==='short'?'Short Orders':'Normal Lead Time Orders'} — Job List <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(tap the cards above to switch)</span></div>
   <div class="table-wrap" style="margin-bottom:26px;">
     <table>
       <thead><tr><th>Job Name</th><th>Job #</th><th>Submitted</th><th>Need Date</th><th>Lead Time</th><th>Status</th><th>On Time</th></tr></thead>
       <tbody>
-        ${shortOrders.length ? shortOrders.slice().sort(needDateSort).map(j=>{
+        ${(()=>{ const rows = state.shortOrdersView==='short' ? shortOrders : normalOrders;
+        return rows.length ? rows.slice().sort(needDateSort).map(j=>{
           const ot = isOnTime(j);
           return `<tr data-open="${j.id}">
           <td class="job-name-cell"><b>${j.jobName}</b></td>
@@ -1977,7 +1983,7 @@ function viewDashboard(){
           <td><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></td>
           <td>${ot===null?'—':(ot?'<span class="status complete">On Time</span>':'<span class="status qchold">Late</span>')}</td>
         </tr>`;
-        }).join('') : `<tr><td colspan="7"><div class="empty">No short-lead-time orders on record.</div></td></tr>`}
+        }).join('') : `<tr><td colspan="7"><div class="empty">No ${state.shortOrdersView==='short'?'short-lead-time':'normal lead time'} orders on record.</div></td></tr>`; })()}
       </tbody>
     </table>
   </div>
@@ -2111,12 +2117,12 @@ function swatch(color, sec){
 }
 
 /* Shared schedule table — used by Managers, Shop, and Field so every role sees the same layout */
-const FILTERABLE_COLS = [['jobName','Job Name'],['jobNumber','Job #'],['division','Division'],['customer','Customer'],['system','System / Area'],['trailer','Trailer']];
+const FILTERABLE_COLS = [['jobName','Job Name'],['division','Division'],['customer','Customer'],['system','System / Area'],['trailer','Trailer']];
 const COLUMN_DEFS = [
-  ['needDate','Need Date',true],['jobName','Job Name',true],['jobNumber','Job #',false],
+  ['needDate','Need Date',true],['jobName','Job Name / #',true],
   ['division','Division',false],['customer','Customer',false],['system','System / Area',false],
   ['notes','Notes',false],['ship','Ship',false],['status','Status',true],['qty','Qty',false],
-  ['weight','Weight',false],['colors','Colors',false],['trailer','Trailer',false],['sketch','Sketch',false]
+  ['weight','Weight',false],['colors','Colors',false],['trailer','Trailer',false],['sketch','Sketch',false],['sketchNumber','Sketch #',false]
 ];
 function columnsToggleHTML(tableId){
   state.hiddenCols = state.hiddenCols || {};
@@ -2179,21 +2185,19 @@ function renderJobsTable(jobs, opts){
     <table>
       <thead><tr>
         <th class="sortable-th" data-col="needDate" data-sort="${tableId}">Need Date <span class="sort-arrow">${sortDir==='asc'?'▲':'▼'}</span></th>
-        ${colFilterHeader(tableId,'jobName','Job Name',jobs)}
-        ${colFilterHeader(tableId,'jobNumber','Job #',jobs)}
+        ${colFilterHeader(tableId,'jobName','Job Name / #',jobs)}
         ${colFilterHeader(tableId,'division','Division',jobs)}
         ${colFilterHeader(tableId,'customer','Customer',jobs)}
         ${colFilterHeader(tableId,'system','System / Area',jobs)}
         <th data-col="notes">Notes</th><th data-col="ship">Ship</th><th data-col="status">Status</th><th data-col="qty">Qty</th><th data-col="weight">Weight</th><th data-col="colors">Colors</th>
         ${colFilterHeader(tableId,'trailer','Trailer',jobs)}
-        <th data-col="sketch">Sketch</th>${opts.showAdvance?'<th>Action</th>':''}${opts.showDelivery?'<th>Delivery</th>':''}
+        <th data-col="sketch">Sketch</th><th data-col="sketchNumber">Sketch #</th>${opts.showAdvance?'<th>Action</th>':''}${opts.showDelivery?'<th>Delivery</th>':''}
       </tr></thead>
       <tbody>
         ${rows.length ? rows.map(j=>`
         <tr data-open="${j.id}" ${state.role!=='field'?`draggable="true" data-drag-row="${j.id}"`:''}>
           <td data-col="needDate" data-label="Need Date" class="need-date ${needDateClass(j)}">${needDateLabel(j.needDate)}</td>
-          <td data-col="jobName" data-label="Job Name" class="job-name-cell">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}</td>
-          <td data-col="jobNumber" data-label="Job #" class="mono">${j.jobNumber}</td>
+          <td data-col="jobName" data-label="Job Name / #" class="job-name-cell">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}${j.jobNumber?`<div class="sub" style="color:var(--text-faint);font-size:11px;">${j.jobNumber}</div>`:''}</td>
           <td data-col="division" data-label="Division">${j.division||'—'}</td>
           <td data-col="customer" data-label="Customer">${j.customer||'—'}</td>
           <td data-col="system" data-label="System / Area">${j.system||''}${j.area?`<div class="sub" style="color:var(--text-faint);font-size:11px;">${j.area}</div>`:''}</td>
@@ -2205,6 +2209,7 @@ function renderJobsTable(jobs, opts){
           <td data-col="colors" data-label="Colors">${swatch(j.labelColor,j.secondaryColor)}</td>
           <td data-col="trailer" data-label="Trailer">${j.trailer || '<span style="color:var(--text-faint);font-style:italic;">Unassigned</span>'}</td>
           <td data-col="sketch" data-label="Sketch"><div class="thumb-cell" data-thumb="${j.id}" data-thumb-open="${j.id}">${thumbHTML(j)}</div></td>
+          <td data-col="sketchNumber" data-label="Sketch #" class="mono">${j.sketchNumber||'—'}</td>
           ${opts.showAdvance ? `<td data-label="Action">${ADVANCE_MAP[j.status] ? `<button class="btn-ghost" data-quickstatus="${j.id}">Advance → ${ADVANCE_MAP[j.status]}</button>` : '—'}</td>` : ''}
           ${opts.showDelivery ? `<td data-label="Delivery">${j.status!=='Delivered/Picked Up' ? `<button class="btn-primary" data-mark-delivered="${j.id}">Mark ${j.shippingMethod==='Pickup'?'Picked Up':'Delivered'}</button>` : `<span class="status delivered">Done</span>`}</td>` : ''}
         </tr>`).join('') : `<tr><td colspan="${colCount}"><div class="empty"><div class="big">No jobs match</div>${opts.emptyText||'Try clearing filters or search.'}</div></td></tr>`}
@@ -2685,6 +2690,9 @@ function bindMainEvents(){
   });
   const shortOrdersRangeSel = document.getElementById('short-orders-range');
   if(shortOrdersRangeSel) shortOrdersRangeSel.addEventListener('change', ()=>{ state.shortOrdersRange = shortOrdersRangeSel.value; render(); });
+  document.querySelectorAll('[data-orders-view]').forEach(el=>el.addEventListener('click', ()=>{
+    state.shortOrdersView = el.dataset.ordersView; render();
+  }));
   const hoursWeekPrev = document.getElementById('hours-week-prev');
   if(hoursWeekPrev) hoursWeekPrev.addEventListener('click', ()=>{ const d=new Date(state.hoursWeek+'T00:00:00'); d.setDate(d.getDate()-7); state.hoursWeek=mondayISO(d.toISOString().slice(0,10)); render(); });
   const hoursWeekNext = document.getElementById('hours-week-next');
