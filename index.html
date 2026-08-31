@@ -1422,6 +1422,11 @@ function orderTypeIcon(job){
 function gaugeWeightTotal(entry){
   return GAUGE_TYPES.reduce((s,[k])=> s+Number((entry.gauges||{})[k]||0), 0);
 }
+function gaugeBreakdownText(entry){
+  const used = GAUGE_TYPES.filter(([k])=> Number((entry.gauges||{})[k]||0) > 0);
+  if(!used.length) return '—';
+  return used.map(([k,label])=> `${label}: ${fmt(entry.gauges[k])}`).join(' · ');
+}
 function metalUsageForJobNumber(jobNumber){
   if(!jobNumber) return [];
   return (state.metalUsage||[]).filter(e=> e.jobNumber && e.jobNumber.trim().toLowerCase()===jobNumber.trim().toLowerCase());
@@ -2225,7 +2230,7 @@ function viewDashboard(){
   </div>
   <div class="table-wrap" style="margin-top:14px;margin-bottom:26px;">
     <table>
-      <thead><tr><th>Date</th><th>Job Name</th><th>Job #</th><th>Company</th><th>Employee</th><th>Machine</th><th>Total Weight (Lbs)</th></tr></thead>
+      <thead><tr><th>Date</th><th>Job Name</th><th>Job #</th><th>Company</th><th>Employee</th><th>Machine</th><th>Gauge(s) Used</th><th>Total Weight (Lbs)</th></tr></thead>
       <tbody>
         ${metalLog.length ? metalLog.map(e=>`
         <tr data-edit-metal-log="${e.id}" style="cursor:pointer;">
@@ -2235,8 +2240,9 @@ function viewDashboard(){
           <td>${e.company||'—'}</td>
           <td>${e.employee||''}</td>
           <td>${e.machine||''}</td>
+          <td style="font-size:12px;color:var(--text-dim);">${gaugeBreakdownText(e)}</td>
           <td class="weight-cell">${fmt(gaugeWeightTotal(e))}</td>
-        </tr>`).join('') : `<tr><td colspan="7"><div class="empty">No metal usage logged yet.</div></td></tr>`}
+        </tr>`).join('') : `<tr><td colspan="8"><div class="empty">No metal usage logged yet.</div></td></tr>`}
       </tbody>
     </table>
   </div>
