@@ -17,6 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-app-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-firestore-compat.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
 :root{
   --bg:#171c22;
@@ -128,6 +129,8 @@ main{flex:1; padding:20px; max-width:1900px; margin:0 auto; width:100%;}
 /* ---------- DASHBOARD ---------- */
 .dash-grid{display:grid; grid-template-columns:340px 1fr; gap:20px;}
 @media(max-width:980px){.dash-grid{grid-template-columns:1fr;}}
+.chart-pair-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+@media(max-width:980px){.chart-pair-grid{grid-template-columns:1fr;}}
 .gauge-card{padding:26px 20px; display:flex; flex-direction:column; align-items:center;}
 .gauge-wrap{position:relative; width:260px; height:260px;}
 .gauge-readout{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
@@ -160,6 +163,10 @@ main{flex:1; padding:20px; max-width:1900px; margin:0 auto; width:100%;}
 .badge-open{background:var(--red);color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;letter-spacing:.05em; text-transform:uppercase; font-weight:600;}
 .urgent-badge{display:inline-block;background:var(--red);color:#fff;font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-left:6px;vertical-align:middle;}
 .remake-badge{display:inline-block;background:var(--steel);color:#0d1418;font-size:9.5px;padding:2px 7px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-left:6px;vertical-align:middle;}
+.variance-badge{display:inline-block;font-size:10.5px;padding:3px 9px;border-radius:5px;letter-spacing:.03em;font-weight:700;}
+.variance-favorable{background:var(--green);color:#0d1a12;}
+.variance-watch{background:var(--yellow);color:#2a1c00;}
+.variance-over{background:var(--red);color:#fff;}
 .order-type-icon{display:inline-block;margin-right:6px;font-size:13px;vertical-align:middle;}
 .division-badge{display:inline-block;font-size:9px;padding:2px 7px;border-radius:4px;letter-spacing:.03em;font-weight:700;margin-left:6px;vertical-align:middle;text-transform:none;white-space:nowrap;}
 .need-date{font-family:'IBM Plex Mono';font-weight:600;font-size:12.5px;}
@@ -1359,6 +1366,34 @@ function onTimeRate(list){
   if(!withCompletion.length) return null;
   return Math.round(withCompletion.filter(isOnTime).length/withCompletion.length*100);
 }
+function backlogByDivision(){
+  const totals = {};
+  DIVISIONS.forEach(d=> totals[d] = 0);
+  state.jobs.filter(j=>j.status!=='Delivered/Picked Up' && j.status!=='Complete').forEach(j=>{
+    const d = j.division || 'Unassigned';
+    totals[d] = (totals[d]||0) + Number(j.weight||0);
+  });
+  return Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+}
+function outputByDivision(weekStartISO){
+  const start = new Date(weekStartISO+'T00:00:00');
+  const end = new Date(start); end.setDate(end.getDate()+6); end.setHours(23,59,59,999);
+  const totals = {};
+  DIVISIONS.forEach(d=> totals[d] = 0);
+  jobsCompletedInRange(start,end).forEach(j=>{
+    const d = j.division || 'Unassigned';
+    totals[d] = (totals[d]||0) + Number(j.weight||0);
+  });
+  return Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+}
+function onTimeRateTrend(weeksCount){
+  return lastNWeeks(weeksCount).slice().reverse().map(wk=>{
+    const start = new Date(wk+'T00:00:00');
+    const end = new Date(start); end.setDate(end.getDate()+6); end.setHours(23,59,59,999);
+    const completedInWeek = jobsCompletedInRange(start,end);
+    return {wk, rate: onTimeRate(completedInWeek), count: completedInWeek.length};
+  });
+}
 
 function priorityBadge(j){ return j.priority==='Urgent' ? '<span class="urgent-badge">Urgent</span>' : ''; }
 function trailerOptionsHTML(selected){
@@ -1439,6 +1474,15 @@ function importRealSchedule(){
 }
 
 
+function jobVarianceStatus(row){
+  if(!row.lbs && !row.metalWeight) return {pct:null, status:'—', cls:''};
+  if(!row.lbs) return {pct:null, status:'No Production Lbs', cls:'watch'};
+  const pct = ((row.metalWeight - row.lbs) / row.lbs) * 100;
+  const absPct = Math.abs(pct);
+  if(absPct <= 5) return {pct, status:'Favorable', cls:'favorable'};
+  if(absPct <= 15) return {pct, status:'Watch', cls:'watch'};
+  return {pct, status: pct>0 ? 'Over' : 'Under-Logged', cls:'over'};
+}
 function jobAnalysisRows(){
   const byNumber = {};
   state.jobs.forEach(j=>{
@@ -1678,8 +1722,82 @@ function render(){
   bindMainEvents();
   hydratePhotoThumbs();
   updateMobileTabbar();
+  if(state.view==='dashboard') initDashboardCharts();
 }
-let lightboxCurrent = {url:null, caption:''};
+let dashboardChartInstances = {};
+function destroyDashboardCharts(){
+  Object.values(dashboardChartInstances).forEach(c=>{ if(c) c.destroy(); });
+  dashboardChartInstances = {};
+}
+function initDashboardCharts(){
+  destroyDashboardCharts();
+  if(typeof Chart === 'undefined') return;
+  const FABQ = {steelBright:'#7fbccf',steel:'#5a95a8',red:'#d1453b',green:'#4f9d69',yellow:'#f0b429',orange:'#df7a3d',pink:'#d24f8f',blue:'#4a7fd1',border:'#3a4450',textDim:'#93a0ac',textFaint:'#5f6b78'};
+  Chart.defaults.color = FABQ.textDim;
+  Chart.defaults.borderColor = FABQ.border;
+  Chart.defaults.font.family = "'Inter', sans-serif";
+
+  const lookaheadEl = document.getElementById('chart-backlog-lookahead');
+  if(lookaheadEl){
+    const weeks = backlogLookAhead(3);
+    const labels = weeks.map((w,i)=> i===0?'This Week':i===1?'Next Week':needDateLabel(w.wk));
+    dashboardChartInstances.lookahead = new Chart(lookaheadEl, {
+      type:'bar',
+      data:{labels, datasets:[
+        {label:'Backlog', data:weeks.map(w=>w.lbs), backgroundColor:weeks.map(w=> w.lbs>state.goal?FABQ.red:FABQ.green), borderRadius:4},
+        {label:'Goal', data:weeks.map(()=>state.goal), backgroundColor:FABQ.border, borderRadius:4}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}}}
+    });
+  }
+
+  const divEl = document.getElementById('chart-backlog-division');
+  if(divEl){
+    const divs = backlogByDivision();
+    dashboardChartInstances.division = new Chart(divEl, {
+      type:'bar',
+      data:{labels:divs.map(d=>d[0]), datasets:[{label:'Backlog Lbs', data:divs.map(d=>d[1]), backgroundColor:FABQ.steelBright, borderRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}}}
+    });
+  }
+
+  const outputEl = document.getElementById('chart-weekly-output');
+  if(outputEl){
+    const weeks = lastNWeeks(8).slice().reverse().map(wk=>({wk, lbs:weekLbs(wk)}));
+    dashboardChartInstances.output = new Chart(outputEl, {
+      type:'line',
+      data:{labels:weeks.map(w=>needDateLabel(w.wk)), datasets:[
+        {label:'Actual', data:weeks.map(w=>w.lbs), borderColor:FABQ.steelBright, backgroundColor:'transparent', borderWidth:2, tension:0.3, pointRadius:3},
+        {label:'Goal', data:weeks.map(()=>state.goal), borderColor:FABQ.textFaint, borderDash:[4,4], borderWidth:1.5, pointRadius:0}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}}}
+    });
+  }
+
+  const ontimeEl = document.getElementById('chart-ontime-trend');
+  if(ontimeEl){
+    const trend = onTimeRateTrend(8);
+    dashboardChartInstances.ontime = new Chart(ontimeEl, {
+      type:'line',
+      data:{labels:trend.map(t=>needDateLabel(t.wk)), datasets:[
+        {label:'On-Time Rate', data:trend.map(t=>t.rate), borderColor:FABQ.green, backgroundColor:'transparent', borderWidth:2, tension:0.3, pointRadius:3, spanGaps:true}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,max:100,grid:{color:FABQ.border},ticks:{callback:v=>v+'%'}},x:{grid:{display:false}}},plugins:{legend:{display:false}}}
+    });
+  }
+
+  const mixEl = document.getElementById('chart-metal-mix');
+  if(mixEl){
+    const totals = allGaugeTotals();
+    const used = GAUGE_TYPES.filter(([k])=> totals[k] > 0);
+    const palette = [FABQ.steelBright, FABQ.orange, FABQ.green, FABQ.yellow, FABQ.pink, FABQ.blue, FABQ.steel, FABQ.red];
+    dashboardChartInstances.mix = new Chart(mixEl, {
+      type:'pie',
+      data:{labels:used.map(([,label])=>label), datasets:[{data:used.map(([k])=>totals[k]), backgroundColor:used.map((_,i)=>palette[i%palette.length]), borderColor:'#212831', borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:10,font:{size:11}}}}}
+    });
+  }
+}
 let lightboxPdfBlobUrl = null;
 function revokeLightboxPdfBlob(){
   if(lightboxPdfBlobUrl){ URL.revokeObjectURL(lightboxPdfBlobUrl); lightboxPdfBlobUrl = null; }
@@ -1934,6 +2052,17 @@ function viewDashboard(){
     }).join('')}
   </div>
 
+  <div class="chart-pair-grid" style="margin-bottom:26px;">
+    <div class="card" style="padding:16px;">
+      <div class="section-title"><span class="bar"></span>Backlog vs. Goal, Next 3 Weeks</div>
+      <div style="position:relative;height:220px;margin-top:10px;"><canvas id="chart-backlog-lookahead"></canvas></div>
+    </div>
+    <div class="card" style="padding:16px;">
+      <div class="section-title"><span class="bar"></span>Active Backlog by Division</div>
+      <div style="position:relative;height:220px;margin-top:10px;"><canvas id="chart-backlog-division"></canvas></div>
+    </div>
+  </div>
+
   <div class="toolbar" style="margin-top:26px;">
     <div class="section-title" style="margin:0;"><span class="bar"></span>Productivity Snapshot</div>
   </div>
@@ -1974,6 +2103,9 @@ function viewDashboard(){
   </div>
 
   <div class="section-title"><span class="bar"></span>Weekly Productivity — Last 8 Weeks</div>
+  <div class="card" style="padding:16px;margin-bottom:14px;">
+    <div style="position:relative;height:220px;"><canvas id="chart-weekly-output"></canvas></div>
+  </div>
   <div class="table-wrap" style="margin-bottom:26px;">
     <table>
       <thead><tr><th>Week Of</th><th>Lbs Out</th><th>Hours</th><th>Lbs / Hr</th>${canEdit?'<th>Edit</th>':''}</tr></thead>
@@ -2005,6 +2137,10 @@ function viewDashboard(){
     <div class="card stat-box"><div class="val mono">${shortOnTime!==null?shortOnTime+'%':'—'}</div><div class="lbl">Short Orders On Time</div></div>
     <div class="card stat-box"><div class="val mono">${normalOnTime!==null?normalOnTime+'%':'—'}</div><div class="lbl">Normal Orders On Time</div></div>
   </div>
+  <div class="card" style="padding:16px;margin-top:14px;margin-bottom:20px;">
+    <div class="section-title"><span class="bar"></span>On-Time Delivery Rate — Last 8 Weeks</div>
+    <div style="position:relative;height:200px;margin-top:10px;"><canvas id="chart-ontime-trend"></canvas></div>
+  </div>
   <div class="section-title" style="margin-top:6px;"><span class="bar"></span>${state.shortOrdersView==='short'?'Short Orders':'Normal Lead Time Orders'} — Job List <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(tap the cards above to switch)</span></div>
   <div class="table-wrap" style="margin-bottom:26px;">
     <table>
@@ -2030,15 +2166,20 @@ function viewDashboard(){
   <div class="section-title"><span class="bar"></span>Job Analysis — Production Lbs &amp; Metal Weight by Job</div>
   <div class="table-wrap" style="margin-bottom:26px;">
     <table>
-      <thead><tr><th>Job Name</th><th>Job #</th><th>Production Lbs</th><th>Metal Weight (Lbs)</th></tr></thead>
+      <thead><tr><th>Job Name</th><th>Job #</th><th>Production Lbs</th><th>Metal Weight (Lbs)</th><th>Variance</th><th>Status</th></tr></thead>
       <tbody>
-        ${jobRows.length ? jobRows.map(r=>`
+        ${jobRows.length ? jobRows.map(r=>{
+          const v = jobVarianceStatus(r);
+          return `
         <tr>
           <td class="job-name-cell"><b>${r.jobName}</b></td>
           <td class="mono">${r.jobNumber}</td>
           <td class="weight-cell">${fmt(r.lbs)}</td>
           <td class="mono">${r.metalWeight?fmt(r.metalWeight):'—'}</td>
-        </tr>`).join('') : `<tr><td colspan="4"><div class="empty">No job data yet.</div></td></tr>`}
+          <td class="mono">${v.pct===null?'—':(v.pct>0?'+':'')+v.pct.toFixed(1)+'%'}</td>
+          <td>${v.status==='—'?'—':`<span class="variance-badge variance-${v.cls}">${v.status}</span>`}</td>
+        </tr>`;
+        }).join('') : `<tr><td colspan="6"><div class="empty">No job data yet.</div></td></tr>`}
       </tbody>
     </table>
   </div>
@@ -2049,6 +2190,10 @@ function viewDashboard(){
   </div>
   <div class="stat-row" style="grid-template-columns:repeat(4,1fr);">
     ${GAUGE_TYPES.map(([k,label])=>`<div class="card stat-box"><div class="val mono">${fmt(gaugeTotals[k])}</div><div class="lbl">${label} (Lbs)</div></div>`).join('')}
+  </div>
+  <div class="card" style="padding:16px;margin-top:14px;">
+    <div class="section-title"><span class="bar"></span>Metal Usage Mix by Gauge</div>
+    <div style="position:relative;height:220px;margin-top:10px;"><canvas id="chart-metal-mix"></canvas></div>
   </div>
   <div class="table-wrap" style="margin-top:14px;margin-bottom:26px;">
     <table>
