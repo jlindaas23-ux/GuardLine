@@ -1318,6 +1318,11 @@ function yearLbs(year){
   const end = new Date(year,11,31,23,59,59,999);
   return jobsCompletedInRange(start,end).reduce((s,j)=>s+Number(j.weight||0),0);
 }
+function yearsWithProductionData(){
+  const years = new Set([new Date().getFullYear()]);
+  state.jobs.forEach(j=>{ if(j.completedAt) years.add(new Date(j.completedAt+'T00:00:00').getFullYear()); });
+  return Array.from(years).sort((a,b)=>b-a);
+}
 function mondaysInMonth(year,month){
   const days = new Date(year,month+1,0).getDate();
   let count=0;
@@ -1344,6 +1349,16 @@ function lbsPerHr(lbs,hours){ return hours>0 ? Math.round(lbs/hours) : null; }
 function lastNWeeks(n){
   const weeks=[];
   const cur = new Date(mondayISO(todayISO())+'T00:00:00');
+  for(let i=0;i<n;i++){
+    const d = new Date(cur); d.setDate(d.getDate()-7*i);
+    weeks.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+  }
+  return weeks;
+}
+function nWeeksWithOffset(n, offset){
+  const weeks=[];
+  const cur = new Date(mondayISO(todayISO())+'T00:00:00');
+  cur.setDate(cur.getDate() - (offset*n*7));
   for(let i=0;i<n;i++){
     const d = new Date(cur); d.setDate(d.getDate()-7*i);
     weeks.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
@@ -1763,7 +1778,7 @@ function initDashboardCharts(){
 
   const outputEl = document.getElementById('chart-weekly-output');
   if(outputEl){
-    const weeks = lastNWeeks(8).slice().reverse().map(wk=>({wk, lbs:weekLbs(wk)}));
+    const weeks = nWeeksWithOffset(8, state.weeklyProdOffset||0).slice().reverse().map(wk=>({wk, lbs:weekLbs(wk)}));
     dashboardChartInstances.output = new Chart(outputEl, {
       type:'line',
       data:{labels:weeks.map(w=>needDateLabel(w.wk)), datasets:[
@@ -1955,16 +1970,19 @@ function viewDashboard(){
   const weeklyHrs = hoursForWeek(weekKey);
 
   const monthCards = [];
-  for(let i=0;i<6;i++){
-    const d = new Date(thisYear, thisMonth-i, 1);
-    const y=d.getFullYear(), m=d.getMonth();
+  const monthlyGoalYear = state.monthlyGoalYear || thisYear;
+  for(let m=0;m<=11;m++){
+    const d = new Date(monthlyGoalYear, m, 1);
+    const y=d.getFullYear();
     const lbs = monthLbs(y,m);
     const weeks = mondaysInMonth(y,m);
     const target = weeks*state.goal;
-    monthCards.push({label: d.toLocaleDateString('en-US',{month:'short',year:'numeric'}), lbs, target, hit: lbs>=target});
+    const isFuture = d > new Date();
+    monthCards.push({label: d.toLocaleDateString('en-US',{month:'short',year:'numeric'}), lbs, target, hit: lbs>=target, isFuture});
   }
 
-  const weekRows = lastNWeeks(8).map(wk=>{
+  if(!state.weeklyProdOffset) state.weeklyProdOffset = 0;
+  const weekRows = nWeeksWithOffset(8, state.weeklyProdOffset).map(wk=>{
     const lbs = weekLbs(wk); const hrs = hoursForWeek(wk);
     return {wk, lbs, hrs, rate: lbsPerHr(lbs,hrs)};
   });
@@ -2090,19 +2108,29 @@ function viewDashboard(){
     </div>
   </div>` : ''}
 
-  <div class="section-title" style="margin-top:22px;"><span class="bar"></span>Monthly Goal Tracker</div>
+  <div class="toolbar">
+    <div class="section-title" style="margin:0;"><span class="bar"></span>Monthly Goal Tracker</div>
+    <select id="monthly-goal-year-select" class="search-box" style="min-width:110px;">${yearsWithProductionData().map(y=>`<option value="${y}" ${monthlyGoalYear===y?'selected':''}>${y}</option>`).join('')}</select>
+  </div>
   <div class="shop-grid" style="margin-bottom:26px;">
     ${monthCards.map(m=>`
-      <div class="card" style="padding:16px;">
+      <div class="card" style="padding:16px;${m.isFuture?'opacity:.5;':''}">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;">
           <div class="disp" style="font-size:14px;">${m.label}</div>
-          <span class="status ${m.hit?'complete':'pending'}">${m.hit?'Goal Hit':'Below Goal'}</span>
+          <span class="status ${m.isFuture?'pending':(m.hit?'complete':'pending')}">${m.isFuture?'Not Started':(m.hit?'Goal Hit':'Below Goal')}</span>
         </div>
         <div class="mono" style="font-size:20px;font-weight:700;">${fmt(m.lbs)} <span style="font-size:11px;color:var(--text-faint);font-weight:400;">/ ${fmt(m.target)} target</span></div>
       </div>`).join('')}
   </div>
 
-  <div class="section-title"><span class="bar"></span>Weekly Productivity — Last 8 Weeks</div>
+  <div class="toolbar">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn-ghost" id="weekly-prod-older">‹ Older</button>
+      <div class="section-title" style="margin:0;"><span class="bar"></span>Weekly Productivity <span style="color:var(--text-faint);font-size:11px;text-transform:none;">(${needDateLabel(weekRows[weekRows.length-1].wk)} – ${needDateLabel(weekRows[0].wk)})</span></div>
+      <button class="btn-ghost" id="weekly-prod-newer" ${state.weeklyProdOffset===0?'disabled':''}>Newer ›</button>
+    </div>
+    ${state.weeklyProdOffset!==0 ? `<button class="btn-ghost" id="weekly-prod-current">Current 8 Weeks</button>` : ''}
+  </div>
   <div class="card" style="padding:16px;margin-bottom:14px;">
     <div style="position:relative;height:220px;"><canvas id="chart-weekly-output"></canvas></div>
   </div>
@@ -2827,6 +2855,14 @@ function bindMainEvents(){
   if(reportNext) reportNext.addEventListener('click', ()=>{ const d=new Date(state.reportWeek+'T00:00:00'); d.setDate(d.getDate()+7); state.reportWeek=mondayISO(d.toISOString().slice(0,10)); render(); });
   const reportToday = document.getElementById('report-week-today');
   if(reportToday) reportToday.addEventListener('click', ()=>{ state.reportWeek = mondayISO(todayISO()); render(); });
+  const monthlyGoalYearSel = document.getElementById('monthly-goal-year-select');
+  if(monthlyGoalYearSel) monthlyGoalYearSel.addEventListener('change', ()=>{ state.monthlyGoalYear = Number(monthlyGoalYearSel.value); render(); });
+  const weeklyProdOlder = document.getElementById('weekly-prod-older');
+  if(weeklyProdOlder) weeklyProdOlder.addEventListener('click', ()=>{ state.weeklyProdOffset = (state.weeklyProdOffset||0) + 1; render(); });
+  const weeklyProdNewer = document.getElementById('weekly-prod-newer');
+  if(weeklyProdNewer) weeklyProdNewer.addEventListener('click', ()=>{ if(state.weeklyProdOffset>0){ state.weeklyProdOffset -= 1; render(); } });
+  const weeklyProdCurrent = document.getElementById('weekly-prod-current');
+  if(weeklyProdCurrent) weeklyProdCurrent.addEventListener('click', ()=>{ state.weeklyProdOffset = 0; render(); });
   const printBtn = document.getElementById('print-metal-report-btn');
   if(printBtn) printBtn.addEventListener('click', printMetalReport);
   const printYearlyBtn = document.getElementById('print-yearly-metal-report-btn');
