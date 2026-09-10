@@ -1631,7 +1631,7 @@ function printYearlyMetalReport(){
     </div>
     <div class="pr-footer">FabQ — The Operating System for Fabrication</div>
   `;
-  setTimeout(()=> window.print(), 50);
+  setTimeout(()=> triggerReportPrint(), 50);
 }
 function printMetalReport(){
   const weekStart = state.reportWeek || mondayISO(todayISO());
@@ -1690,7 +1690,7 @@ function printMetalReport(){
     </div>
     <div class="pr-footer">FabQ — The Operating System for Fabrication</div>
   `;
-  setTimeout(()=> window.print(), 50);
+  setTimeout(()=> triggerReportPrint(), 50);
 }
 
 function toast(msg, duration){
@@ -1743,6 +1743,16 @@ function render(){
   hydratePhotoThumbs();
   updateMobileTabbar();
   if(state.view==='dashboard') initDashboardCharts();
+}
+function isStandalonePWA(){
+  return (window.navigator.standalone === true) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+}
+function triggerReportPrint(){
+  if(isStandalonePWA()){
+    toast("Printing isn't supported when FabQ is added to your Home Screen. Open the same web address in Safari or Chrome (not the app icon) to print this report.", 7000);
+    return;
+  }
+  window.print();
 }
 let dashboardChartInstances = {};
 function destroyDashboardCharts(){
@@ -1860,7 +1870,7 @@ function printImage(url, caption){
       <img src="${url}" style="max-width:100%;max-height:90vh;border-radius:4px;">
       ${caption ? `<div style="margin-top:14px;font-family:Arial,sans-serif;font-size:14px;color:#111;">${caption}</div>` : ''}
     </div>`;
-  setTimeout(()=> window.print(), 50);
+  setTimeout(()=> triggerReportPrint(), 50);
 }
 function dataURLtoBlob(dataUrl){
   const [header, base64] = dataUrl.split(',');
@@ -3147,7 +3157,7 @@ async function renderJobModal(){
             <div style="margin-top:10px;color:#333;font-size:12px;">Photo ${idx+1} of ${validUrls.length}</div>
           </div>`).join('')}
         </div>`;
-      setTimeout(()=> window.print(), 50);
+      setTimeout(()=> triggerReportPrint(), 50);
     });
     body.querySelectorAll('[data-lightbox-open]').forEach(img=>img.addEventListener('click', ()=>{
       openLightbox(img.src, `${job.jobName} — ${job.jobNumber}`);
