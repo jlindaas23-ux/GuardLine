@@ -144,6 +144,9 @@ main{flex:1; padding:20px; max-width:1900px; margin:0 auto; width:100%;}
 
 .stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px;}
 @media(max-width:760px){.stat-row{grid-template-columns:repeat(2,1fr);}}
+.daily-lookahead-row{display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-bottom:26px;}
+@media(max-width:980px){.daily-lookahead-row{grid-template-columns:repeat(4,1fr);}}
+@media(max-width:560px){.daily-lookahead-row{grid-template-columns:repeat(2,1fr);}}
 .stat-box{padding:16px; }
 .stat-box.clickable{cursor:pointer;transition:border-color .15s,background .15s;}
 .stat-box.clickable:hover{border-color:var(--steel);}
@@ -1000,6 +1003,7 @@ let state = {
   view: null,
   jobs: [],
   goal: 22000,
+  dailyGoal: 4400,
   trailers: [],
   deletedJobs: [],
   hoursLog: {},
@@ -1112,6 +1116,7 @@ function saveStateNow(){
   const p1 = stateDocRef.set({
     jobsJson: JSON.stringify(state.jobs),
     goal: state.goal,
+    dailyGoal: state.dailyGoal,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).catch(err=>{ console.error('Save failed', err); toast('Could not save — check connection.'); throw err; });
 
@@ -1183,6 +1188,7 @@ function startLiveSync(onFirstLoad){
       const data = doc.data();
       state.jobs = JSON.parse(data.jobsJson || '[]');
       state.goal = data.goal || 22000;
+      state.dailyGoal = data.dailyGoal || 4400;
       firestoreReady = true;
     } else { firestoreReady = false; }
     mainLoaded = true;
@@ -1278,6 +1284,24 @@ function backlogLookAhead(weeksCount){
     weeks.push({wk, lbs: backlogLbsForWeek(wk)});
   }
   return weeks;
+}
+function backlogLbsForDay(dayISO){
+  const start = new Date(dayISO+'T00:00:00');
+  const end = new Date(start); end.setHours(23,59,59,999);
+  return state.jobs
+    .filter(j=> j.status!=='Delivered/Picked Up' && j.status!=='Complete' && j.needDate)
+    .filter(j=>{ const d = new Date(j.needDate+'T00:00:00'); return d>=start && d<=end; })
+    .reduce((s,j)=> s+Number(j.weight||0), 0);
+}
+function dailyBacklogLookAhead(daysCount){
+  const today = new Date(todayISO()+'T00:00:00');
+  const days = [];
+  for(let i=0;i<daysCount;i++){
+    const d = new Date(today); d.setDate(d.getDate()+i);
+    const iso = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    days.push({day: iso, lbs: backlogLbsForDay(iso)});
+  }
+  return days;
 }
 function isThisWeek(dateStr){
   if(!dateStr) return false;
@@ -2095,6 +2119,28 @@ function viewDashboard(){
         ${qcAlerts.map(a=>`<div class="qc-alert"><div class="txt"><b>${a.job.jobName}</b> · ${a.job.jobNumber}${a.q.ref?' · Ref '+a.q.ref:''} — ${a.q.issueType?a.q.issueType+': ':''}${a.q.desc}${a.q.priority==='Urgent'?'<span class="urgent-badge">Urgent</span>':''}${a.q.remake?'<span class="remake-badge">Remake</span>':''}</div><span class="badge-open">Open</span></div>`).join('')}
       </div>` : ''}
     </div>
+  </div>
+
+  <div class="toolbar" style="margin-top:26px;">
+    <div class="section-title" style="margin:0;"><span class="bar"></span>Daily Backlog Look-Ahead <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(by need date — a single order over goal means overtime, today)</span></div>
+    <a href="#" id="edit-daily-goal-btn" style="font-size:12px;">Edit daily goal (${fmt(state.dailyGoal)} lbs)</a>
+  </div>
+  <div class="daily-lookahead-row">
+    ${dailyBacklogLookAhead(7).map((d,i)=>{
+      const over = d.lbs > state.dailyGoal;
+      const diff = Math.abs(d.lbs - state.dailyGoal);
+      const dDate = new Date(d.day+'T00:00:00');
+      const dayLbl = i===0 ? 'Today' : i===1 ? 'Tomorrow' : dDate.toLocaleDateString('en-US',{weekday:'short'});
+      const dateLbl = dDate.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      return `
+      <div class="card stat-box" style="border-color:${over?'var(--red)':'var(--border)'};padding:12px;">
+        <div class="val mono" style="color:${over?'var(--red)':'var(--text)'};font-size:20px;">${fmt(d.lbs)}</div>
+        <div class="lbl">${dayLbl} <span style="opacity:.7;">(${dateLbl})</span></div>
+        <div style="margin-top:6px;font-size:10.5px;font-weight:700;color:${over?'var(--red)':'var(--green)'};">
+          ${over ? `⚠ ${fmt(diff)} OVER` : `✓ ${fmt(diff)} under`}
+        </div>
+      </div>`;
+    }).join('')}
   </div>
 
   <div class="section-title" style="margin-top:26px;"><span class="bar"></span>3-Week Backlog Look-Ahead <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(by need date — plan overtime before you're behind)</span></div>
@@ -2955,6 +3001,11 @@ function bindMainEvents(){
   const goalBtn = document.getElementById('edit-goal-btn'); if(goalBtn) goalBtn.addEventListener('click', ()=>{
     const v = prompt('Set weekly weight goal (lbs):', state.goal);
     if(v && !isNaN(v)){ state.goal = Number(v); saveState(); render(); }
+  });
+  const dailyGoalBtn = document.getElementById('edit-daily-goal-btn'); if(dailyGoalBtn) dailyGoalBtn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    const v = prompt('Set daily weight goal (lbs):', state.dailyGoal);
+    if(v && !isNaN(v)){ state.dailyGoal = Number(v); saveState(); render(); }
   });
   const shortOrdersRangeSel = document.getElementById('short-orders-range');
   if(shortOrdersRangeSel) shortOrdersRangeSel.addEventListener('change', ()=>{ state.shortOrdersRange = shortOrdersRangeSel.value; render(); });
