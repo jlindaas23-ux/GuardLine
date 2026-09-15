@@ -710,6 +710,19 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
   </div>
 </div>
 
+<div class="overlay" id="backlog-detail-modal">
+  <div class="modal" style="max-width:900px;">
+    <div class="modal-head">
+      <div><h2 id="backlog-detail-title">Jobs</h2><div class="sub" id="backlog-detail-sub"></div></div>
+      <button class="modal-close" data-close="backlog-detail-modal">×</button>
+    </div>
+    <div class="modal-body" id="backlog-detail-body"></div>
+    <div class="modal-foot">
+      <button class="btn-ghost" data-close="backlog-detail-modal">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- CONTACT MODAL -->
 <div class="overlay" id="contact-modal">
   <div class="modal" style="max-width:520px;">
@@ -1303,6 +1316,49 @@ function dailyBacklogLookAhead(daysCount){
   }
   return days;
 }
+function activeBacklogJobs(){
+  return state.jobs.filter(j=> j.status!=='Delivered/Picked Up' && j.status!=='Complete');
+}
+function jobsForDay(dayISO){
+  const start = new Date(dayISO+'T00:00:00');
+  const end = new Date(start); end.setHours(23,59,59,999);
+  return activeBacklogJobs().filter(j=> j.needDate && (()=>{ const d = new Date(j.needDate+'T00:00:00'); return d>=start && d<=end; })());
+}
+function jobsForWeek(weekStartISO){
+  const start = new Date(weekStartISO+'T00:00:00');
+  const end = new Date(start); end.setDate(end.getDate()+6); end.setHours(23,59,59,999);
+  return activeBacklogJobs().filter(j=> j.needDate && (()=>{ const d = new Date(j.needDate+'T00:00:00'); return d>=start && d<=end; })());
+}
+function jobsForDivision(division){
+  return activeBacklogJobs().filter(j=> (j.division||'Unassigned')===division);
+}
+function openBacklogDetailModal(title, sub, jobsList){
+  document.getElementById('backlog-detail-title').textContent = title;
+  document.getElementById('backlog-detail-sub').textContent = sub;
+  const sorted = jobsList.slice().sort(needDateSort);
+  const total = sorted.reduce((s,j)=> s+Number(j.weight||0), 0);
+  document.getElementById('backlog-detail-body').innerHTML = sorted.length ? `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Job Name</th><th>Job #</th><th>Division</th><th>Need Date</th><th>Weight (Lbs)</th><th>Status</th></tr></thead>
+        <tbody>
+          ${sorted.map(j=>`
+          <tr data-open="${j.id}" style="cursor:pointer;">
+            <td class="job-name-cell"><b>${j.jobName}</b></td>
+            <td class="mono">${j.jobNumber||'—'}</td>
+            <td>${j.division||'—'}</td>
+            <td class="need-date ${needDateClass(j)}">${needDateLabel(j.needDate)}</td>
+            <td class="weight-cell">${fmt(j.weight)}</td>
+            <td><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:14px;font-size:13px;color:var(--text-dim);">Total: <b class="mono" style="color:var(--text);">${fmt(total)} lbs</b> across ${sorted.length} job${sorted.length!==1?'s':''}</div>
+  ` : `<div class="empty">No active jobs in this range.</div>`;
+  openModal('backlog-detail-modal');
+  document.querySelectorAll('#backlog-detail-body [data-open]').forEach(el=>el.addEventListener('click', ()=>{ closeModal('backlog-detail-modal'); openJob(el.dataset.open); }));
+}
 function isThisWeek(dateStr){
   if(!dateStr) return false;
   const [mon,sun] = weekBounds();
@@ -1833,7 +1889,16 @@ function initDashboardCharts(){
         {label:'Backlog', data:weeks.map(w=>w.lbs), backgroundColor:weeks.map(w=> w.lbs>state.goal?FABQ.red:FABQ.green), borderRadius:4},
         {label:'Goal', data:weeks.map(()=>state.goal), backgroundColor:FABQ.border, borderRadius:4}
       ]},
-      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}}}
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}},
+        onClick:(evt,elements)=>{
+          if(!elements.length) return;
+          const w = weeks[elements[0].index];
+          const wMon = new Date(w.wk+'T00:00:00'); const wSun = new Date(wMon); wSun.setDate(wMon.getDate()+6);
+          const rangeLbl = wMon.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + wSun.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+          openBacklogDetailModal(`Jobs Due — Week of ${rangeLbl}`, 'Active jobs with a need date in this week', jobsForWeek(w.wk));
+        },
+        onHover:(evt,elements)=>{ evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; }
+      }
     });
   }
 
@@ -1843,7 +1908,14 @@ function initDashboardCharts(){
     dashboardChartInstances.division = new Chart(divEl, {
       type:'bar',
       data:{labels:divs.map(d=>d[0]), datasets:[{label:'Backlog Lbs', data:divs.map(d=>d[1]), backgroundColor:FABQ.steelBright, borderRadius:4}]},
-      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}}}
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}},
+        onClick:(evt,elements)=>{
+          if(!elements.length) return;
+          const division = divs[elements[0].index][0];
+          openBacklogDetailModal(`Active Backlog — ${division}`, 'All active jobs in this division', jobsForDivision(division));
+        },
+        onHover:(evt,elements)=>{ evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; }
+      }
     });
   }
 
@@ -2133,7 +2205,7 @@ function viewDashboard(){
       const dayLbl = i===0 ? 'Today' : i===1 ? 'Tomorrow' : dDate.toLocaleDateString('en-US',{weekday:'short'});
       const dateLbl = dDate.toLocaleDateString('en-US',{month:'short',day:'numeric'});
       return `
-      <div class="card stat-box" style="border-color:${over?'var(--red)':'var(--border)'};padding:12px;">
+      <div class="card stat-box clickable" data-backlog-day="${d.day}" style="border-color:${over?'var(--red)':'var(--border)'};padding:12px;">
         <div class="val mono" style="color:${over?'var(--red)':'var(--text)'};font-size:20px;">${fmt(d.lbs)}</div>
         <div class="lbl">${dayLbl} <span style="opacity:.7;">(${dateLbl})</span></div>
         <div style="margin-top:6px;font-size:10.5px;font-weight:700;color:${over?'var(--red)':'var(--green)'};">
@@ -2153,7 +2225,7 @@ function viewDashboard(){
       const rangeLbl = wMon.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + '–' + wSun.toLocaleDateString('en-US',{month:'short',day:'numeric'});
       const weekLbl = i===0 ? 'This Week' : i===1 ? 'Next Week' : `Week of ${wMon.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
       return `
-      <div class="card stat-box" style="border-color:${over?'var(--red)':'var(--border)'};">
+      <div class="card stat-box clickable" data-backlog-week="${w.wk}" style="border-color:${over?'var(--red)':'var(--border)'};">
         <div class="val mono" style="color:${over?'var(--red)':'var(--text)'};">${fmt(w.lbs)}</div>
         <div class="lbl">${weekLbl} <span style="opacity:.7;">(${rangeLbl})</span></div>
         <div style="margin-top:8px;font-size:11.5px;font-weight:700;color:${over?'var(--red)':'var(--green)'};">
@@ -3011,6 +3083,17 @@ function bindMainEvents(){
   if(shortOrdersRangeSel) shortOrdersRangeSel.addEventListener('change', ()=>{ state.shortOrdersRange = shortOrdersRangeSel.value; render(); });
   document.querySelectorAll('[data-orders-view]').forEach(el=>el.addEventListener('click', ()=>{
     state.shortOrdersView = el.dataset.ordersView; render();
+  }));
+  document.querySelectorAll('[data-backlog-day]').forEach(el=>el.addEventListener('click', ()=>{
+    const dayISO = el.dataset.backlogDay;
+    const dLabel = new Date(dayISO+'T00:00:00').toLocaleDateString('en-US',{weekday:'long', month:'short', day:'numeric'});
+    openBacklogDetailModal(`Jobs Due — ${dLabel}`, 'Active jobs with this need date', jobsForDay(dayISO));
+  }));
+  document.querySelectorAll('[data-backlog-week]').forEach(el=>el.addEventListener('click', ()=>{
+    const wkISO = el.dataset.backlogWeek;
+    const wMon = new Date(wkISO+'T00:00:00'); const wSun = new Date(wMon); wSun.setDate(wMon.getDate()+6);
+    const rangeLbl = wMon.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + wSun.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    openBacklogDetailModal(`Jobs Due — Week of ${rangeLbl}`, 'Active jobs with a need date in this week', jobsForWeek(wkISO));
   }));
   const hoursWeekPrev = document.getElementById('hours-week-prev');
   if(hoursWeekPrev) hoursWeekPrev.addEventListener('click', ()=>{ const d=new Date(state.hoursWeek+'T00:00:00'); d.setDate(d.getDate()-7); state.hoursWeek=mondayISO(d.toISOString().slice(0,10)); render(); });
