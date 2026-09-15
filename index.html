@@ -18,6 +18,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-firestore-compat.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 :root{
   --bg:#171c22;
@@ -1747,12 +1748,40 @@ function render(){
 function isStandalonePWA(){
   return (window.navigator.standalone === true) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 }
-function triggerReportPrint(){
-  if(isStandalonePWA()){
-    toast("Printing isn't supported when FabQ is added to your Home Screen. Open the same web address in Safari or Chrome (not the app icon) to print this report.", 7000);
+async function triggerReportPrint(){
+  if(!isStandalonePWA()){
+    window.print();
     return;
   }
-  window.print();
+  await shareReportForPrint();
+}
+async function shareReportForPrint(){
+  const reportEl = document.getElementById('print-report');
+  if(!reportEl || !reportEl.innerHTML.trim()){ toast('Nothing to print yet.'); return; }
+  if(typeof html2canvas === 'undefined' || !navigator.share){
+    toast("Printing isn't supported when FabQ is added to your Home Screen, and this device can't use the share-to-print workaround either. Open the same web address in Safari or Chrome (not the app icon) to print this report.", 8000);
+    return;
+  }
+  toast('Preparing report…', 4000);
+  const prevCssText = reportEl.style.cssText;
+  reportEl.style.cssText = 'display:block !important; position:fixed; top:0; left:-99999px; width:820px; background:#fff; color:#111; padding:24px; z-index:-1;';
+  try{
+    const canvas = await html2canvas(reportEl, {backgroundColor:'#ffffff', scale:2, useCORS:true});
+    reportEl.style.cssText = prevCssText;
+    const blob = await new Promise(resolve=> canvas.toBlob(resolve, 'image/png'));
+    if(!blob){ toast('Could not prepare the report image.'); return; }
+    const file = new File([blob], 'fabq-report.png', {type:'image/png'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title:'FabQ Report'});
+    } else {
+      toast("This device can't share the report as a file. Open the same web address in Safari or Chrome (not the app icon) to print this report.", 8000);
+    }
+  }catch(err){
+    reportEl.style.cssText = prevCssText;
+    if(err && err.name === 'AbortError') return; // user cancelled the share sheet — not an error
+    console.error('Share-to-print failed', err);
+    toast("Couldn't prepare the report for printing. Open the same web address in Safari or Chrome (not the app icon) to print this report instead.", 8000);
+  }
 }
 let dashboardChartInstances = {};
 function destroyDashboardCharts(){
