@@ -1745,11 +1745,14 @@ function render(){
   updateMobileTabbar();
   if(state.view==='dashboard') initDashboardCharts();
 }
-function isStandalonePWA(){
-  return (window.navigator.standalone === true) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+function isIOS(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function isStandaloneiOS(){
+  return isIOS() && ((window.navigator.standalone === true) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches));
 }
 async function triggerReportPrint(){
-  if(!isStandalonePWA()){
+  if(!isStandaloneiOS()){
     window.print();
     return;
   }
