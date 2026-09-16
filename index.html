@@ -508,6 +508,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
   #app, #login-screen, .toast-wrap, .overlay{display:none !important;}
   .print-only{display:block !important; background:#fff; color:#111; padding:0;}
   @page{margin:0.6in;}
+  /* Reset the mobile "stacked card" table transform (@media max-width:760px above) which
+     otherwise also fires during print, since a printed page's content width commonly computes
+     under that breakpoint. Printed reports must always render as real tables with visible headers. */
+  #print-report table{table-layout:auto;width:100%;border-collapse:collapse;background:#fff;}
+  #print-report thead{display:table-header-group !important;}
+  #print-report tbody{display:table-row-group !important;}
+  #print-report tbody tr{display:table-row !important; margin:0; border:none; border-radius:0; padding:0; background:#fff; box-shadow:none;}
+  #print-report tbody td{display:table-cell !important; text-align:left; padding:6px 8px; border-bottom:1px solid #ddd; white-space:normal; background:#fff; color:#111;}
+  #print-report tbody td::before{content:none !important;}
 }
 </style>
 </head>
