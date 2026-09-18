@@ -949,7 +949,7 @@ const GAUGE_TYPES = [
 ];
 const SEARCH_FIELDS = [
   ['jobName','Job Name'],['jobNumber','Job Number'],['needDate','Date Needed'],
-  ['dateSubmitted','Date Required'],['sketchNumber','Sketch #'],['drawingType','Drawing Type'],['trailer','Trailer #']
+  ['dateSubmitted','Date Required'],['sketchNumber','Sketch #'],['toNumber','TO #'],['drawingType','Drawing Type'],['trailer','Trailer #']
 ];
 const COLOR_HEX = {
   'Blue':'#4a7fd1','Red':'#d1453b','Yellow':'#f0d33a','Green':'#4f9d69','Grey':'#9aa4af','Orange':'#df7a3d',
@@ -1277,6 +1277,12 @@ function suggestNextToNumber(jobNumber){
   if(!family.length) return null;
   const maxTo = Math.max(...family.map(j=>Number(j.toNumber)));
   return maxTo + 1;
+}
+function suggestNewFamilyStartNumber(){
+  const allNumbers = state.jobs.filter(j=>j.toNumber!=null && j.toNumber!=='').map(j=>Number(j.toNumber));
+  if(!allNumbers.length) return 100;
+  const max = Math.max(...allNumbers);
+  return Math.ceil((max+1)/100)*100;
 }
 function isToNumberTaken(toNumber, excludeJobId){
   if(toNumber===null || toNumber===undefined || toNumber==='') return false;
@@ -4240,8 +4246,8 @@ function openAddModal(){
       toInput.value = suggestion;
       hint.textContent = `Auto-filled: next TO # for this job (previous TO #s already used).`;
     } else if(jobNumInput.value.trim()){
-      toInput.value = '';
-      hint.textContent = `New job — pick a starting TO # for this job family.`;
+      toInput.value = suggestNewFamilyStartNumber();
+      hint.textContent = `New job — auto-assigned a fresh starting TO #. Edit it if you want this job to start at a specific number.`;
     } else {
       toInput.value = '';
       hint.textContent = '';
