@@ -2714,7 +2714,7 @@ const COLUMN_DEFS = [
   ['needDate','Need Date',true],['jobName','Job Name / #',true],
   ['division','Division',false],['customer','Customer',false],['system','System / Area',false],
   ['notes','Notes',false],['ship','Ship',false],['status','Status',true],['qty','Qty',false],
-  ['weight','Weight',false],['colors','Colors',false],['trailer','Trailer',false],['sketch','Sketch',false],['sketchNumber','Sketch #',false]
+  ['weight','Weight',false],['colors','Colors',false],['trailer','Trailer',false],['sketch','Sketch',false],['sketchNumber','Sketch #',false],['toNumber','TO #',false]
 ];
 function columnsToggleHTML(tableId){
   state.hiddenCols = state.hiddenCols || {};
@@ -2767,7 +2767,7 @@ function renderJobsTable(jobs, opts){
   const rows = filtered.slice().sort((a,b)=> sortDir==='asc' ? needDateSort(a,b) : needDateSort(b,a));
 
   const extraCols = (opts.showAdvance?1:0) + (opts.showDelivery?1:0);
-  const colCount = 14 + extraCols;
+  const colCount = 15 + extraCols;
   return `
   <div class="toolbar" style="margin-bottom:10px;">
     <div></div>
@@ -2783,7 +2783,7 @@ function renderJobsTable(jobs, opts){
         ${colFilterHeader(tableId,'system','System / Area',jobs)}
         <th data-col="notes">Notes</th><th data-col="ship">Ship</th><th data-col="status">Status</th><th data-col="qty">Qty</th><th data-col="weight">Weight</th><th data-col="colors">Colors</th>
         ${colFilterHeader(tableId,'trailer','Trailer',jobs)}
-        <th data-col="sketch">Sketch</th><th data-col="sketchNumber">Sketch #</th>${opts.showAdvance?'<th>Action</th>':''}${opts.showDelivery?'<th>Delivery</th>':''}
+        <th data-col="sketch">Sketch</th><th data-col="sketchNumber">Sketch #</th><th data-col="toNumber">TO #</th>${opts.showAdvance?'<th>Action</th>':''}${opts.showDelivery?'<th>Delivery</th>':''}
       </tr></thead>
       <tbody>
         ${rows.length ? rows.map(j=>`
@@ -2802,6 +2802,7 @@ function renderJobsTable(jobs, opts){
           <td data-col="trailer" data-label="Trailer">${j.trailer || '<span style="color:var(--text-faint);font-style:italic;">Unassigned</span>'}</td>
           <td data-col="sketch" data-label="Sketch"><div class="thumb-cell" data-thumb="${j.id}" data-thumb-open="${j.id}">${thumbHTML(j)}</div></td>
           <td data-col="sketchNumber" data-label="Sketch #" class="mono">${j.sketchNumber||'—'}</td>
+          <td data-col="toNumber" data-label="TO #" class="mono">${j.toNumber!=null?j.toNumber:'—'}</td>
           ${opts.showAdvance ? `<td data-label="Action">${ADVANCE_MAP[j.status] ? `<button class="btn-ghost" data-quickstatus="${j.id}">Advance → ${ADVANCE_MAP[j.status]}</button>` : '—'}</td>` : ''}
           ${opts.showDelivery ? `<td data-label="Delivery">${j.status!=='Delivered/Picked Up' ? `<button class="btn-primary" data-mark-delivered="${j.id}">Mark ${j.shippingMethod==='Pickup'?'Picked Up':'Delivered'}</button>` : `<span class="status delivered">Done</span>`}</td>` : ''}
         </tr>`).join('') : `<tr><td colspan="${colCount}"><div class="empty"><div class="big">No jobs match</div>${opts.emptyText||'Try clearing filters or search.'}</div></td></tr>`}
