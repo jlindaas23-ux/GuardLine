@@ -1035,6 +1035,7 @@ let state = {
   jobs: [],
   goal: 22000,
   dailyGoal: 4400,
+  targetLbsPerHr: 40,
   trailers: [],
   deletedJobs: [],
   hoursLog: {},
@@ -1148,6 +1149,7 @@ function saveStateNow(){
     jobsJson: JSON.stringify(state.jobs),
     goal: state.goal,
     dailyGoal: state.dailyGoal,
+    targetLbsPerHr: state.targetLbsPerHr,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).catch(err=>{ console.error('Save failed', err); toast('Could not save — check connection.'); throw err; });
 
@@ -1220,6 +1222,7 @@ function startLiveSync(onFirstLoad){
       state.jobs = JSON.parse(data.jobsJson || '[]');
       state.goal = data.goal || 22000;
       state.dailyGoal = data.dailyGoal || 4400;
+      state.targetLbsPerHr = data.targetLbsPerHr || 40;
       firestoreReady = true;
     } else { firestoreReady = false; }
     mainLoaded = true;
@@ -1459,6 +1462,27 @@ function hoursForYear(year){
   return total;
 }
 function lbsPerHr(lbs,hours){ return hours>0 ? Math.round(lbs/hours) : null; }
+/* ---- Productivity deep-dive helpers (Lbs/Hr by year/month/week, vs target) ---- */
+function yearLbsPerHr(year){ return lbsPerHr(yearLbs(year), hoursForYear(year)); }
+function bestYearLbsPerHr(){
+  let best = null;
+  yearsWithProductionData().forEach(y=>{
+    const rate = yearLbsPerHr(y);
+    if(rate!==null && (best===null || rate>best.rate)) best = {year:y, rate, lbs:yearLbs(y)};
+  });
+  return best;
+}
+function weeksWithHoursInYear(year){
+  return Object.keys(state.hoursLog||{}).filter(wk=> new Date(wk+'T00:00:00').getFullYear()===year && Number(state.hoursLog[wk])>0).sort();
+}
+function bestWeekLbsPerHr(year){
+  let best = null;
+  weeksWithHoursInYear(year).forEach(wk=>{
+    const rate = lbsPerHr(weekLbs(wk), hoursForWeek(wk));
+    if(rate!==null && (best===null || rate>best.rate)) best = {wk, rate};
+  });
+  return best;
+}
 function lastNWeeks(n){
   const weeks=[];
   const cur = new Date(mondayISO(todayISO())+'T00:00:00');
@@ -1964,6 +1988,49 @@ function initDashboardCharts(){
     });
   }
 
+  const annualLbsHrEl = document.getElementById('chart-annual-lbshr');
+  if(annualLbsHrEl){
+    const years = yearsWithProductionData().slice().sort((a,b)=>a-b);
+    const rates = years.map(y=>yearLbsPerHr(y));
+    dashboardChartInstances.annualLbsHr = new Chart(annualLbsHrEl, {
+      type:'bar',
+      data:{labels:years.map(String), datasets:[
+        {label:'Lbs/Hr', data:rates, backgroundColor:rates.map(r=> r===null?FABQ.textFaint : r>=state.targetLbsPerHr?FABQ.green:FABQ.red), borderRadius:4},
+        {label:'Target', data:years.map(()=>state.targetLbsPerHr), type:'line', borderColor:FABQ.yellow, borderDash:[4,4], borderWidth:1.5, pointRadius:0}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}}}
+    });
+  }
+
+  const monthlyLbsHrEl = document.getElementById('chart-monthly-lbshr');
+  if(monthlyLbsHrEl){
+    const years = yearsWithProductionData().slice().sort((a,b)=>b-a).slice(0,3).sort((a,b)=>a-b);
+    const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const palette = [FABQ.blue, FABQ.green, FABQ.orange];
+    dashboardChartInstances.monthlyLbsHr = new Chart(monthlyLbsHrEl, {
+      type:'line',
+      data:{labels:monthLabels, datasets:[
+        ...years.map((y,i)=>({
+          label:String(y),
+          data:monthLabels.map((_,m)=> lbsPerHr(monthLbs(y,m), hoursForMonth(y,m))),
+          borderColor:palette[i%palette.length], backgroundColor:'transparent', borderWidth:2, tension:0.3, pointRadius:3, spanGaps:true
+        })),
+        {label:'Target', data:monthLabels.map(()=>state.targetLbsPerHr), borderColor:FABQ.yellow, borderDash:[4,4], borderWidth:1.5, pointRadius:0}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:true,position:'top',labels:{boxWidth:10,padding:10,font:{size:11}}}}}
+    });
+  }
+
+  const annualOutputEl = document.getElementById('chart-annual-output');
+  if(annualOutputEl){
+    const years = yearsWithProductionData().slice().sort((a,b)=>a-b);
+    dashboardChartInstances.annualOutput = new Chart(annualOutputEl, {
+      type:'bar',
+      data:{labels:years.map(String), datasets:[{label:'Annual Output', data:years.map(y=>yearLbs(y)), backgroundColor:FABQ.steelBright, borderRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}}}
+    });
+  }
+
   const ontimeEl = document.getElementById('chart-ontime-trend');
   if(ontimeEl){
     const trend = onTimeRateTrend(8);
@@ -2285,7 +2352,46 @@ function viewDashboard(){
     </div>
   </div>`;
 
+  const bestYear = bestYearLbsPerHr();
+  const thisYearRate = yearLbsPerHr(thisYear);
+  const lastYearRate = yearLbsPerHr(thisYear-1);
+  const bestWeekThisYear = bestWeekLbsPerHr(thisYear);
+  const target = state.targetLbsPerHr;
+  const gapMsg = thisYearRate===null ? `Log hours this year to see where you stand against your ${target} lbs/hr target.`
+    : thisYearRate>=target ? `You're at ${thisYearRate} lbs/hr this year — ${thisYearRate-target} lbs/hr above your ${target} lbs/hr target.`
+    : `You're at ${thisYearRate} lbs/hr this year (8-week-or-more sample) — need to gain ${target-thisYearRate} lbs/hr to hit your ${target} lbs/hr target.`;
+
   const productivityHtml = `
+  <div class="toolbar" style="margin-top:0;">
+    <div class="section-title" style="margin:0;"><span class="bar"></span>Productivity — Lbs / Hr</div>
+    <a href="#" id="edit-target-lbshr-btn" style="font-size:12px;">Edit target (${target} lbs/hr)</a>
+  </div>
+  <div class="stat-row" style="grid-template-columns:repeat(5,1fr);">
+    <div class="card stat-box"><div class="val mono">${thisYearRate!==null?thisYearRate:'—'}</div><div class="lbl">${thisYear} YTD Lbs/Hr</div></div>
+    <div class="card stat-box"><div class="val mono">${lastYearRate!==null?lastYearRate:'—'}</div><div class="lbl">${thisYear-1} Lbs/Hr (Full Year)</div></div>
+    <div class="card stat-box" style="border-color:var(--green);"><div class="val mono" style="color:var(--green);">${bestYear?bestYear.rate:'—'}</div><div class="lbl">All-Time Best${bestYear?' — '+bestYear.year:''}</div></div>
+    <div class="card stat-box" style="border-color:var(--steel-bright);"><div class="val mono" style="color:var(--steel-bright);">${target}</div><div class="lbl">Target Lbs/Hr</div></div>
+    <div class="card stat-box" style="border-color:var(--yellow);"><div class="val mono" style="color:var(--yellow);">${bestWeekThisYear?bestWeekThisYear.rate:'—'}</div><div class="lbl">Best Week Peak (${thisYear})</div></div>
+  </div>
+  <div class="card" style="padding:14px 18px;margin-top:14px;margin-bottom:26px;background:var(--bg-2);">
+    <div style="font-size:13px;color:var(--text-dim);">${gapMsg}</div>
+  </div>
+
+  <div class="chart-pair-grid" style="margin-bottom:26px;">
+    <div class="card" style="padding:16px;">
+      <div class="section-title"><span class="bar"></span>Annual Lbs/Hr, All Years</div>
+      <div style="position:relative;height:240px;margin-top:10px;"><canvas id="chart-annual-lbshr"></canvas></div>
+    </div>
+    <div class="card" style="padding:16px;">
+      <div class="section-title"><span class="bar"></span>Monthly Lbs/Hr — Year Over Year</div>
+      <div style="position:relative;height:240px;margin-top:10px;"><canvas id="chart-monthly-lbshr"></canvas></div>
+    </div>
+  </div>
+  <div class="card" style="padding:16px;margin-bottom:26px;">
+    <div class="section-title"><span class="bar"></span>Annual Output (Lbs), All Years</div>
+    <div style="position:relative;height:220px;margin-top:10px;"><canvas id="chart-annual-output"></canvas></div>
+  </div>
+
   <div class="toolbar" style="margin-top:0;">
     <div class="section-title" style="margin:0;"><span class="bar"></span>Productivity Snapshot</div>
   </div>
@@ -3128,6 +3234,11 @@ function bindMainEvents(){
     e.preventDefault();
     const v = prompt('Set daily weight goal (lbs):', state.dailyGoal);
     if(v && !isNaN(v)){ state.dailyGoal = Number(v); saveState(); render(); }
+  });
+  const targetLbsHrBtn = document.getElementById('edit-target-lbshr-btn'); if(targetLbsHrBtn) targetLbsHrBtn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    const v = prompt('Set target Lbs/Hr (your shop efficiency goal):', state.targetLbsPerHr);
+    if(v && !isNaN(v)){ state.targetLbsPerHr = Number(v); saveState(); render(); }
   });
   const shortOrdersRangeSel = document.getElementById('short-orders-range');
   if(shortOrdersRangeSel) shortOrdersRangeSel.addEventListener('change', ()=>{ state.shortOrdersRange = shortOrdersRangeSel.value; render(); });
