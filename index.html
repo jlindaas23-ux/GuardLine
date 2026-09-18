@@ -1340,7 +1340,7 @@ function weekBounds(){
   const sun = new Date(mon); sun.setDate(mon.getDate()+6); sun.setHours(23,59,59,999);
   return [mon,sun];
 }
-/* ---- 3-Week Backlog Look-Ahead (for planning overtime) ---- */
+/* ---- 4-Week Backlog Look-Ahead (for planning overtime) ---- */
 function backlogLbsForWeek(weekStartISO){
   const start = new Date(weekStartISO+'T00:00:00');
   const end = new Date(start); end.setDate(end.getDate()+6); end.setHours(23,59,59,999);
@@ -1963,7 +1963,7 @@ function initDashboardCharts(){
 
   const lookaheadEl = document.getElementById('chart-backlog-lookahead');
   if(lookaheadEl){
-    const weeks = backlogLookAhead(3);
+    const weeks = backlogLookAhead(4);
     const labels = weeks.map((w,i)=> i===0?'This Week':i===1?'Next Week':needDateLabel(w.wk));
     dashboardChartInstances.lookahead = new Chart(lookaheadEl, {
       type:'bar',
@@ -2379,9 +2379,9 @@ function viewDashboard(){
     }).join('')}
   </div>
 
-  <div class="section-title" style="margin-top:26px;"><span class="bar"></span>3-Week Backlog Look-Ahead <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(by need date — plan overtime before you're behind)</span></div>
+  <div class="section-title" style="margin-top:26px;"><span class="bar"></span>4-Week Backlog Look-Ahead <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(by need date — plan overtime before you're behind)</span></div>
   <div class="stat-row" style="margin-bottom:26px;">
-    ${backlogLookAhead(3).map((w,i)=>{
+    ${backlogLookAhead(4).map((w,i)=>{
       const over = w.lbs > state.goal;
       const diff = Math.abs(w.lbs - state.goal);
       const [wMon] = [new Date(w.wk+'T00:00:00')];
@@ -2401,7 +2401,7 @@ function viewDashboard(){
 
   <div class="chart-pair-grid" style="margin-bottom:26px;">
     <div class="card" style="padding:16px;">
-      <div class="section-title"><span class="bar"></span>Backlog vs. Goal, Next 3 Weeks</div>
+      <div class="section-title"><span class="bar"></span>Backlog vs. Goal, Next 4 Weeks</div>
       <div style="position:relative;height:220px;margin-top:10px;"><canvas id="chart-backlog-lookahead"></canvas></div>
     </div>
     <div class="card" style="padding:16px;">
