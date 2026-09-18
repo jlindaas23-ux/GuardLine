@@ -110,6 +110,15 @@ nav.tabs button{
 }
 nav.tabs button.active{color:var(--text); background:var(--panel-2); border-bottom:2px solid var(--steel-bright);}
 nav.tabs button:hover:not(.active){color:var(--text);}
+.dash-subtabs{display:flex; flex-wrap:wrap; gap:4px; border-bottom:1px solid var(--border); margin-bottom:22px; padding-bottom:0;}
+.dash-subtabs button{
+  background:none;border:none;color:var(--text-dim); font-family:'Oswald'; letter-spacing:.05em;
+  font-size:12.5px; text-transform:uppercase; padding:11px 16px; font-weight:500;
+  border-bottom:2px solid transparent; white-space:nowrap; cursor:pointer;
+}
+.dash-subtabs button.active{color:var(--steel-bright); border-bottom:2px solid var(--steel-bright);}
+.dash-subtabs button:hover:not(.active){color:var(--text);}
+@media(max-width:760px){.dash-subtabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;}}
 .topbar-right{display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:flex-end;}
 .live-dot{display:flex;align-items:center;gap:6px; font-size:11px; color:var(--text-faint); letter-spacing:.05em;}
 .live-dot .dot{width:7px;height:7px;border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite;}
@@ -2182,8 +2191,15 @@ function viewDashboard(){
   const weekGaugeTotals = weeklyGaugeTotals(reportWeek);
   if(!state.hoursWeek) state.hoursWeek = mondayISO(todayISO());
   const hoursWeek = state.hoursWeek;
+  if(!state.dashboardTab) state.dashboardTab = 'overview';
 
-  return `
+  const DASH_TABS = [
+    ['overview','Overview'],['productivity','Productivity'],['historical','Historical'],
+    ['shortorders','Short Orders'],['jobanalysis','Job Analysis'],['metalusage','Metal Usage']
+  ];
+  const tabBar = `<div class="dash-subtabs">${DASH_TABS.map(([k,label])=>`<button data-dash-tab="${k}" class="${state.dashboardTab===k?'active':''}">${label}</button>`).join('')}</div>`;
+
+  const overviewHtml = `
   ${canEdit ? `<div class="toolbar" style="margin-bottom:16px;"><div></div><button class="btn-ghost" id="export-csv-btn">⬇ Export Full Schedule (CSV)</button></div>` : ''}
   <div class="dash-grid">
     <div>
@@ -2267,9 +2283,10 @@ function viewDashboard(){
       <div class="section-title"><span class="bar"></span>Active Backlog by Division</div>
       <div style="position:relative;height:220px;margin-top:10px;"><canvas id="chart-backlog-division"></canvas></div>
     </div>
-  </div>
+  </div>`;
 
-  <div class="toolbar" style="margin-top:26px;">
+  const productivityHtml = `
+  <div class="toolbar" style="margin-top:0;">
     <div class="section-title" style="margin:0;"><span class="bar"></span>Productivity Snapshot</div>
   </div>
   <div class="stat-row">
@@ -2297,21 +2314,6 @@ function viewDashboard(){
   </div>` : ''}
 
   <div class="toolbar">
-    <div class="section-title" style="margin:0;"><span class="bar"></span>Monthly Goal Tracker</div>
-    <select id="monthly-goal-year-select" class="search-box" style="min-width:110px;">${yearsWithProductionData().map(y=>`<option value="${y}" ${monthlyGoalYear===y?'selected':''}>${y}</option>`).join('')}</select>
-  </div>
-  <div class="shop-grid" style="margin-bottom:26px;">
-    ${monthCards.map(m=>`
-      <div class="card" style="padding:16px;${m.isFuture?'opacity:.5;':''}">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;">
-          <div class="disp" style="font-size:14px;">${m.label}</div>
-          <span class="status ${m.isFuture?'pending':(m.hit?'complete':'pending')}">${m.isFuture?'Not Started':(m.hit?'Goal Hit':'Below Goal')}</span>
-        </div>
-        <div class="mono" style="font-size:20px;font-weight:700;">${fmt(m.lbs)} <span style="font-size:11px;color:var(--text-faint);font-weight:400;">/ ${fmt(m.target)} target</span></div>
-      </div>`).join('')}
-  </div>
-
-  <div class="toolbar">
     <div style="display:flex;align-items:center;gap:10px;">
       <button class="btn-ghost" id="weekly-prod-older">‹ Older</button>
       <div class="section-title" style="margin:0;"><span class="bar"></span>Weekly Productivity <span style="color:var(--text-faint);font-size:11px;text-transform:none;">(${needDateLabel(weekRows[weekRows.length-1].wk)} – ${needDateLabel(weekRows[0].wk)})</span></div>
@@ -2336,9 +2338,39 @@ function viewDashboard(){
         </tr>`).join('')}
       </tbody>
     </table>
+  </div>`;
+
+  const historicalHtml = `
+  <div class="toolbar" style="margin-top:0;">
+    <div class="section-title" style="margin:0;"><span class="bar"></span>Monthly Goal Tracker</div>
+    <select id="monthly-goal-year-select" class="search-box" style="min-width:110px;">${yearsWithProductionData().map(y=>`<option value="${y}" ${monthlyGoalYear===y?'selected':''}>${y}</option>`).join('')}</select>
+  </div>
+  <div class="shop-grid" style="margin-bottom:26px;">
+    ${monthCards.map(m=>`
+      <div class="card" style="padding:16px;${m.isFuture?'opacity:.5;':''}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;">
+          <div class="disp" style="font-size:14px;">${m.label}</div>
+          <span class="status ${m.isFuture?'pending':(m.hit?'complete':'pending')}">${m.isFuture?'Not Started':(m.hit?'Goal Hit':'Below Goal')}</span>
+        </div>
+        <div class="mono" style="font-size:20px;font-weight:700;">${fmt(m.lbs)} <span style="font-size:11px;color:var(--text-faint);font-weight:400;">/ ${fmt(m.target)} target</span></div>
+      </div>`).join('')}
   </div>
 
-  <div class="toolbar">
+  <div class="section-title"><span class="bar"></span>Recently Completed</div>
+  <div class="card hot-list">
+    ${recentlyCompleted.length ? recentlyCompleted.map(j=>`
+      <div class="hot-row" data-open="${j.id}" style="cursor:pointer;">
+        <div class="date need-date" style="width:88px;flex-shrink:0;">${j.completedAt}</div>
+        <div style="flex:1;">
+          <div class="job">${j.jobName} <span class="mono" style="color:var(--text-faint);font-size:11px;">${j.jobNumber}</span></div>
+          <div class="meta">${fmt(j.weight)} lbs · ${j.system||''}</div>
+        </div>
+        <span class="status ${STATUS_CLASS[j.status]}">${j.status}</span>
+      </div>`).join('') : `<div class="empty" style="padding:20px;">Nothing completed yet.</div>`}
+  </div>`;
+
+  const shortOrdersHtml = `
+  <div class="toolbar" style="margin-top:0;">
     <div class="section-title" style="margin:0;"><span class="bar"></span>Short Orders — On Time vs. Short Order</div>
     <select id="short-orders-range" class="search-box" style="min-width:150px;">
       <option value="all" ${shortOrdersRange==='all'?'selected':''}>All Time</option>
@@ -2377,9 +2409,10 @@ function viewDashboard(){
         }).join('') : `<tr><td colspan="7"><div class="empty">No ${state.shortOrdersView==='short'?'short-lead-time':'normal lead time'} orders on record.</div></td></tr>`; })()}
       </tbody>
     </table>
-  </div>
+  </div>`;
 
-  <div class="section-title"><span class="bar"></span>Job Analysis — Production Lbs &amp; Metal Weight by Job</div>
+  const jobAnalysisHtml = `
+  <div class="section-title" style="margin-top:0;"><span class="bar"></span>Job Analysis — Production Lbs &amp; Metal Weight by Job</div>
   <div class="table-wrap" style="margin-bottom:26px;">
     <table>
       <thead><tr><th>Job Name</th><th>Job #</th><th>Production Lbs</th><th>Metal Weight (Lbs)</th><th>Variance</th><th>Status</th></tr></thead>
@@ -2398,9 +2431,10 @@ function viewDashboard(){
         }).join('') : `<tr><td colspan="6"><div class="empty">No job data yet.</div></td></tr>`}
       </tbody>
     </table>
-  </div>
+  </div>`;
 
-  <div class="toolbar">
+  const metalUsageHtml = `
+  <div class="toolbar" style="margin-top:0;">
     <div class="section-title" style="margin:0;"><span class="bar"></span>Metal Inventory — Weight Usage (Lbs)</div>
     <button class="btn-primary" id="dash-log-metal-btn">🧱 Log Metal Usage</button>
   </div>
@@ -2480,21 +2514,14 @@ function viewDashboard(){
       <select id="yearly-metal-year-select">${yearsWithMetalUsage().map(y=>`<option value="${y}">${y}</option>`).join('')}</select>
       <button class="btn-primary" id="print-yearly-metal-report-btn">🖨 Print Yearly Report</button>
     </div>
-  </div>
+  </div>`;
 
-  <div class="section-title"><span class="bar"></span>Recently Completed</div>
-  <div class="card hot-list">
-    ${recentlyCompleted.length ? recentlyCompleted.map(j=>`
-      <div class="hot-row" data-open="${j.id}" style="cursor:pointer;">
-        <div class="date need-date" style="width:88px;flex-shrink:0;">${j.completedAt}</div>
-        <div style="flex:1;">
-          <div class="job">${j.jobName} <span class="mono" style="color:var(--text-faint);font-size:11px;">${j.jobNumber}</span></div>
-          <div class="meta">${fmt(j.weight)} lbs · ${j.system||''}</div>
-        </div>
-        <span class="status ${STATUS_CLASS[j.status]}">${j.status}</span>
-      </div>`).join('') : `<div class="empty" style="padding:20px;">Nothing completed yet.</div>`}
-  </div>
-  `;
+  const TAB_CONTENT = {
+    overview: overviewHtml, productivity: productivityHtml, historical: historicalHtml,
+    shortorders: shortOrdersHtml, jobanalysis: jobAnalysisHtml, metalusage: metalUsageHtml
+  };
+
+  return tabBar + (TAB_CONTENT[state.dashboardTab] || overviewHtml);
 }
 
 /* ============================ MANAGERS VIEW ============================ */
@@ -3104,6 +3131,9 @@ function bindMainEvents(){
   });
   const shortOrdersRangeSel = document.getElementById('short-orders-range');
   if(shortOrdersRangeSel) shortOrdersRangeSel.addEventListener('change', ()=>{ state.shortOrdersRange = shortOrdersRangeSel.value; render(); });
+  document.querySelectorAll('[data-dash-tab]').forEach(el=>el.addEventListener('click', ()=>{
+    state.dashboardTab = el.dataset.dashTab; render();
+  }));
   document.querySelectorAll('[data-orders-view]').forEach(el=>el.addEventListener('click', ()=>{
     state.shortOrdersView = el.dataset.ordersView; render();
   }));
