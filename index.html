@@ -1990,7 +1990,15 @@ function initDashboardCharts(){
         {label:'Actual', data:weeks.map(w=>w.lbs), borderColor:FABQ.steelBright, backgroundColor:'transparent', borderWidth:2, tension:0.3, pointRadius:3},
         {label:'Goal', data:weeks.map(()=>state.goal), borderColor:FABQ.textFaint, borderDash:[4,4], borderWidth:1.5, pointRadius:0}
       ]},
-      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}}}
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}},
+        onClick:(evt,elements)=>{
+          if(!elements.length) return;
+          const w = weeks[elements[0].index];
+          const start = new Date(w.wk+'T00:00:00'); const end = new Date(start); end.setDate(end.getDate()+6); end.setHours(23,59,59,999);
+          openBacklogDetailModal(`Jobs Completed — Week of ${needDateLabel(w.wk)}`, 'Jobs completed in this week', jobsCompletedInRange(start,end));
+        },
+        onHover:(evt,elements)=>{ evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; }
+      }
     });
   }
 
@@ -2004,7 +2012,14 @@ function initDashboardCharts(){
         {label:'Lbs/Hr', data:rates, backgroundColor:rates.map(r=> r===null?FABQ.textFaint : r>=state.targetLbsPerHr?FABQ.green:FABQ.red), borderRadius:4},
         {label:'Target', data:years.map(()=>state.targetLbsPerHr), type:'line', borderColor:FABQ.yellow, borderDash:[4,4], borderWidth:1.5, pointRadius:0}
       ]},
-      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}}}
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}},
+        onClick:(evt,elements)=>{
+          if(!elements.length) return;
+          const y = years[elements[0].index];
+          openBacklogDetailModal(`Jobs Completed — ${y}`, 'Jobs completed in this year', jobsCompletedInRange(new Date(y,0,1), new Date(y,11,31,23,59,59,999)));
+        },
+        onHover:(evt,elements)=>{ evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; }
+      }
     });
   }
 
@@ -2023,7 +2038,17 @@ function initDashboardCharts(){
         })),
         {label:'Target', data:monthLabels.map(()=>state.targetLbsPerHr), borderColor:FABQ.yellow, borderDash:[4,4], borderWidth:1.5, pointRadius:0}
       ]},
-      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:true,position:'top',labels:{boxWidth:10,padding:10,font:{size:11}}}}}
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:true,position:'top',labels:{boxWidth:10,padding:10,font:{size:11}}}},
+        onClick:(evt,elements)=>{
+          if(!elements.length) return;
+          const el = elements[0];
+          if(el.datasetIndex >= years.length) return;
+          const y = years[el.datasetIndex]; const m = el.index;
+          const start = new Date(y,m,1); const end = new Date(y,m+1,0,23,59,59,999);
+          openBacklogDetailModal(`Jobs Completed — ${monthLabels[m]} ${y}`, 'Jobs completed in this month', jobsCompletedInRange(start,end));
+        },
+        onHover:(evt,elements)=>{ evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; }
+      }
     });
   }
 
@@ -2033,7 +2058,14 @@ function initDashboardCharts(){
     dashboardChartInstances.annualOutput = new Chart(annualOutputEl, {
       type:'bar',
       data:{labels:years.map(String), datasets:[{label:'Annual Output', data:years.map(y=>yearLbs(y)), backgroundColor:FABQ.steelBright, borderRadius:4}]},
-      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}}}
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:FABQ.border}},x:{grid:{display:false}}},plugins:{legend:{display:false}},
+        onClick:(evt,elements)=>{
+          if(!elements.length) return;
+          const y = years[elements[0].index];
+          openBacklogDetailModal(`Jobs Completed — ${y}`, 'Jobs completed in this year', jobsCompletedInRange(new Date(y,0,1), new Date(y,11,31,23,59,59,999)));
+        },
+        onHover:(evt,elements)=>{ evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; }
+      }
     });
   }
 
