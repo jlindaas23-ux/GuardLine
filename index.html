@@ -428,6 +428,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
 .qc-item .resolve-btn{margin-top:8px;}
 
 .photo-zone{border:2px dashed var(--border);border-radius:10px;padding:26px;text-align:center;color:var(--text-faint);}
+.photo-zone.drag-active{border-color:var(--steel-bright);background:var(--panel-2);}
 .photo-zone img{max-width:100%;max-height:320px;border-radius:8px;}
 .photo-buttons{display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap;}
 .photo-gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;}
@@ -1187,6 +1188,25 @@ async function loadFile(key){
     const doc = await db.collection('fabq_files').doc(key).get();
     return doc.exists ? doc.data() : null;
   }catch(e){ return null; }
+}
+function wireDropZone(zoneId, accept, onFiles){
+  const zone = document.getElementById(zoneId);
+  if(!zone) return;
+  ['dragenter','dragover'].forEach(evt=> zone.addEventListener(evt, e=>{
+    e.preventDefault(); e.stopPropagation(); zone.classList.add('drag-active');
+  }));
+  ['dragleave','dragend'].forEach(evt=> zone.addEventListener(evt, e=>{
+    e.preventDefault(); e.stopPropagation(); zone.classList.remove('drag-active');
+  }));
+  zone.addEventListener('drop', e=>{
+    e.preventDefault(); e.stopPropagation(); zone.classList.remove('drag-active');
+    const files = Array.from(e.dataTransfer.files || []).filter(f=>{
+      if(!accept) return true;
+      if(accept.endsWith('/*')) return f.type.startsWith(accept.slice(0,-1));
+      return f.type === accept;
+    });
+    if(files.length) onFiles(files);
+  });
 }
 function readFileAsDataURL(file){
   return new Promise((resolve,reject)=>{
@@ -3875,12 +3895,13 @@ function openMaterialModal(){
       </div>
     </div>
     <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Extra Photo <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(optional — a checklist image is added automatically)</span></div>
-    <div class="photo-zone" style="padding:16px;">
+    <div class="photo-zone" id="mat-photo-dropzone" style="padding:16px;">
       <div id="mat-photo-gallery">No photos attached.</div>
       <div class="photo-buttons">
         <label class="btn-ghost">Take Photo<input type="file" accept="image/*" capture="environment" id="mat-camera" style="display:none;"></label>
         <label class="btn-ghost">Upload Photos<input type="file" accept="image/*" multiple id="mat-upload" style="display:none;"></label>
       </div>
+      <div style="font-size:11px;color:var(--text-faint);margin-top:8px;">or drag and drop image files here</div>
     </div>
   `;
   wireRequesterPicker('mat');
@@ -3908,11 +3929,15 @@ function openMaterialModal(){
     matCamInput.value='';
   });
   const matUpInput = document.getElementById('mat-upload');
-  matUpInput.addEventListener('change', async ()=>{
-    for(const f of Array.from(matUpInput.files)){ materialPhotoDrafts.push({dataUrl: await compressImage(f)}); }
+  async function processMatPhotoFiles(files){
+    for(const f of files){ materialPhotoDrafts.push({dataUrl: await compressImage(f)}); }
     renderMaterialPhotoGallery();
+  }
+  matUpInput.addEventListener('change', async ()=>{
+    await processMatPhotoFiles(Array.from(matUpInput.files));
     matUpInput.value='';
   });
+  wireDropZone('mat-photo-dropzone', 'image/*', processMatPhotoFiles);
   renderMaterialPhotoGallery();
   openModal('material-modal');
 }
@@ -4235,19 +4260,21 @@ function openAddModal(){
     <div class="field" style="grid-column:1/-1;"><label>Notes / Duct Sections</label><textarea id="n-notes"></textarea></div>
   </div>
   <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Photos</div>
-  <div class="photo-zone" style="padding:16px;">
+  <div class="photo-zone" id="n-photo-dropzone" style="padding:16px;">
     <div id="n-photo-gallery">No photos attached.</div>
     <div class="photo-buttons">
       <label class="btn-ghost">Take Photo<input type="file" accept="image/*" capture="environment" id="n-camera" style="display:none;"></label>
       <label class="btn-ghost">Upload Photos<input type="file" accept="image/*" multiple id="n-upload" style="display:none;"></label>
     </div>
+    <div style="font-size:11px;color:var(--text-faint);margin-top:8px;">or drag and drop image files here</div>
   </div>
   <div class="section-title" style="margin-top:18px;"><span class="bar"></span>PDF Attachments <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(drawings, POs, etc. — max ~650KB per file)</span></div>
-  <div class="photo-zone" style="padding:16px;">
+  <div class="photo-zone" id="n-pdf-dropzone" style="padding:16px;">
     <div id="n-pdf-list">No PDFs attached.</div>
     <div class="photo-buttons">
       <label class="btn-ghost">Upload PDF<input type="file" accept="application/pdf" multiple id="n-pdf-upload" style="display:none;"></label>
     </div>
+    <div style="font-size:11px;color:var(--text-faint);margin-top:8px;">or drag and drop PDF files here</div>
   </div>`;
   wireRequesterPicker('n');
   const jobNamePicker = document.getElementById('n-jobName-picker');
@@ -4295,21 +4322,29 @@ function openAddModal(){
     camInput.value='';
   });
   const upInput = document.getElementById('n-upload');
-  upInput.addEventListener('change', async ()=>{
-    for(const f of Array.from(upInput.files)){ newJobPhotoDrafts.push({dataUrl: await compressImage(f)}); }
+  async function processNewJobPhotoFiles(files){
+    for(const f of files){ newJobPhotoDrafts.push({dataUrl: await compressImage(f)}); }
     renderNewJobPhotoGallery();
+  }
+  upInput.addEventListener('change', async ()=>{
+    await processNewJobPhotoFiles(Array.from(upInput.files));
     upInput.value='';
   });
+  wireDropZone('n-photo-dropzone', 'image/*', processNewJobPhotoFiles);
   const pdfInput = document.getElementById('n-pdf-upload');
-  pdfInput.addEventListener('change', async ()=>{
-    for(const f of Array.from(pdfInput.files)){
+  async function processNewJobPdfFiles(files){
+    for(const f of files){
       if(f.size > 650*1024){ toast(`${f.name} is too large (max ~650KB — Firestore's storage limit). Skipped.`); continue; }
       const dataUrl = await readFileAsDataURL(f);
       newJobPdfDrafts.push({name: f.name, dataUrl});
     }
     renderNewJobPdfList();
+  }
+  pdfInput.addEventListener('change', async ()=>{
+    await processNewJobPdfFiles(Array.from(pdfInput.files));
     pdfInput.value='';
   });
+  wireDropZone('n-pdf-dropzone', 'application/pdf', processNewJobPdfFiles);
   renderNewJobPhotoGallery();
   renderNewJobPdfList();
   openModal('add-modal');
