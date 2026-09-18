@@ -1509,6 +1509,59 @@ function bestWeekLbsPerHr(year){
   });
   return best;
 }
+/* ---- Completed History (all-time archive, grouped by job, for long-term lookback) ---- */
+function allCompletedJobs(){
+  return state.jobs.filter(j=>j.completedAt);
+}
+function completedHistoryStats(){
+  const all = allCompletedJobs();
+  const thisYear = new Date().getFullYear();
+  const jobKeys = new Set(all.map(j=> (j.jobNumber||j.jobName||j.id).trim().toLowerCase()));
+  const weekKeys = new Set(
+    all.filter(j=> new Date(j.completedAt+'T00:00:00').getFullYear()===thisYear)
+       .map(j=> mondayISO(j.completedAt))
+  );
+  return {
+    tosDone: all.length,
+    lbsYtd: yearLbs(thisYear),
+    jobsCount: jobKeys.size,
+    weeksCount: weekKeys.size
+  };
+}
+function completedHistoryOptions(){
+  const seen = new Map();
+  allCompletedJobs().forEach(j=>{
+    const key = (j.jobNumber||j.jobName||j.id).trim().toLowerCase();
+    if(!seen.has(key)) seen.set(key, {key, label: `${j.jobName} · ${j.jobNumber||'—'}`});
+  });
+  return Array.from(seen.values()).sort((a,b)=> a.label.localeCompare(b.label));
+}
+function shortDateLabel(iso){
+  if(!iso) return '—';
+  const d = new Date(iso+'T00:00:00');
+  return String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')+'/'+String(d.getFullYear()).slice(-2);
+}
+function completedHistoryGroups(search, jobFilterKey){
+  const s = (search||'').trim().toLowerCase();
+  const matches = allCompletedJobs().filter(j=>{
+    const key = (j.jobNumber||j.jobName||j.id).trim().toLowerCase();
+    if(jobFilterKey && jobFilterKey!=='all' && key!==jobFilterKey) return false;
+    if(!s) return true;
+    const haystack = [j.toNumber, j.jobName, j.jobNumber, j.sketchNumber, j.notes].filter(v=>v!=null).join(' ').toLowerCase();
+    return haystack.includes(s);
+  });
+  const byJob = {};
+  matches.forEach(j=>{
+    const key = (j.jobNumber||j.jobName||j.id).trim().toLowerCase();
+    if(!byJob[key]) byJob[key] = {jobName:j.jobName, jobNumber:j.jobNumber||'—', jobs:[], totalLbs:0, minDate:j.completedAt, maxDate:j.completedAt};
+    byJob[key].jobs.push(j);
+    byJob[key].totalLbs += Number(j.weight||0);
+    if(j.completedAt < byJob[key].minDate) byJob[key].minDate = j.completedAt;
+    if(j.completedAt > byJob[key].maxDate) byJob[key].maxDate = j.completedAt;
+  });
+  const groups = Object.values(byJob).sort((a,b)=> b.totalLbs-a.totalLbs);
+  return {groups, matchCount: matches.length, matchLbs: matches.reduce((s,j)=>s+Number(j.weight||0),0)};
+}
 function lastNWeeks(n){
   const weeks=[];
   const cur = new Date(mondayISO(todayISO())+'T00:00:00');
@@ -2317,10 +2370,13 @@ function viewDashboard(){
   if(!state.hoursWeek) state.hoursWeek = mondayISO(todayISO());
   const hoursWeek = state.hoursWeek;
   if(!state.dashboardTab) state.dashboardTab = 'overview';
+  if(!state.completedHistorySearch) state.completedHistorySearch = '';
+  if(!state.completedHistoryJobFilter) state.completedHistoryJobFilter = 'all';
+  if(!state.completedHistoryExpanded) state.completedHistoryExpanded = [];
 
   const DASH_TABS = [
     ['overview','Overview'],['productivity','Productivity'],['historical','Historical'],
-    ['shortorders','Short Orders'],['jobanalysis','Job Analysis'],['metalusage','Metal Usage']
+    ['completedhistory','Completed History'],['shortorders','Short Orders'],['jobanalysis','Job Analysis'],['metalusage','Metal Usage']
   ];
   const tabBar = `<div class="dash-subtabs">${DASH_TABS.map(([k,label])=>`<button data-dash-tab="${k}" class="${state.dashboardTab===k?'active':''}">${label}</button>`).join('')}</div>`;
 
@@ -2504,6 +2560,8 @@ function viewDashboard(){
     </table>
   </div>`;
 
+  const historyStats = completedHistoryStats();
+  const historyResult = completedHistoryGroups(state.completedHistorySearch, state.completedHistoryJobFilter);
   const historicalHtml = `
   <div class="toolbar" style="margin-top:0;">
     <div class="section-title" style="margin:0;"><span class="bar"></span>Monthly Goal Tracker</div>
@@ -2518,19 +2576,51 @@ function viewDashboard(){
         </div>
         <div class="mono" style="font-size:20px;font-weight:700;">${fmt(m.lbs)} <span style="font-size:11px;color:var(--text-faint);font-weight:400;">/ ${fmt(m.target)} target</span></div>
       </div>`).join('')}
-  </div>
+  </div>`;
 
-  <div class="section-title"><span class="bar"></span>Recently Completed</div>
-  <div class="card hot-list">
-    ${recentlyCompleted.length ? recentlyCompleted.map(j=>`
-      <div class="hot-row" data-open="${j.id}" style="cursor:pointer;">
-        <div class="date need-date" style="width:88px;flex-shrink:0;">${j.completedAt}</div>
-        <div style="flex:1;">
-          <div class="job">${j.jobName} <span class="mono" style="color:var(--text-faint);font-size:11px;">${j.jobNumber}</span></div>
-          <div class="meta">${fmt(j.weight)} lbs · ${j.system||''}</div>
+  const completedHistoryHtml = `
+  <div class="section-title" style="margin-top:0;"><span class="bar"></span>Completed History <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(every completed job, all-time — searchable and grouped by job)</span></div>
+  <div class="stat-row">
+    <div class="card stat-box" style="border-color:var(--green);"><div class="val mono" style="color:var(--green);">${fmt(historyStats.tosDone)}</div><div class="lbl">TOs Done</div></div>
+    <div class="card stat-box" style="border-color:var(--green);"><div class="val mono" style="color:var(--green);">${fmt(historyStats.lbsYtd)}</div><div class="lbl">Lbs YTD</div></div>
+    <div class="card stat-box"><div class="val mono">${fmt(historyStats.jobsCount)}</div><div class="lbl">Jobs</div></div>
+    <div class="card stat-box" style="border-color:var(--yellow);"><div class="val mono" style="color:var(--yellow);">${fmt(historyStats.weeksCount)}</div><div class="lbl">Weeks (${new Date().getFullYear()})</div></div>
+  </div>
+  <div style="margin-top:14px;"><input class="search-box" id="completed-history-search" placeholder="Search TO#, job, sketch, notes…" style="width:100%;" value="${state.completedHistorySearch}"></div>
+  <div style="margin-top:10px;">
+    <select id="completed-history-job-filter" class="search-box" style="width:100%;">
+      <option value="all" ${state.completedHistoryJobFilter==='all'?'selected':''}>All Jobs</option>
+      ${completedHistoryOptions().map(o=>`<option value="${o.key}" ${state.completedHistoryJobFilter===o.key?'selected':''}>${o.label}</option>`).join('')}
+    </select>
+  </div>
+  <div style="margin:10px 0;font-size:12px;color:var(--text-faint);">${fmt(historyResult.matchCount)} TOs · ${fmt(historyResult.matchLbs)} lbs shown</div>
+  <div class="card hot-list" style="margin-bottom:26px;">
+    ${historyResult.groups.length ? historyResult.groups.map(g=>{
+      const key = g.jobNumber.trim().toLowerCase();
+      const isOpen = state.completedHistoryExpanded.includes(key);
+      return `
+      <div class="hot-row" data-toggle-history-group="${key}" style="cursor:pointer;flex-direction:column;align-items:stretch;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;">
+            <div class="job">${g.jobName} <span class="mono" style="color:var(--text-faint);font-size:11px;">${g.jobNumber}</span></div>
+            <div class="meta">${fmt(g.jobs.length)} TOs · ${fmt(g.totalLbs)} lbs · ${shortDateLabel(g.minDate)} – ${shortDateLabel(g.maxDate)}</div>
+          </div>
+          <div class="mono" style="color:var(--green);font-weight:700;font-size:15px;">${fmt(g.totalLbs)} <span style="font-size:10px;color:var(--text-faint);font-weight:400;">lbs</span></div>
+          <span style="color:var(--text-faint);transition:transform .15s;${isOpen?'transform:rotate(180deg);':''}">▾</span>
         </div>
-        <span class="status ${STATUS_CLASS[j.status]}">${j.status}</span>
-      </div>`).join('') : `<div class="empty" style="padding:20px;">Nothing completed yet.</div>`}
+        ${isOpen ? `
+        <div style="margin-top:10px;border-top:1px solid var(--border-soft);padding-top:10px;">
+          ${g.jobs.slice().sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||'')).map(j=>`
+          <div data-open="${j.id}" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12.5px;cursor:pointer;">
+            <div style="color:var(--text-dim);">TO #${j.toNumber!=null?j.toNumber:'—'} · Sketch ${j.sketchNumber||'—'} · ${j.system||''}</div>
+            <div style="display:flex;gap:14px;align-items:center;">
+              <span class="mono" style="color:var(--text-faint);">${shortDateLabel(j.completedAt)}</span>
+              <span class="weight-cell">${fmt(j.weight)} lbs</span>
+            </div>
+          </div>`).join('')}
+        </div>` : ''}
+      </div>`;
+    }).join('') : `<div class="empty" style="padding:20px;">No completed jobs match.</div>`}
   </div>`;
 
   const shortOrdersHtml = `
@@ -2682,7 +2772,7 @@ function viewDashboard(){
 
   const TAB_CONTENT = {
     overview: overviewHtml, productivity: productivityHtml, historical: historicalHtml,
-    shortorders: shortOrdersHtml, jobanalysis: jobAnalysisHtml, metalusage: metalUsageHtml
+    completedhistory: completedHistoryHtml, shortorders: shortOrdersHtml, jobanalysis: jobAnalysisHtml, metalusage: metalUsageHtml
   };
 
   return tabBar + (TAB_CONTENT[state.dashboardTab] || overviewHtml);
@@ -3238,6 +3328,17 @@ function bindMainEvents(){
   if(reportToday) reportToday.addEventListener('click', ()=>{ state.reportWeek = mondayISO(todayISO()); render(); });
   const monthlyGoalYearSel = document.getElementById('monthly-goal-year-select');
   if(monthlyGoalYearSel) monthlyGoalYearSel.addEventListener('change', ()=>{ state.monthlyGoalYear = Number(monthlyGoalYearSel.value); render(); });
+  const historySearch = document.getElementById('completed-history-search');
+  if(historySearch) historySearch.addEventListener('input', ()=>{ state.completedHistorySearch = historySearch.value; renderHistoricalOnly(); });
+  const historyJobFilter = document.getElementById('completed-history-job-filter');
+  if(historyJobFilter) historyJobFilter.addEventListener('change', ()=>{ state.completedHistoryJobFilter = historyJobFilter.value; render(); });
+  document.querySelectorAll('[data-toggle-history-group]').forEach(el=>el.addEventListener('click', (e)=>{
+    if(e.target.closest('[data-open]')) return;
+    const key = el.dataset.toggleHistoryGroup;
+    const idx = state.completedHistoryExpanded.indexOf(key);
+    if(idx>=0) state.completedHistoryExpanded.splice(idx,1); else state.completedHistoryExpanded.push(key);
+    render();
+  }));
   const weeklyProdOlder = document.getElementById('weekly-prod-older');
   if(weeklyProdOlder) weeklyProdOlder.addEventListener('click', ()=>{ state.weeklyProdOffset = (state.weeklyProdOffset||0) + 1; render(); });
   const weeklyProdNewer = document.getElementById('weekly-prod-newer');
@@ -3402,6 +3503,11 @@ function renderContactsOnly(){
   main.innerHTML = viewContacts();
   bindMainEvents();
   const s = document.getElementById('contact-search'); if(s){ s.focus(); s.setSelectionRange(s.value.length,s.value.length); }
+}
+function renderHistoricalOnly(){
+  render();
+  const s = document.getElementById('completed-history-search');
+  if(s){ s.focus(); s.setSelectionRange(s.value.length,s.value.length); }
 }
 
 /* ============================ JOB DETAIL MODAL ============================ */
