@@ -41,6 +41,7 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
 .btn-editing{background:#fff4e0;border-color:#e0a530;color:#8a5a00;}
 .li{cursor:pointer;}
 .li-editing{outline:2px solid #e0a530;background:#fff8ec!important;}
+.rect-mat-panel{background:var(--bg2);border:1px solid var(--bd);border-top:none;border-radius:0 0 var(--r) var(--r);padding:10px 14px;margin:-6px 0 6px;cursor:default;}
 .li .btn-rm{cursor:default;}
 .btn-danger:hover{background:var(--bgd);}
 .btn-sm{padding:6px 13px;font-size:12px;}
@@ -806,6 +807,24 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
     </div>
     <div class="hr"></div>
 
+    <!-- EXTERIOR / JOINT REINFORCEMENT PRICING — rectangular duct, both modes -->
+    <div style="margin:20px 0;">
+      <p style="font-size:12px;font-weight:600;color:var(--tx2);margin:0 0 8px;">Exterior / joint reinforcement pricing <span style="font-size:11px;font-weight:400;color:var(--tx3);">(rectangular duct, both modes)</span></p>
+      <div class="s2col">
+        <div>
+          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:0 0 6px;">Material ($/ft)</p>
+          <div class="prow"><span>R Angle 2.5&times;1.5, 10ga Galv</span><div class="pin"><span class="psub">$</span><input type="number" id="p-ext-price" value="3.50" min="0" step="0.05" oninput="renderAll()"></div></div>
+        </div>
+        <div>
+          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:0 0 6px;">Install labor</p>
+          <div class="prow"><span>Minutes per band</span><div class="pin"><input type="number" id="p-ext-min" value="20" min="0" step="0.5" oninput="renderAll()"><span style="font-size:11px;color:var(--tx3);margin-left:4px;">min</span></div></div>
+          <p style="font-size:11px;color:var(--tx3);margin:4px 0 0;">Wraps the full duct perimeter per band &mdash; more fab time than a straight EMT tie, hence the longer default.</p>
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--tx3);margin:8px 0 0;">&#9888; Triggers on larger duct and/or higher pressure classes, same estimating-approximation caveat as EMT above. Defaults to the most common spec (R Angle 2.5&times;1.5, 10ga Galv) &mdash; actual type (angle vs. Z-bar) and size vary by chart. Update once real chart data is confirmed.</p>
+    </div>
+    <div class="hr"></div>
+
     <!-- LINER PRICING -->
     <p style="font-size:13px;font-weight:600;margin:0 0 4px;">Liner pricing ($/sq ft)</p>
     <p style="font-size:12px;color:var(--tx3);margin:0 0 10px;">Applied automatically for rectangular and round duct; enter sqft manually for fittings.</p>
@@ -984,19 +1003,25 @@ function EMT_PRICE(size){
   return parseFloat(document.getElementById(id)?.value)||0;
 }
 function EMT_INSTALL_MIN(){return parseFloat(document.getElementById('p-emt-min')?.value)||0;}
+function EXT_PRICE(){return parseFloat(document.getElementById('p-ext-price')?.value)||0;}
+function EXT_INSTALL_MIN(){return parseFloat(document.getElementById('p-ext-min')?.value)||0;}
 
-/* ── EMT INTERMEDIATE REINFORCEMENT (rectangular duct) ──
-   This is an ESTIMATING APPROXIMATION of when SMACNA-style intermediate
-   reinforcement is needed on a duct run, and what it costs — not a
-   reproduction of the SMACNA HVAC Duct Construction Standards reinforcement
-   tables. Spacing tightens as pressure class rises and further for negative
-   pressure (buckling/collapse governs negative-pressure duct sooner than a
-   comparable positive-pressure run). Verify against the actual SMACNA manual
-   before it goes to the shop floor.
-   Returns null when no reinforcement is triggered for the given inputs. */
-function calcReinforcement(maxSide,pressureVal,direction,lenFt){
-  if(!maxSide||!lenFt) return null;
-  if(maxSide<=18) return null; // small duct — inherently stiff enough at any reasonable gauge
+/* ── DUCT REINFORCEMENT (rectangular duct) ──
+   This is an ESTIMATING APPROXIMATION of when SMACNA-style reinforcement is
+   needed and what it costs — not a reproduction of any specific reinforcement
+   chart/table. Covers two categories, matching how real charts split it:
+     - EMT intermediate reinforcement: straight tie bars across mid-panel,
+       spaced along the duct's length.
+     - Exterior/joint reinforcement (angle iron): wraps the full duct
+       perimeter at joints on larger duct and/or higher pressure classes,
+       heavier-duty and spaced wider than EMT.
+   Both tighten for negative pressure (collapse governs sooner than burst).
+   Verify against the actual SMACNA manual / house reinforcement chart before
+   it goes to the shop floor — the trigger sizes and spacing here are my own
+   estimate, not lifted from a specific chart. */
+function calcReinforcement(w,h,pressureVal,direction,lenFt){
+  const maxSide=Math.max(w||0,h||0);
+  if(!maxSide||!lenFt) return {emt:null,ext:null};
   const p=parseFloat(pressureVal)||0;
   let spacingFt;
   if(p<=1) spacingFt=8;
@@ -1005,19 +1030,40 @@ function calcReinforcement(maxSide,pressureVal,direction,lenFt){
   else if(p<=6) spacingFt=3;
   else spacingFt=2;
   if(direction==='Negative') spacingFt*=0.75;
-  if(lenFt<=spacingFt) return null; // fits in one unsupported span — no intermediate reinforcement needed
-  const numLocations=Math.floor(lenFt/spacingFt);
-  if(numLocations<1) return null;
-  let emtSize,pricePerFt;
-  if(maxSide<=36){emtSize='3/4\u2033';pricePerFt=EMT_PRICE('3/4');}
-  else if(maxSide<=60){emtSize='1\u2033';pricePerFt=EMT_PRICE('1');}
-  else{emtSize='1-1/4\u2033';pricePerFt=EMT_PRICE('1.25');}
-  const barLenFt=maxSide/12+0.5; // duct width + a little overhang for mounting
-  const totalFt=barLenFt*numLocations;
-  const materialCost=totalFt*pricePerFt;
-  const installMins=numLocations*EMT_INSTALL_MIN();
-  const laborCost=(installMins/60)*(parseFloat(document.getElementById('p-wr')?.value)||95);
-  return {numLocations,emtSize,spacingFt,totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost};
+
+  let emt=null;
+  if(maxSide>18&&lenFt>spacingFt){
+    const numLocations=Math.floor(lenFt/spacingFt);
+    if(numLocations>=1){
+      let emtSize,pricePerFt;
+      if(maxSide<=36){emtSize='3/4\u2033';pricePerFt=EMT_PRICE('3/4');}
+      else if(maxSide<=60){emtSize='1\u2033';pricePerFt=EMT_PRICE('1');}
+      else{emtSize='1-1/4\u2033';pricePerFt=EMT_PRICE('1.25');}
+      const barLenFt=maxSide/12+0.5;
+      const totalFt=barLenFt*numLocations;
+      const materialCost=totalFt*pricePerFt;
+      const installMins=numLocations*EMT_INSTALL_MIN();
+      const laborCost=(installMins/60)*(parseFloat(document.getElementById('p-wr')?.value)||95);
+      emt={numLocations,emtSize,spacingFt,totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost};
+    }
+  }
+
+  // Exterior/joint reinforcement — larger duct and/or higher pressure classes
+  // layer angle iron around the full perimeter on top of (or instead of) EMT.
+  const extTriggered=maxSide>48||(p>=4&&maxSide>36)||(direction==='Negative'&&maxSide>30);
+  let ext=null;
+  if(extTriggered){
+    const extSpacingFt=spacingFt*1.5;
+    const numExtLocations=Math.max(1,Math.round(lenFt/extSpacingFt)||1);
+    const perimeterFt=2*((w||maxSide)+(h||maxSide))/12;
+    const totalFt=perimeterFt*numExtLocations;
+    const pricePerFt=EXT_PRICE();
+    const materialCost=totalFt*pricePerFt;
+    const installMins=numExtLocations*EXT_INSTALL_MIN();
+    const laborCost=(installMins/60)*(parseFloat(document.getElementById('p-wr')?.value)||95);
+    ext={numLocations:numExtLocations,type:'R Angle 2.5\u00d71.5, 10ga Galv',spacingFt:extSpacingFt,perimeterFt:parseFloat(perimeterFt.toFixed(1)),totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost};
+  }
+  return {emt,ext};
 }
 function selPressDir(r){
   document.querySelectorAll('input[name="r-press-dir"]').forEach(x=>x.parentElement.classList.remove('selected'));
@@ -1032,10 +1078,19 @@ function updReinfPreview(){
   const qty=parseFloat(document.getElementById('r-qty').value)||1;
   const press=document.getElementById('r-press').value;
   const dir=document.querySelector('input[name="r-press-dir"]:checked')?.value||'Positive';
-  const reinf=calcReinforcement(Math.max(w,h),press,dir,len);
-  if(!reinf){ box.style.display='none'; return; }
-  const totalCost=reinf.totalCost*qty;
-  document.getElementById('r-reinf-detail').innerHTML=`&#9888; ${Math.max(w,h)}&Prime; side, ${len}' long at ${dir.toLowerCase()} ${press}&Prime; w.g. calls for intermediate reinforcement every ~${reinf.spacingFt}' &mdash; ${reinf.numLocations} piece${reinf.numLocations===1?'':'s'} of ${reinf.emtSize} EMT per duct${qty>1?` &times; ${qty}pc`:''}.`;
+  const {emt,ext}=calcReinforcement(w,h,press,dir,len);
+  if(!emt&&!ext){ box.style.display='none'; return; }
+  const lines=[];
+  let totalCost=0;
+  if(emt){
+    totalCost+=emt.totalCost*qty;
+    lines.push(`&#9888; Intermediate reinforcement every ~${emt.spacingFt}' &mdash; ${emt.numLocations} piece${emt.numLocations===1?'':'s'} of ${emt.emtSize} EMT per duct${qty>1?` &times; ${qty}pc`:''}.`);
+  }
+  if(ext){
+    totalCost+=ext.totalCost*qty;
+    lines.push(`&#9888; Exterior/joint reinforcement &mdash; ${ext.numLocations} band${ext.numLocations===1?'':'s'} of ${ext.type} (full perimeter, ~${ext.perimeterFt}' each) per duct${qty>1?` &times; ${qty}pc`:''}.`);
+  }
+  document.getElementById('r-reinf-detail').innerHTML=lines.join('<br>');
   document.getElementById('r-reinf-cost').textContent=`+${fmt(totalCost)} (material + install)`;
   box.style.display='block';
 }
@@ -1056,7 +1111,7 @@ function rp(m,g,ov){
    back to Mode B pricing after Mode A looked like it was set. */
 const SETTINGS_KEY='bchEstimatorSettings_v1';
 function collectSettingsIds(){
-  const ids=['p-co','p-lr','p-lh','p-oh','p-pm','p-tx','p-wr','p-tx-a','p-scrap','p-emt-075','p-emt-1','p-emt-125','p-emt-min'];
+  const ids=['p-co','p-lr','p-lh','p-oh','p-pm','p-tx','p-wr','p-tx-a','p-scrap','p-emt-075','p-emt-1','p-emt-125','p-emt-min','p-ext-price','p-ext-min'];
   document.querySelectorAll('#price-table input[id^="pr-"]').forEach(e=>ids.push(e.id));
   document.querySelectorAll('#liner-grid input[id^="lp-"]').forEach(e=>ids.push(e.id));
   return ids;
@@ -1586,20 +1641,23 @@ function addRect(){
   const weldMins=weldR?weldR.mins:0;
   const pressClass=document.getElementById('r-press').value;
   const pressDir=document.querySelector('input[name="r-press-dir"]:checked')?.value||'Positive';
-  const reinf=calcReinforcement(Math.max(w,h),pressClass,pressDir,len);
-  const emtMaterialCost=reinf?reinf.materialCost*qty:0;
-  const emtLaborCost=reinf?reinf.laborCost*qty:0;
-  const emtInfo=reinf?{emtSize:reinf.emtSize,numLocations:reinf.numLocations,spacingFt:reinf.spacingFt}:null;
+  const {emt,ext}=calcReinforcement(w,h,pressClass,pressDir,len);
+  const emtMaterialCost=emt?emt.materialCost*qty:0;
+  const emtLaborCost=emt?emt.laborCost*qty:0;
+  const emtInfo=emt?{emtSize:emt.emtSize,numLocations:emt.numLocations,spacingFt:emt.spacingFt}:null;
+  const extMaterialCost=ext?ext.materialCost*qty:0;
+  const extLaborCost=ext?ext.laborCost*qty:0;
+  const extInfo=ext?{type:ext.type,numLocations:ext.numLocations,perimeterFt:ext.perimeterFt}:null;
   if(editState.rect!=null){
     const idx=items.rect.findIndex(it=>it.id===editState.rect);
     if(idx>-1){
-      items.rect[idx]=Object.assign({},items.rect[idx],{desc,metal,base,mLabel,g,w,h,len,qty,lbsEa,tLbs,ppLb,ov,isDW,dwSkin,dwLiner,lSqft,lCost,linerKey,conn,notes,weldCost,weldMins,welded:!!weldR,pressClass,pressDir,emtMaterialCost,emtLaborCost,emtInfo});
+      items.rect[idx]=Object.assign({},items.rect[idx],{desc,metal,base,mLabel,g,w,h,len,qty,lbsEa,tLbs,ppLb,ov,isDW,dwSkin,dwLiner,lSqft,lCost,linerKey,conn,notes,weldCost,weldMins,welded:!!weldR,pressClass,pressDir,emtMaterialCost,emtLaborCost,emtInfo,extMaterialCost,extLaborCost,extInfo});
     }
     editState.rect=null;
     setAddBtnState('rect',false);
   } else {
     const rid=nid++;
-    items.rect.push({id:rid,desc,metal,base,mLabel,g,w,h,len,qty,lbsEa,tLbs,ppLb,ov,isDW,dwSkin,dwLiner,lSqft,lCost,linerKey,conn,notes,weldCost,weldMins,welded:!!weldR,pressClass,pressDir,emtMaterialCost,emtLaborCost,emtInfo});
+    items.rect.push({id:rid,desc,metal,base,mLabel,g,w,h,len,qty,lbsEa,tLbs,ppLb,ov,isDW,dwSkin,dwLiner,lSqft,lCost,linerKey,conn,notes,weldCost,weldMins,welded:!!weldR,pressClass,pressDir,emtMaterialCost,emtLaborCost,emtInfo,extMaterialCost,extLaborCost,extInfo});
     calcAuto(conn,w,h,len,qty).forEach(ai=>{
       items.acc.push({id:nid++,name:ai.name,desc:`Auto \u2014 ${desc}`,uom:ai.uom,q:ai.q,len:null,price:ai.price,isAuto:true,linkedTo:rid});
     });
@@ -2046,7 +2104,34 @@ function remove(cat,id){
 function cb(c){return `<span class="cbadge ${CC[c]||'cb-raw'}">${c}</span>`;}
 function wb(welded){return welded?'<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;background:#fdf3f3;color:#a32d2d;border:1px solid rgba(163,45,45,.25);margin-left:4px;">welded</span>':'';}
 function rb(emtInfo){return emtInfo?`<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;background:#fdf3ea;color:#8a5a00;border:1px solid rgba(217,140,63,.35);margin-left:4px;" title="${emtInfo.numLocations} pc ${emtInfo.emtSize} EMT @ ~${emtInfo.spacingFt}' o.c.">EMT &times;${emtInfo.numLocations}</span>`:'';}
+function extB(extInfo){return extInfo?`<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;background:#fdeaea;color:#8a1f1f;border:1px solid rgba(163,45,45,.3);margin-left:4px;" title="${extInfo.numLocations} band(s) ${extInfo.type} @ ~${extInfo.perimeterFt}' perimeter each">EXT &times;${extInfo.numLocations}</span>`:'';}
 function lb(k){if(!k||k==='none')return '\u2014';return `<span style="display:inline-block;font-size:10px;font-weight:500;padding:1px 6px;border-radius:10px;background:var(--bgs);color:var(--txs);border:1px solid rgba(39,80,10,.2);">${ll(k)}</span>`;}
+
+/* ── PER-PIECE MATERIAL CHECKLIST ──
+   Every cost component captured for one rect duct line, laid out so an
+   estimator/shop lead can visually confirm nothing was missed before the
+   piece is built and charged out. */
+let expandedRect=new Set();
+function toggleRectMat(id,ev){
+  ev.stopPropagation();
+  if(expandedRect.has(id)) expandedRect.delete(id); else expandedRect.add(id);
+  renderRect();
+}
+function rectMaterialList(x){
+  const rows=[];
+  rows.push(['Metal & gauge', `${x.mLabel}, ${x.g}ga`]);
+  rows.push(['Connection', x.conn||'\u2014']);
+  rows.push(['Liner', x.linerKey?`${ll(x.linerKey)} \u2014 ${(x.lSqft||0).toFixed(1)} sqft, ${fmt(x.lCost||0)}`:'None']);
+  rows.push(['Weld', x.welded?`Yes \u2014 ${fmt(x.weldCost||0)}`:'None']);
+  rows.push(['EMT reinforcement', x.emtInfo?`${x.emtInfo.numLocations} pc ${x.emtInfo.emtSize} @ ~${x.emtInfo.spacingFt}' o.c. \u2014 ${fmt((x.emtMaterialCost||0)+(x.emtLaborCost||0))}`:'None']);
+  rows.push(['Exterior/joint reinforcement', x.extInfo?`${x.extInfo.numLocations} band(s) ${x.extInfo.type} \u2014 ${fmt((x.extMaterialCost||0)+(x.extLaborCost||0))}`:'None']);
+  return `<div class="rect-mat-panel" onclick="event.stopPropagation()">
+    <p style="font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px;">Materials for this piece</p>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      ${rows.map(r=>`<tr><td style="padding:3px 10px 3px 0;color:var(--tx3);white-space:nowrap;">${r[0]}</td><td style="padding:3px 0;font-weight:500;">${r[1]}</td></tr>`).join('')}
+    </table>
+  </div>`;
+}
 
 /* Live effective $/lb for a line item — ALWAYS reflects the current Mode A/B
    setting, never the stale ppLb captured when the item was first added.
@@ -2064,18 +2149,22 @@ function renderRect(){
   if(!items.rect.length){el.innerHTML='<div class="empty">No items yet</div>';return;}
   el.innerHTML=items.rect.map(x=>{
     const emtTotal=(x.emtMaterialCost||0)+(x.emtLaborCost||0);
-    const tot=x.tLbs*effRate(x)+(x.lCost||0)+(x.weldCost||0)+emtTotal;
+    const extTotal=(x.extMaterialCost||0)+(x.extLaborCost||0);
+    const tot=x.tLbs*effRate(x)+(x.lCost||0)+(x.weldCost||0)+emtTotal+extTotal;
     const editing=editState.rect===x.id;
+    const expanded=expandedRect.has(x.id);
     return `<div class="li li-rect${x.isDW?' li-dw':''}${editing?' li-editing':''}" onclick="editRect(${x.id})" title="Click to edit this line">
       <span class="iv">${x.desc}${x.notes?`<br><span style="font-size:11px;color:var(--tx3);">${x.notes}</span>`:''}</span>
       <span class="is">${x.mLabel}</span><span class="iv">${x.g}ga</span>
       <span class="iv">${x.w}\u2033\u00d7${x.h}\u2033\u00d7${x.len}'</span>
       <span>${cb(x.conn)}</span>
       <span class="iv">${x.qty}pc</span><span class="iv">${x.tLbs.toFixed(1)}lb</span>
-      <span class="iv">${lb(x.linerKey)}${wb(x.welded)}${rb(x.emtInfo)}</span>
+      <span class="iv">${lb(x.linerKey)}${wb(x.welded)}${rb(x.emtInfo)}${extB(x.extInfo)}
+        <a href="#" onclick="toggleRectMat(${x.id},event)" style="font-size:10px;color:var(--txi);text-decoration:underline;margin-left:6px;white-space:nowrap;">${expanded?'Hide':'Materials'}</a>
+      </span>
       <span class="ip">${fmt(tot)}<br>${rateBadge(x)}</span>
       <button class="btn-rm" onclick="event.stopPropagation();remove('rect',${x.id})" title="Remove + auto accessories">&times;</button>
-    </div>`;
+    </div>${expanded?rectMaterialList(x):''}`;
   }).join('');
 }
 
@@ -2159,19 +2248,21 @@ function calcTotals(){
   items.round.forEach(x=>{metalMat+=x.tLbs*(co>0?co:x.ppLb); linerMat+=(x.lCost||0);});
   items.fit.forEach(x=>{metalMat+=x.tLbs*(co>0?co:x.ppLb); linerMat+=(x.lCost||0);});
   const scrapCost=metalMat*scrapPct;
-  // EMT reinforcement: material and install labor tracked separately (rect duct only)
+  // Reinforcement: material and install labor tracked separately (rect duct only)
   const emtMaterialCost=items.rect.reduce((s,x)=>s+(x.emtMaterialCost||0),0);
   const emtLaborCost=items.rect.reduce((s,x)=>s+(x.emtLaborCost||0),0);
-  let mat=metalMat+scrapCost+linerMat+emtMaterialCost;
+  const extMaterialCost=items.rect.reduce((s,x)=>s+(x.extMaterialCost||0),0);
+  const extLaborCost=items.rect.reduce((s,x)=>s+(x.extLaborCost||0),0);
+  let mat=metalMat+scrapCost+linerMat+emtMaterialCost+extMaterialCost;
   items.acc.forEach(x=>mat+=x.price*x.q);
   items.hw.forEach(x=>mat+=x.price*x.q);
   // Mode B only: add fabrication labor based on weight
   const fabLab=co>0?0:(dLbs/100)*LH()*LR();
-  // Weld labor and EMT install labor: always time-based regardless of mode
+  // Weld labor and reinforcement install labor: always time-based regardless of mode
   const weldCost=[...items.rect,...items.round,...items.fit].reduce((s,x)=>s+(x.weldCost||0),0);
-  const base=mat+fabLab+weldCost+emtLaborCost;
+  const base=mat+fabLab+weldCost+emtLaborCost+extLaborCost;
   const total=base*(1+OH()/100)*(1+PM()/100)*(1+TX()/100);
-  return {dLbs,mat,fabLab,weldCost,emtMaterialCost,emtLaborCost,total,scrapCost};
+  return {dLbs,mat,fabLab,weldCost,emtMaterialCost,emtLaborCost,extMaterialCost,extLaborCost,total,scrapCost};
 }
 
 function recalc(){
@@ -2180,8 +2271,8 @@ function recalc(){
   const co=CO();
   document.getElementById('s-lbs').textContent=t.dLbs.toFixed(1);
   document.getElementById('s-mat').textContent=fmt(t.mat);
-  // Labor line: Mode A = weld + EMT install; Mode B = fab labor + weld + EMT install
-  const labDisplay=co>0?(t.weldCost+t.emtLaborCost):(t.fabLab+t.weldCost+t.emtLaborCost);
+  // Labor line: Mode A = weld + reinforcement install; Mode B = fab labor + weld + reinforcement install
+  const labDisplay=co>0?(t.weldCost+t.emtLaborCost+t.extLaborCost):(t.fabLab+t.weldCost+t.emtLaborCost+t.extLaborCost);
   document.getElementById('s-lab').textContent=fmt(labDisplay);
   document.getElementById('s-tlbl').textContent='Total';
   document.getElementById('s-total').textContent=fmt(t.total);
@@ -2195,9 +2286,11 @@ function recalc(){
   const si=document.getElementById('s-scrap-indicator');
   if(si){
     const emtTotal=t.emtMaterialCost+t.emtLaborCost;
+    const extTotal=t.extMaterialCost+t.extLaborCost;
     const parts=[];
     if(t.scrapCost>0.005) parts.push(`${SCRAP()}% scrap allowance: +${fmt(t.scrapCost)}`);
     if(emtTotal>0.005) parts.push(`EMT reinforcement: +${fmt(emtTotal)}`);
+    if(extTotal>0.005) parts.push(`Exterior reinforcement: +${fmt(extTotal)}`);
     if(parts.length){
       si.textContent='Includes '+parts.join(' \u00b7 ');
       si.style.display='block';
@@ -2225,12 +2318,21 @@ function recomputeItemPricing(){
       const wr=weldCostRect(x.w,x.h,x.len,x.qty,base);
       if(wr){ x.weldCost=wr.cost; x.weldMins=wr.mins; }
     }
-    if(x.emtInfo&&x.w&&x.h&&x.len){
-      const reinf=calcReinforcement(Math.max(x.w,x.h),x.pressClass,x.pressDir,x.len);
-      if(reinf){
-        x.emtMaterialCost=reinf.materialCost*x.qty;
-        x.emtLaborCost=reinf.laborCost*x.qty;
-        x.emtInfo={emtSize:reinf.emtSize,numLocations:reinf.numLocations,spacingFt:reinf.spacingFt};
+    if(x.pressClass&&x.w&&x.h&&x.len){
+      const {emt,ext}=calcReinforcement(x.w,x.h,x.pressClass,x.pressDir,x.len);
+      if(emt){
+        x.emtMaterialCost=emt.materialCost*x.qty;
+        x.emtLaborCost=emt.laborCost*x.qty;
+        x.emtInfo={emtSize:emt.emtSize,numLocations:emt.numLocations,spacingFt:emt.spacingFt};
+      } else {
+        x.emtMaterialCost=0; x.emtLaborCost=0; x.emtInfo=null;
+      }
+      if(ext){
+        x.extMaterialCost=ext.materialCost*x.qty;
+        x.extLaborCost=ext.laborCost*x.qty;
+        x.extInfo={type:ext.type,numLocations:ext.numLocations,perimeterFt:ext.perimeterFt};
+      } else {
+        x.extMaterialCost=0; x.extLaborCost=0; x.extInfo=null;
       }
     }
   });
@@ -2311,10 +2413,12 @@ function propLetterhead(docType){
 function propTotals(t,showBreakdown){
   if(showBreakdown){
     const rows=[];
-    rows.push(`<div class="trow"><span class="tl">Duct &amp; materials</span><span>${fmt(t.mat-(t.emtMaterialCost||0))}</span></div>`);
+    rows.push(`<div class="trow"><span class="tl">Duct &amp; materials</span><span>${fmt(t.mat-(t.emtMaterialCost||0)-(t.extMaterialCost||0))}</span></div>`);
     if(t.emtMaterialCost>0) rows.push(`<div class="trow"><span class="tl">EMT reinforcement (material)</span><span>${fmt(t.emtMaterialCost)}</span></div>`);
+    if(t.extMaterialCost>0) rows.push(`<div class="trow"><span class="tl">Exterior/joint reinforcement (material)</span><span>${fmt(t.extMaterialCost)}</span></div>`);
     if(t.weldCost>0) rows.push(`<div class="trow"><span class="tl">Weld labor</span><span>${fmt(t.weldCost)}</span></div>`);
     if(t.emtLaborCost>0) rows.push(`<div class="trow"><span class="tl">EMT reinforcement (install labor)</span><span>${fmt(t.emtLaborCost)}</span></div>`);
+    if(t.extLaborCost>0) rows.push(`<div class="trow"><span class="tl">Exterior/joint reinforcement (install labor)</span><span>${fmt(t.extLaborCost)}</span></div>`);
     rows.push(`<div class="trow"><span class="tl">Total</span><span>${fmt(t.total)}</span></div>`);
     return `<div class="tot-block">${rows.join('')}</div>`;
   }
@@ -2370,9 +2474,11 @@ function renderItemized(){
   function pli(main,sub,price){return `<div class="pli"><div class="pli-d"><p class="pli-m">${main}</p>${sub?`<p class="pli-s">${sub}</p>`:''}</div><span class="pli-p">${price}</span></div>`;}
   const rRows=items.rect.flatMap(x=>{
     const emtEa=((x.emtMaterialCost||0)+(x.emtLaborCost||0))/x.qty;
-    const priceEa=x.lbsEa*x.ppLb+((x.lCost||0)/x.qty)+((x.weldCost||0)/x.qty)+emtEa;
+    const extEa=((x.extMaterialCost||0)+(x.extLaborCost||0))/x.qty;
+    const priceEa=x.lbsEa*x.ppLb+((x.lCost||0)/x.qty)+((x.weldCost||0)/x.qty)+emtEa+extEa;
     const emtNote=x.emtInfo?` &middot; incl. ${x.emtInfo.emtSize} EMT reinforcement (${x.emtInfo.numLocations}pc, ~${x.emtInfo.spacingFt}' o.c.)`:'';
-    const sub=`${x.mLabel} &middot; ${x.g}ga &middot; ${x.w}\u2033\u00d7${x.h}\u2033\u00d7${x.len}' &middot; <span class="cbadge ${CC[x.conn]||'cb-raw'}">${x.conn}</span>${x.linerKey?' &middot; '+ll(x.linerKey):''}${x.notes?' &middot; '+x.notes:''}${emtNote}`;
+    const extNote=x.extInfo?` &middot; incl. ${x.extInfo.type} (${x.extInfo.numLocations} band(s))`:'';
+    const sub=`${x.mLabel} &middot; ${x.g}ga &middot; ${x.w}\u2033\u00d7${x.h}\u2033\u00d7${x.len}' &middot; <span class="cbadge ${CC[x.conn]||'cb-raw'}">${x.conn}</span>${x.linerKey?' &middot; '+ll(x.linerKey):''}${x.notes?' &middot; '+x.notes:''}${emtNote}${extNote}`;
     return Array.from({length:x.qty},(_,i)=>pli(`${x.desc}${x.qty>1?' <span style="font-size:11px;color:#aaa;">pc '+(i+1)+' of '+x.qty+'</span>':''}`,sub,fmt(priceEa)));
   });
   const roRows=items.round.flatMap(x=>{
