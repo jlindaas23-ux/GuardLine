@@ -846,7 +846,8 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
       <button class="btn btn-primary" onclick="exportCAMduct()">&#128229; Export to CAMduct</button>
       <button class="btn" onclick="exportFabShop()" style="background:var(--bgw);color:var(--txw);border-color:rgba(99,56,6,.3);">&#128229; Export to FabShop</button>
       <button class="btn" onclick="exportToSchedule()" style="background:var(--bgs);color:var(--txs);border-color:rgba(39,80,10,.3);">&#128229; Export to Production Schedule</button>
-      <button class="btn btn-green" onclick="window.print()">&#128438; Print / Save PDF</button>
+      <button class="btn btn-green" onclick="window.print()">&#128438; Print</button>
+      <button class="btn btn-primary" id="pdf-dl-btn" onclick="downloadProposalPDF()">&#11015; Download PDF</button>
     </div>
   </div>
   <div class="prop-wrap">
@@ -858,6 +859,8 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-app-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-firestore-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyDCiv8kv71hmS0xIzFv87PMnckMzgqNfUQ",
@@ -2446,6 +2449,51 @@ function showProposal(){
 function backToEst(){
   document.getElementById('prop-view').style.display='none';
   document.getElementById('est-view').style.display='block';
+}
+
+/* ── REAL PDF EXPORT ──
+   Renders the actual proposal sheet (whichever view — Simple/Itemized/Quote
+   — is currently showing) to a real, downloadable .pdf file, instead of
+   relying on the browser's print-to-PDF dialog (inconsistent margins/scaling
+   across browsers and printers). Captures the sheet as a high-res image via
+   html2canvas, then slices it across Letter-size pages in jsPDF. */
+async function downloadProposalPDF(){
+  const btn=document.getElementById('pdf-dl-btn');
+  const sheet=document.querySelector('#prop-content .prop-sheet');
+  if(!sheet){ alert('Nothing to export \u2014 generate a proposal first.'); return; }
+  const origText=btn.textContent;
+  btn.textContent='Generating\u2026';
+  btn.disabled=true;
+  try{
+    const canvas=await html2canvas(sheet,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
+    const imgData=canvas.toDataURL('image/jpeg',0.95);
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({unit:'pt',format:'letter'});
+    const margin=24;
+    const pageW=pdf.internal.pageSize.getWidth()-margin*2;
+    const pageH=pdf.internal.pageSize.getHeight()-margin*2;
+    const imgW=pageW;
+    const imgH=canvas.height*imgW/canvas.width;
+    let heightLeft=imgH;
+    let y=margin;
+    pdf.addImage(imgData,'JPEG',margin,y,imgW,imgH);
+    heightLeft-=pageH;
+    while(heightLeft>0){
+      y=margin-(imgH-heightLeft);
+      pdf.addPage();
+      pdf.addImage(imgData,'JPEG',margin,y,imgW,imgH);
+      heightLeft-=pageH;
+    }
+    const jobPart=(currentJobName||'Proposal').trim().replace(/[^a-z0-9]+/gi,'_').replace(/^_+|_+$/g,'')||'Proposal';
+    const datePart=new Date().toISOString().slice(0,10);
+    pdf.save(`${jobPart}_${propView}_${datePart}.pdf`);
+  }catch(e){
+    console.error('PDF export failed:',e);
+    alert('Could not generate the PDF. Check your connection (the PDF libraries load from a CDN) and try again.');
+  }finally{
+    btn.textContent=origText;
+    btn.disabled=false;
+  }
 }
 
 /* ══ CAMDUCT CSV IMPORT ══
