@@ -1363,6 +1363,9 @@ function startLiveSync(onFirstLoad){
 
 /* ============================ HELPERS ============================ */
 function jobById(id){ return state.jobs.find(j=>j.id===id); }
+function isOverdueUndelivered(job){
+  return job.needDate && job.needDate < todayISO() && job.status!=='Delivered/Picked Up';
+}
 /* ---- Take Off Number (TO #): auto-incrementing per job family (grouped by Job Number),
    globally unique across every job on record, active or completed. ---- */
 function suggestNextToNumber(jobNumber){
@@ -2409,6 +2412,9 @@ function viewDashboard(){
   const qcAlerts = [];
   state.jobs.forEach(j=> (j.qc||[]).forEach(q=>{ if(q.status==='Open') qcAlerts.push({job:j,q}); }));
 
+  const overdueJobs = state.jobs.filter(isOverdueUndelivered);
+  const overdueLoadLists = (state.loadLists||[]).filter(l=> l.date && l.date<todayISO() && l.status!=='Delivered');
+
   const annualLbs = yearLbs(thisYear);
   const annualHrs = hoursForYear(thisYear);
   const monthlyLbsVal = monthLbs(thisYear, thisMonth);
@@ -2503,6 +2509,12 @@ function viewDashboard(){
       <div class="card" style="padding:16px;">
         <div class="section-title"><span class="bar" style="background:var(--red)"></span>Quality Control Alerts</div>
         ${qcAlerts.map(a=>`<div class="qc-alert"><div class="txt"><b>${a.job.jobName}</b> · ${a.job.jobNumber}${a.q.ref?' · Ref '+a.q.ref:''} — ${a.q.issueType?a.q.issueType+': ':''}${a.q.desc}${a.q.priority==='Urgent'?'<span class="urgent-badge">Urgent</span>':''}${a.q.remake?'<span class="remake-badge">Remake</span>':''}</div><span class="badge-open">Open</span></div>`).join('')}
+      </div>` : ''}
+      ${(overdueJobs.length || overdueLoadLists.length) ? `
+      <div class="card" style="padding:16px;margin-top:${qcAlerts.length?'14px':'0'};">
+        <div class="section-title"><span class="bar" style="background:var(--red)"></span>🚨 Not Delivered — Past Need Date</div>
+        ${overdueJobs.map(j=>`<div class="qc-alert" data-open="${j.id}" style="cursor:pointer;"><div class="txt"><b>${j.jobName}</b> · ${j.jobNumber} — was needed ${needDateLabel(j.needDate)} (${j.status})</div><span class="badge-open">Open</span></div>`).join('')}
+        ${overdueLoadLists.map(l=>`<div class="qc-alert" data-edit-loadlist="${l.id}" style="cursor:pointer;"><div class="txt">🚛 Load List: <b>${l.projectName}</b>${l.projectNumber?' · '+l.projectNumber:''} — was due ${needDateLabel(l.date)} (${l.status})</div><span class="badge-open">${l.status}</span></div>`).join('')}
       </div>` : ''}
     </div>
   </div>
@@ -3086,7 +3098,7 @@ function viewCalendar(){
     const jobsToday = (byDate[iso]||[]).sort((a,b)=> (a.priority==='Urgent'?0:1)-(b.priority==='Urgent'?0:1));
     cells += `<div class="cal-cell ${otherMonth?'other-month':''} ${isToday?'today':''}" data-cal-date="${iso}">
       <div class="cal-daynum" ${jobsToday.length?`data-day-detail="${iso}" style="cursor:pointer;"`:''}>${cellDate.getDate()}</div>
-      ${jobsToday.slice(0,4).map(j=>`<div class="cal-chip ${j.priority==='Urgent'?'urgent':''}" data-open="${j.id}" ${canDrag?`draggable="true" data-drag-job="${j.id}"`:''} title="${j.jobName} — ${j.jobNumber} (${j.shippingMethod})${deliveryTimeLabel(j)?' — '+deliveryTimeLabel(j):''}${canDrag?' — drag to reschedule':''}">${j.shippingMethod==='Pickup'?'📦':'🚚'} ${j.jobName}${deliveryTimeLabel(j)?`<span style="opacity:.75;font-size:9.5px;"> · ${deliveryTimeLabel(j)}</span>`:''}</div>`).join('')}
+      ${jobsToday.slice(0,4).map(j=>`<div class="cal-chip ${j.priority==='Urgent'?'urgent':''}" data-open="${j.id}" ${canDrag?`draggable="true" data-drag-job="${j.id}"`:''} style="${isOverdueUndelivered(j)?'border-left-color:var(--red);background:rgba(209,69,59,.18);':''}" title="${j.jobName} — ${j.jobNumber} (${j.shippingMethod})${deliveryTimeLabel(j)?' — '+deliveryTimeLabel(j):''}${isOverdueUndelivered(j)?' — ⚠ Not delivered, past need date':''}${canDrag?' — drag to reschedule':''}">${isOverdueUndelivered(j)?'⚠ ':(j.shippingMethod==='Pickup'?'📦':'🚚')} ${j.jobName}${deliveryTimeLabel(j)?`<span style="opacity:.75;font-size:9.5px;"> · ${deliveryTimeLabel(j)}</span>`:''}</div>`).join('')}
       ${jobsToday.length>4?`<div class="cal-more" data-day-detail="${iso}">+${jobsToday.length-4} more</div>`:''}
     </div>`;
   }
@@ -3305,23 +3317,40 @@ function viewLoadLists(){
       <button class="btn-primary" id="new-loadlist-btn-inline">+ New Load List</button>
     </div>
   </div>
-  <div class="card hot-list" style="margin-bottom:26px;">
-    ${lists.length ? lists.map(l=>{
-      const itemsPresent = itemSections.filter(([k])=>(l[k]||'').trim());
-      const linkedCount = (l.linkedJobIds||[]).length;
-      return `
-      <div class="hot-row" style="cursor:pointer;flex-direction:column;align-items:stretch;" data-edit-loadlist="${l.id}">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="flex:1;min-width:0;">
-            <div class="job">${l.projectName}${l.projectNumber?` <span class="mono" style="color:var(--text-faint);font-size:11px;">${l.projectNumber}</span>`:''}${l.priorityHot?'<span class="urgent-badge">Hot Load</span>':''}</div>
-            <div class="meta">${needDateLabel(l.date)}${deliveryTimeLabel(l)?' · ⏰ '+deliveryTimeLabel(l):''}${l.truckTypes&&l.truckTypes.length?' · 🚚 '+l.truckTypes.join(', '):''}${l.fieldContact?' · '+l.fieldContact:''}</div>
-            ${(itemsPresent.length || linkedCount) ? `<div style="margin-top:4px;font-size:11px;color:var(--text-faint);">${linkedCount?`🔗 ${linkedCount} linked order${linkedCount!==1?'s':''}`:''}${linkedCount&&itemsPresent.length?' · ':''}${itemsPresent.map(([,label])=>label).join(' · ')}</div>` : ''}
-          </div>
-          <span class="status ${LOADLIST_STATUS_CLASS[l.status]}">${l.status}</span>
-          ${canEdit && LOADLIST_ADVANCE[l.status] ? `<button class="btn-ghost" data-advance-loadlist="${l.id}">Mark ${LOADLIST_ADVANCE[l.status]}</button>` : ''}
+  <div style="margin-bottom:26px;">
+    ${lists.length ? (()=>{
+      const groups = {};
+      lists.forEach(l=>{ const key = l.date || 'No Date'; (groups[key] = groups[key]||[]).push(l); });
+      const dateKeys = Object.keys(groups).sort((a,b)=> b.localeCompare(a));
+      return dateKeys.map(dateKey=>{
+        const rows = groups[dateKey];
+        const isPast = dateKey!=='No Date' && dateKey < todayISO();
+        return `
+        <div class="ll-date-header" style="display:flex;align-items:baseline;gap:10px;margin:18px 0 8px;padding-bottom:6px;border-bottom:2px solid ${isPast?'var(--red)':'var(--steel-bright)'};">
+          <div style="font-family:'Oswald';font-size:16px;font-weight:600;color:${isPast?'var(--red)':'var(--text)'};">${dateKey==='No Date'?'No Date Set':needDateLabel(dateKey)}</div>
+          <div style="font-size:12px;color:var(--text-faint);">${rows.length} order${rows.length!==1?'s':''}</div>
         </div>
-      </div>`;
-    }).join('') : `<div class="empty" style="padding:20px;">No load lists yet. Click "+ New Load List" to request a delivery.</div>`}
+        <div class="card hot-list">
+          ${rows.map(l=>{
+            const itemsPresent = itemSections.filter(([k])=>(l[k]||'').trim());
+            const linkedCount = (l.linkedJobIds||[]).length;
+            const missed = isPast && l.status!=='Delivered';
+            return `
+            <div class="hot-row" style="cursor:pointer;flex-direction:column;align-items:stretch;${missed?'border-left:3px solid var(--red);':''}" data-edit-loadlist="${l.id}">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="flex:1;min-width:0;">
+                  <div class="job">${l.projectName}${l.projectNumber?` <span class="mono" style="color:var(--text-faint);font-size:11px;">${l.projectNumber}</span>`:''}${l.priorityHot?'<span class="urgent-badge">Hot Load</span>':''}${missed?'<span class="urgent-badge" style="background:var(--red);">⚠ Not Delivered</span>':''}</div>
+                  <div class="meta">${deliveryTimeLabel(l)?'⏰ '+deliveryTimeLabel(l):''}${l.truckTypes&&l.truckTypes.length?' · 🚚 '+l.truckTypes.join(', '):''}${l.fieldContact?' · '+l.fieldContact:''}</div>
+                  ${(itemsPresent.length || linkedCount) ? `<div style="margin-top:4px;font-size:11px;color:var(--text-faint);">${linkedCount?`🔗 ${linkedCount} linked order${linkedCount!==1?'s':''}`:''}${linkedCount&&itemsPresent.length?' · ':''}${itemsPresent.map(([,label])=>label).join(' · ')}</div>` : ''}
+                </div>
+                <span class="status ${LOADLIST_STATUS_CLASS[l.status]}">${l.status}</span>
+                ${canEdit && LOADLIST_ADVANCE[l.status] ? `<button class="btn-ghost" data-advance-loadlist="${l.id}">Mark ${LOADLIST_ADVANCE[l.status]}</button>` : ''}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`;
+      }).join('');
+    })() : `<div class="card empty" style="padding:20px;">No load lists yet. Click "+ New Load List" to request a delivery.</div>`}
   </div>`;
 }
 function tlcDefaultDraft(){
@@ -4453,6 +4482,7 @@ function renderLinkedJobsUI(){
   }).join('');
   container.querySelectorAll('[data-open-linked-job]').forEach(el=>el.addEventListener('click',(e)=>{
     if(e.target.closest('.ll-unlink-job')) return;
+    closeModal('loadlist-modal');
     openJob(el.dataset.openLinkedJob);
   }));
   container.querySelectorAll('.ll-unlink-job').forEach(b=>b.addEventListener('click',(e)=>{
@@ -4822,7 +4852,7 @@ function openDayDetailModal(iso){
     <div class="qc-item" data-open="${j.id}" style="cursor:pointer;">
       <div class="qh"><span>${j.jobNumber}${j.division?' · '+j.division:''}</span><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></div>
       <div class="qd">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}</div>
-      <div class="qd" style="margin-top:4px;color:var(--text-faint);font-size:11.5px;">${j.shippingMethod==='Pickup'?'📦 Pickup':'🚚 Deliver'}${deliveryTimeLabel(j)?' · ⏰ '+deliveryTimeLabel(j):''} · ${fmt(j.weight)} lbs${j.system?' · '+j.system:''}</div>
+      <div class="qd" style="margin-top:4px;color:var(--text-faint);font-size:11.5px;">${isOverdueUndelivered(j)?'<span style="color:var(--red);font-weight:700;">⚠ Not delivered — past need date</span> · ':''}${j.shippingMethod==='Pickup'?'📦 Pickup':'🚚 Deliver'}${deliveryTimeLabel(j)?' · ⏰ '+deliveryTimeLabel(j):''} · ${fmt(j.weight)} lbs${j.system?' · '+j.system:''}</div>
     </div>`).join('') : '<div class="empty">No jobs need this date.</div>';
   document.querySelectorAll('#day-detail-body [data-open]').forEach(el=>el.addEventListener('click',()=>{
     closeModal('day-detail-modal'); openJob(el.dataset.open);
