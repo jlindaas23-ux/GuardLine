@@ -4463,6 +4463,34 @@ function ensureLLSectionVisible(key){
   if(btn) btn.remove();
   if(key==='sheetShop') renderLinkedJobsUI();
 }
+function renderAddOrderResults(term){
+  const container = document.getElementById('ll-add-order-results');
+  if(!container) return;
+  const s = term.trim().toLowerCase();
+  if(!s){ container.innerHTML = `<div style="color:var(--text-faint);font-size:12px;padding:6px 0;">Type to search every duct order on record, regardless of date.</div>`; return; }
+  const results = state.jobs.filter(j=>{
+    if(j.orderType==='Material') return false;
+    if(loadListLinkedJobIds.includes(j.id)) return false;
+    const haystack = [j.jobName,j.jobNumber,j.toNumber,j.system].filter(v=>v!=null).join(' ').toLowerCase();
+    return haystack.includes(s);
+  }).slice(0,20);
+  if(!results.length){ container.innerHTML = `<div style="color:var(--text-faint);font-size:12px;padding:6px 0;">No matching orders found.</div>`; return; }
+  container.innerHTML = results.map(j=>`
+    <div class="hot-row" data-add-order="${j.id}" style="cursor:pointer;padding:8px 10px;margin-bottom:6px;background:var(--panel-2);border-radius:8px;">
+      <div style="flex:1;">
+        <div class="job" style="font-size:12.5px;">${j.jobName} <span class="mono" style="color:var(--text-faint);font-size:10.5px;">${j.jobNumber}</span></div>
+        <div class="meta" style="font-size:11px;">${j.system||''} · Need Date ${needDateLabel(j.needDate)} · Qty ${j.qty} · ${fmt(j.weight)} lbs · ${j.status}</div>
+      </div>
+      <button type="button" class="btn-primary" style="font-size:11px;padding:4px 10px;">+ Add</button>
+    </div>`).join('');
+  container.querySelectorAll('[data-add-order]').forEach(el=>el.addEventListener('click', ()=>{
+    const id = el.dataset.addOrder;
+    if(!loadListLinkedJobIds.includes(id)) loadListLinkedJobIds.push(id);
+    renderLinkedJobsUI();
+    renderAddOrderResults(document.getElementById('ll-add-order-search').value);
+    toast('Order added to this load list.');
+  }));
+}
 function renderLinkedJobsUI(){
   ensureLLSectionVisible('sheetShop');
   const container = document.getElementById('ll-sheetShop-linked');
@@ -4511,8 +4539,13 @@ function openLoadListModal(existingId){
         ${(state.role==='master'||state.role==='manager') ? `<button type="button" id="ll-manage-job-list-link" style="background:none;border:none;color:var(--steel-bright);text-decoration:underline;font-size:11px;padding:6px 0 0;cursor:pointer;">Manage Job List</button>` : ''}
       </div>
       <div class="field"><label>Project #</label><input id="ll-projectNumber" value="${existing?existing.projectNumber||'':''}"></div>
-      <div class="field" style="grid-column:2/-1;display:flex;align-items:flex-end;">
+      <div class="field" style="grid-column:2/-1;display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;">
         <button type="button" class="btn-ghost" id="ll-autofill-btn">🔄 Auto-Fill from Schedule <span style="color:var(--text-faint);font-size:10px;">(pulls duct orders &amp; material requests due on this date, for this project)</span></button>
+        <button type="button" class="btn-ghost" id="ll-add-order-btn">➕ Add Order (any date)</button>
+      </div>
+      <div class="field" id="ll-add-order-panel" style="grid-column:1/-1;display:none;background:var(--bg-2);border-radius:8px;padding:10px;">
+        <input id="ll-add-order-search" placeholder="Search by job name, job number, TO #, or system…" style="width:100%;margin-bottom:8px;">
+        <div id="ll-add-order-results" style="max-height:220px;overflow-y:auto;"></div>
       </div>
       <div class="field" style="grid-column:1/-1;"><label>Project Address</label><input id="ll-projectAddress" value="${existing?existing.projectAddress||'':''}"></div>
       <div class="field"><label>Field Contact</label>
@@ -4564,6 +4597,15 @@ function openLoadListModal(existingId){
     }
   };
   document.getElementById('ll-autofill-btn').addEventListener('click', autoFillLoadListFromSchedule);
+  const addOrderBtn = document.getElementById('ll-add-order-btn');
+  const addOrderPanel = document.getElementById('ll-add-order-panel');
+  const addOrderSearch = document.getElementById('ll-add-order-search');
+  addOrderBtn.addEventListener('click', ()=>{
+    const showing = addOrderPanel.style.display !== 'none';
+    addOrderPanel.style.display = showing ? 'none' : '';
+    if(!showing){ addOrderSearch.value=''; renderAddOrderResults(''); addOrderSearch.focus(); }
+  });
+  addOrderSearch.addEventListener('input', ()=> renderAddOrderResults(addOrderSearch.value));
   wireFieldContactPicker();
   const llProjectPicker = document.getElementById('ll-projectName-picker');
   llProjectPicker.addEventListener('change', function(){
