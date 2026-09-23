@@ -918,6 +918,34 @@ function ensureJobMasterSeeded(){
   });
   if(added){ saveState(); toast(`Added ${added} job${added!==1?'s':''} to the job list.`); refreshJobNamePickerIfOpen(); }
 }
+function rebuildJobMasterList(){
+  const nameFreq = {};
+  state.jobs.forEach(j=>{
+    const key = (j.jobNumber||'').trim().toLowerCase();
+    if(!key || !j.jobName) return;
+    nameFreq[key] = nameFreq[key] || {};
+    nameFreq[key][j.jobName] = (nameFreq[key][j.jobName]||0) + 1;
+  });
+  const canonicalName = {}, canonicalNumber = {};
+  Object.keys(nameFreq).forEach(key=>{
+    const names = nameFreq[key];
+    canonicalName[key] = Object.keys(names).sort((a,b)=> names[b]-names[a])[0];
+    const sample = state.jobs.find(j=>(j.jobNumber||'').trim().toLowerCase()===key);
+    canonicalNumber[key] = sample ? sample.jobNumber : key;
+  });
+  const byNumber = {};
+  (state.jobMasterList||[]).forEach(j=>{
+    const key = (j.jobNumber||'').trim().toLowerCase();
+    if(!key) return;
+    byNumber[key] = {id: j.id||uid(), jobNumber: canonicalNumber[key]||j.jobNumber, jobName: canonicalName[key]||j.jobName};
+  });
+  Object.keys(canonicalName).forEach(key=>{
+    if(!byNumber[key]) byNumber[key] = {id: uid(), jobNumber: canonicalNumber[key], jobName: canonicalName[key]};
+  });
+  const before = (state.jobMasterList||[]).length;
+  state.jobMasterList = Object.values(byNumber).sort((a,b)=>(a.jobName||'').localeCompare(b.jobName||''));
+  return {before, after: state.jobMasterList.length};
+}
 function jobMasterOptionsHTML(){
   return (state.jobMasterList||[]).slice().sort((a,b)=>(a.jobName||'').localeCompare(b.jobName||''))
     .map(j=>`<option value="${(j.jobName||'').replace(/"/g,'&quot;')}" data-jobnum="${(j.jobNumber||'').replace(/"/g,'&quot;')}">${j.jobName||''} (${j.jobNumber||'no #'})</option>`).join('');
@@ -926,6 +954,30 @@ function requesterOptionsHTML(selectedEmail){
   const contacts = (state.contacts||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));
   const opts = contacts.filter(c=>c.email).map(c=>`<option value="${c.email}" ${selectedEmail===c.email?'selected':''}>${c.name}${c.title?' — '+c.title:''}</option>`).join('');
   return `<option value="">— No requester selected —</option>${opts}`;
+}
+function fieldContactOptionsHTML(selectedName){
+  const contacts = (state.contacts||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const opts = contacts.map(c=>`<option value="${c.name}" data-phone="${c.phone||''}" ${selectedName===c.name?'selected':''}>${c.name}${c.title?' — '+c.title:''}</option>`).join('');
+  return `<option value="">— Select a contact —</option>${opts}<option value="__custom__" ${selectedName&&!contacts.some(c=>c.name===selectedName)?'selected':''}>✏️ Type a different name…</option>`;
+}
+function getPickedFieldContact(){
+  const picker = document.getElementById('ll-fieldContact-picker');
+  if(!picker) return val('ll-fieldContact');
+  return picker.value === '__custom__' ? val('ll-fieldContact') : picker.value;
+}
+function wireFieldContactPicker(){
+  const picker = document.getElementById('ll-fieldContact-picker');
+  const customInput = document.getElementById('ll-fieldContact');
+  const phoneInput = document.getElementById('ll-fieldPhone');
+  if(!picker || !customInput) return;
+  picker.addEventListener('change', ()=>{
+    if(picker.value==='__custom__'){ customInput.style.display=''; customInput.value=''; customInput.focus(); return; }
+    customInput.style.display='none'; customInput.value='';
+    if(picker.value && phoneInput && !phoneInput.value){
+      const opt = picker.selectedOptions[0];
+      if(opt && opt.dataset.phone) phoneInput.value = opt.dataset.phone;
+    }
+  });
 }
 function getPickedRequesterEmail(prefix){
   const picker = document.getElementById(prefix+'-email-picker');
@@ -3256,13 +3308,14 @@ function viewLoadLists(){
   <div class="card hot-list" style="margin-bottom:26px;">
     ${lists.length ? lists.map(l=>{
       const itemsPresent = itemSections.filter(([k])=>(l[k]||'').trim());
+      const linkedCount = (l.linkedJobIds||[]).length;
       return `
       <div class="hot-row" style="cursor:pointer;flex-direction:column;align-items:stretch;" data-edit-loadlist="${l.id}">
         <div style="display:flex;align-items:center;gap:10px;">
           <div style="flex:1;min-width:0;">
             <div class="job">${l.projectName}${l.projectNumber?` <span class="mono" style="color:var(--text-faint);font-size:11px;">${l.projectNumber}</span>`:''}${l.priorityHot?'<span class="urgent-badge">Hot Load</span>':''}</div>
             <div class="meta">${needDateLabel(l.date)}${deliveryTimeLabel(l)?' · ⏰ '+deliveryTimeLabel(l):''}${l.truckTypes&&l.truckTypes.length?' · 🚚 '+l.truckTypes.join(', '):''}${l.fieldContact?' · '+l.fieldContact:''}</div>
-            ${itemsPresent.length ? `<div style="margin-top:4px;font-size:11px;color:var(--text-faint);">${itemsPresent.map(([,label])=>label).join(' · ')}</div>` : ''}
+            ${(itemsPresent.length || linkedCount) ? `<div style="margin-top:4px;font-size:11px;color:var(--text-faint);">${linkedCount?`🔗 ${linkedCount} linked order${linkedCount!==1?'s':''}`:''}${linkedCount&&itemsPresent.length?' · ':''}${itemsPresent.map(([,label])=>label).join(' · ')}</div>` : ''}
           </div>
           <span class="status ${LOADLIST_STATUS_CLASS[l.status]}">${l.status}</span>
           ${canEdit && LOADLIST_ADVANCE[l.status] ? `<button class="btn-ghost" data-advance-loadlist="${l.id}">Mark ${LOADLIST_ADVANCE[l.status]}</button>` : ''}
@@ -4347,20 +4400,95 @@ document.getElementById('material-save-btn').addEventListener('click', async ()=
   notifyNewJob(job);
 });
 
+const LL_SECTIONS = [['sheetShop','Sheet Shop',true],['pipeShop','Pipe Shop',false],['parts','Parts',false],['equipmentOrders','Equipment Orders',false],['toolOrders','Tool Orders',false],['returns','Returns',false],['comments','Comments',false]];
+let loadListLinkedJobIds = [];
+function llSectionFieldHTML(key, label, value, hasLinkedSupport){
+  return `<div class="field ll-section-field" data-ll-section="${key}" style="grid-column:1/-1;">
+    <label>${label}</label>
+    ${hasLinkedSupport ? `<div id="ll-${key}-linked" style="margin-bottom:8px;"></div>` : ''}
+    <textarea id="ll-${key}">${value||''}</textarea>
+  </div>`;
+}
+function initLLSections(existing){
+  const wrap = document.getElementById('ll-sections-wrap');
+  const btnWrap = document.getElementById('ll-add-section-buttons');
+  const visibleKeys = LL_SECTIONS.filter(([k])=> existing && (existing[k]||'').toString().trim()).map(([k])=>k);
+  if(loadListLinkedJobIds.length && !visibleKeys.includes('sheetShop')) visibleKeys.push('sheetShop');
+  wrap.innerHTML = LL_SECTIONS.filter(([k])=>visibleKeys.includes(k)).map(([k,label,linked])=> llSectionFieldHTML(k,label,existing?existing[k]:'',linked)).join('');
+  btnWrap.innerHTML = LL_SECTIONS.filter(([k])=>!visibleKeys.includes(k)).map(([k,label])=>`<button type="button" class="btn-ghost ll-add-section" data-section="${k}" style="font-size:12px;">+ Add ${label}</button>`).join('');
+  wireLLAddSectionButtons();
+  if(visibleKeys.includes('sheetShop')) renderLinkedJobsUI();
+}
+function wireLLAddSectionButtons(){
+  document.querySelectorAll('.ll-add-section').forEach(b=>b.addEventListener('click', ()=>{
+    ensureLLSectionVisible(b.dataset.section);
+    const f = document.getElementById('ll-'+b.dataset.section); if(f) f.focus();
+  }));
+}
+function ensureLLSectionVisible(key){
+  if(document.getElementById('ll-'+key)) return;
+  const meta = LL_SECTIONS.find(s=>s[0]===key);
+  if(!meta) return;
+  document.getElementById('ll-sections-wrap').insertAdjacentHTML('beforeend', llSectionFieldHTML(key, meta[1], '', meta[2]));
+  const btn = document.querySelector(`.ll-add-section[data-section="${key}"]`);
+  if(btn) btn.remove();
+  if(key==='sheetShop') renderLinkedJobsUI();
+}
+function renderLinkedJobsUI(){
+  ensureLLSectionVisible('sheetShop');
+  const container = document.getElementById('ll-sheetShop-linked');
+  if(!container) return;
+  if(!loadListLinkedJobIds.length){ container.innerHTML=''; return; }
+  container.innerHTML = loadListLinkedJobIds.map(id=>{
+    const j = jobById(id);
+    if(!j) return '';
+    const hasAttachment = j.hasPhoto || (j.pdfFiles&&j.pdfFiles.length);
+    return `<div class="hot-row" data-open-linked-job="${id}" style="cursor:pointer;padding:8px 10px;margin-bottom:6px;background:var(--bg-2);border-radius:8px;">
+      <div style="flex:1;">
+        <div class="job" style="font-size:12.5px;">${j.jobName} <span class="mono" style="color:var(--text-faint);font-size:10.5px;">${j.jobNumber}</span> ${hasAttachment?'📎':''}</div>
+        <div class="meta" style="font-size:11px;">${j.system||''} · Qty ${j.qty} · ${fmt(j.weight)} lbs${hasAttachment?' · Tap to view sketch/PDF':''}</div>
+      </div>
+      <button type="button" class="btn-ghost ll-unlink-job" data-unlink="${id}" style="font-size:10px;padding:3px 8px;">Remove</button>
+    </div>`;
+  }).join('');
+  container.querySelectorAll('[data-open-linked-job]').forEach(el=>el.addEventListener('click',(e)=>{
+    if(e.target.closest('.ll-unlink-job')) return;
+    openJob(el.dataset.openLinkedJob);
+  }));
+  container.querySelectorAll('.ll-unlink-job').forEach(b=>b.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    loadListLinkedJobIds = loadListLinkedJobIds.filter(id=>id!==b.dataset.unlink);
+    renderLinkedJobsUI();
+  }));
+}
 function openLoadListModal(existingId){
   editingLoadListId = existingId || null;
   const existing = existingId ? (state.loadLists||[]).find(l=>l.id===existingId) : null;
+  loadListLinkedJobIds = existing ? (existing.linkedJobIds||[]).slice() : [];
   document.getElementById('loadlist-modal-title').textContent = existing ? 'Edit Load List' : 'New Load List';
   document.getElementById('loadlist-modal-body').innerHTML = `
     <div class="form-grid">
       <div class="field"><label>Date</label><input id="ll-date" type="date" value="${existing?existing.date:todayISO()}"></div>
-      <div class="field"><label>Project Name <span style="color:var(--red);">*</span></label><input id="ll-projectName" value="${existing?existing.projectName||'':''}"></div>
+      <div class="field" style="grid-column:2/-1;">
+        <label>Project Name <span style="color:var(--red);">*</span></label>
+        <select id="ll-projectName-picker" style="margin-bottom:8px;">
+          <option value="">— Choose an existing job, or add new below —</option>
+          ${jobMasterOptionsHTML()}
+          ${(!state.jobMasterList || !state.jobMasterList.length) ? `<option value="" disabled>(No jobs in the list yet — use "Manage Job List" below)</option>` : ''}
+          <option value="__new__">➕ Type a new project name…</option>
+        </select>
+        <input id="ll-projectName" value="${existing?existing.projectName||'':''}" placeholder="Type a new project name, or pick one above">
+        ${(state.role==='master'||state.role==='manager') ? `<button type="button" id="ll-manage-job-list-link" style="background:none;border:none;color:var(--steel-bright);text-decoration:underline;font-size:11px;padding:6px 0 0;cursor:pointer;">Manage Job List</button>` : ''}
+      </div>
       <div class="field"><label>Project #</label><input id="ll-projectNumber" value="${existing?existing.projectNumber||'':''}"></div>
-      <div class="field" style="grid-column:1/-1;display:flex;align-items:flex-end;">
+      <div class="field" style="grid-column:2/-1;display:flex;align-items:flex-end;">
         <button type="button" class="btn-ghost" id="ll-autofill-btn">🔄 Auto-Fill from Schedule <span style="color:var(--text-faint);font-size:10px;">(pulls duct orders &amp; material requests due on this date, for this project)</span></button>
       </div>
       <div class="field" style="grid-column:1/-1;"><label>Project Address</label><input id="ll-projectAddress" value="${existing?existing.projectAddress||'':''}"></div>
-      <div class="field"><label>Field Contact</label><input id="ll-fieldContact" value="${existing?existing.fieldContact||'':''}"></div>
+      <div class="field"><label>Field Contact</label>
+        <select id="ll-fieldContact-picker">${fieldContactOptionsHTML(existing?existing.fieldContact||'':'')}</select>
+        <input id="ll-fieldContact" value="${existing?existing.fieldContact||'':''}" style="margin-top:6px;${existing&&existing.fieldContact&&!(state.contacts||[]).some(c=>c.name===existing.fieldContact)?'':'display:none;'}" placeholder="Contact name">
+      </div>
       <div class="field"><label>Phone #</label><input id="ll-fieldPhone" type="tel" value="${existing?existing.fieldPhone||'':''}"></div>
     </div>
     <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Delivery Time</div>
@@ -4384,16 +4512,9 @@ function openLoadListModal(existingId){
           <input type="checkbox" class="ll-trucktype" value="${t}" style="width:auto;" ${existing&&(existing.truckTypes||[]).includes(t)?'checked':''}> ${t}
         </label>`).join('')}
     </div>
-    <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Requested Items</div>
-    <div class="form-grid">
-      <div class="field" style="grid-column:1/-1;"><label>Parts</label><textarea id="ll-parts">${existing?existing.parts||'':''}</textarea></div>
-      <div class="field" style="grid-column:1/-1;"><label>Sheet Shop</label><textarea id="ll-sheetShop">${existing?existing.sheetShop||'':''}</textarea></div>
-      <div class="field" style="grid-column:1/-1;"><label>Pipe Shop</label><textarea id="ll-pipeShop">${existing?existing.pipeShop||'':''}</textarea></div>
-      <div class="field" style="grid-column:1/-1;"><label>Equipment Orders</label><textarea id="ll-equipmentOrders">${existing?existing.equipmentOrders||'':''}</textarea></div>
-      <div class="field" style="grid-column:1/-1;"><label>Tool Orders</label><textarea id="ll-toolOrders">${existing?existing.toolOrders||'':''}</textarea></div>
-      <div class="field" style="grid-column:1/-1;"><label>Returns</label><textarea id="ll-returns">${existing?existing.returns||'':''}</textarea></div>
-      <div class="field" style="grid-column:1/-1;"><label>Comments</label><textarea id="ll-comments">${existing?existing.comments||'':''}</textarea></div>
-    </div>
+    <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Requested Items <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(only sections with content show — use the buttons below to add more)</span></div>
+    <div id="ll-sections-wrap"></div>
+    <div id="ll-add-section-buttons" style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px;"></div>
     <div class="form-grid" style="margin-top:6px;">
       <div class="field"><label>Requested By</label><input id="ll-requestedBy" value="${existing?existing.requestedBy||'':state.userName||''}"></div>
       <div class="field"><label>Approved By</label><input id="ll-approvedBy" value="${existing?existing.approvedBy||'':''}"></div>
@@ -4413,6 +4534,24 @@ function openLoadListModal(existingId){
     }
   };
   document.getElementById('ll-autofill-btn').addEventListener('click', autoFillLoadListFromSchedule);
+  wireFieldContactPicker();
+  const llProjectPicker = document.getElementById('ll-projectName-picker');
+  llProjectPicker.addEventListener('change', function(){
+    const numInput = document.getElementById('ll-projectNumber');
+    const nameInput = document.getElementById('ll-projectName');
+    if(this.value==='' || this.value==='__new__'){
+      nameInput.value = ''; numInput.value = ''; numInput.disabled = false; nameInput.focus(); return;
+    }
+    const opt = this.selectedOptions[0];
+    nameInput.value = this.value; numInput.value = opt.dataset.jobnum || ''; numInput.disabled = true;
+  });
+  if(existing && existing.projectNumber){
+    const match = Array.from(llProjectPicker.options).find(o=>o.dataset.jobnum===existing.projectNumber);
+    if(match){ llProjectPicker.value = match.value; document.getElementById('ll-projectNumber').disabled = true; }
+  }
+  const llManageLink = document.getElementById('ll-manage-job-list-link');
+  if(llManageLink) llManageLink.addEventListener('click', openJobMasterListModal);
+  initLLSections(existing);
   openModal('loadlist-modal');
 }
 function appendUniqueLine(currentText, newLine){
@@ -4436,21 +4575,21 @@ function autoFillLoadListFromSchedule(){
   if(!matches.length){ toast(`No scheduled duct orders or material requests found for that project on ${needDateLabel(date)}.`, 6000); return; }
   const ductOrders = matches.filter(j=>j.orderType!=='Material');
   const materialRequests = matches.filter(j=>j.orderType==='Material');
-  let sheetShopText = val('ll-sheetShop');
-  ductOrders.forEach(j=>{
-    const line = `${j.system||'Duct'} (${j.jobNumber})${j.sketchNumber?' · Sketch #'+j.sketchNumber:''} — Qty ${j.qty}, ${fmt(j.weight)} lbs`;
-    sheetShopText = appendUniqueLine(sheetShopText, line);
-  });
-  document.getElementById('ll-sheetShop').value = sheetShopText;
-  let partsText = val('ll-parts');
-  materialRequests.forEach(j=>{
-    const itemLines = MATERIAL_ITEMS.filter(([k])=> j.materials && j.materials[k] && (j.materials[k].checked || j.materials[k].qty))
-      .map(([k,label,unit])=> `${label}${j.materials[k].qty?': '+j.materials[k].qty+' '+unit:''}`);
-    if(j.otherItems) itemLines.push(j.otherItems);
-    itemLines.forEach(line=>{ partsText = appendUniqueLine(partsText, line); });
-  });
-  document.getElementById('ll-parts').value = partsText;
-  toast(`Pulled in ${ductOrders.length} duct order${ductOrders.length!==1?'s':''} and ${materialRequests.length} material request${materialRequests.length!==1?'s':''}. Review and edit before submitting.`, 6000);
+  let newLinks = 0;
+  ductOrders.forEach(j=>{ if(!loadListLinkedJobIds.includes(j.id)){ loadListLinkedJobIds.push(j.id); newLinks++; } });
+  if(ductOrders.length) renderLinkedJobsUI();
+  if(materialRequests.length){
+    ensureLLSectionVisible('parts');
+    let partsText = val('ll-parts');
+    materialRequests.forEach(j=>{
+      const itemLines = MATERIAL_ITEMS.filter(([k])=> j.materials && j.materials[k] && (j.materials[k].checked || j.materials[k].qty))
+        .map(([k,label,unit])=> `${label}${j.materials[k].qty?': '+j.materials[k].qty+' '+unit:''}`);
+      if(j.otherItems) itemLines.push(j.otherItems);
+      itemLines.forEach(line=>{ partsText = appendUniqueLine(partsText, line); });
+    });
+    document.getElementById('ll-parts').value = partsText;
+  }
+  toast(`Linked ${ductOrders.length} duct order${ductOrders.length!==1?'s':''} (tap to view sketch/PDF) and pulled in ${materialRequests.length} material request${materialRequests.length!==1?'s':''}. Review before submitting.`, 6500);
 }
 let editingLoadListId = null;
 document.getElementById('loadlist-save-btn').addEventListener('click', ()=>{
@@ -4461,12 +4600,13 @@ document.getElementById('loadlist-save-btn').addEventListener('click', ()=>{
   const record = {
     id: existing ? existing.id : uid(),
     date: val('ll-date'), projectName, projectNumber: val('ll-projectNumber'), projectAddress: val('ll-projectAddress'),
-    fieldContact: val('ll-fieldContact'), fieldPhone: val('ll-fieldPhone'),
+    fieldContact: getPickedFieldContact(), fieldPhone: val('ll-fieldPhone'),
     deliveryTime: val('ll-deliveryTime'), deliveryTimeSpecific: val('ll-deliveryTimeSpecific'),
     priorityHot: document.getElementById('ll-priorityHot').checked, truckTypes,
     parts: val('ll-parts'), sheetShop: val('ll-sheetShop'), pipeShop: val('ll-pipeShop'),
     equipmentOrders: val('ll-equipmentOrders'), toolOrders: val('ll-toolOrders'), returns: val('ll-returns'), comments: val('ll-comments'),
     requestedBy: val('ll-requestedBy'), approvedBy: val('ll-approvedBy'),
+    linkedJobIds: loadListLinkedJobIds.slice(),
     status: existing ? existing.status : 'Open',
     createdBy: existing ? existing.createdBy : state.userName,
     createdAt: existing ? existing.createdAt : nowStr()
@@ -4498,6 +4638,7 @@ function refreshJobNamePickerIfOpen(){
 function renderJobMasterListModal(){
   const list = (state.jobMasterList||[]).slice().sort((a,b)=>a.jobName.localeCompare(b.jobName));
   document.getElementById('job-master-list-body').innerHTML = list.length ? `
+    <div style="margin-bottom:12px;"><button class="btn-ghost" id="jm-dedupe-btn">🧹 Clean Up Duplicate Jobs</button></div>
     <div class="table-wrap"><table>
       <thead><tr><th>Job Name</th><th>Job #</th><th></th></tr></thead>
       <tbody>
@@ -4510,6 +4651,14 @@ function renderJobMasterListModal(){
     state.jobMasterList = state.jobMasterList.filter(x=>x.id!==b.dataset.removeMasterJob);
     saveState(); toast('Removed from job list.'); renderJobMasterListModal(); refreshJobNamePickerIfOpen();
   }));
+  const dedupeBtn = document.getElementById('jm-dedupe-btn');
+  if(dedupeBtn) dedupeBtn.addEventListener('click', ()=>{
+    const result = rebuildJobMasterList();
+    const merged = result.before - result.after;
+    saveState();
+    toast(merged>0 ? `Cleaned up ${merged} duplicate job${merged!==1?'s':''}.` : 'No duplicates found — job list already clean.');
+    renderJobMasterListModal(); refreshJobNamePickerIfOpen();
+  });
 }
 function openJobMasterListModal(){
   document.getElementById('jm-new-number').value = '';
@@ -5067,6 +5216,8 @@ function boot(){
     addStandardTrailers(true);
     ensureContactsSeeded();
     ensureJobMasterSeeded();
+    const dedupe = rebuildJobMasterList();
+    if(dedupe.after < dedupe.before) saveState();
     if(state.role){ render(); }
   });
 }
