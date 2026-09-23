@@ -3321,7 +3321,7 @@ function viewLoadLists(){
     ${lists.length ? (()=>{
       const groups = {};
       lists.forEach(l=>{ const key = l.date || 'No Date'; (groups[key] = groups[key]||[]).push(l); });
-      const dateKeys = Object.keys(groups).sort((a,b)=> b.localeCompare(a));
+      const dateKeys = Object.keys(groups).sort((a,b)=> a.localeCompare(b));
       return dateKeys.map(dateKey=>{
         const rows = groups[dateKey];
         const isPast = dateKey!=='No Date' && dateKey < todayISO();
@@ -3633,6 +3633,7 @@ function bindMainEvents(){
     const next = LOADLIST_ADVANCE[l.status];
     if(!next) return;
     l.status = next;
+    addHistory(l, `Status changed to "${next}" by ${state.userName}.`);
     saveState(); toast(`Load list marked ${next}.`); render();
   }));
   const reportPrev = document.getElementById('report-week-prev');
@@ -4582,6 +4583,11 @@ function openLoadListModal(existingId){
       <div class="field"><label>Requested By</label><input id="ll-requestedBy" value="${existing?existing.requestedBy||'':state.userName||''}"></div>
       <div class="field"><label>Approved By</label><input id="ll-approvedBy" value="${existing?existing.approvedBy||'':''}"></div>
     </div>
+    ${existing && existing.history && existing.history.length ? `
+    <div class="section-title" style="margin-top:18px;"><span class="bar"></span>History <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(what was on this load, and when it changed)</span></div>
+    <div class="timeline" style="max-height:220px;overflow-y:auto;margin-bottom:10px;">${existing.history.map(h=>`
+      <div class="tl-item"><div class="tl-dot"></div><div class="tl-content"><div class="when">${h.when}</div><div class="note">${h.note}</div></div></div>
+    `).join('')}</div>` : ''}
     ${existing ? `<button class="btn-danger" id="loadlist-delete-btn" style="margin-top:16px;">Delete Load List</button>` : ''}
   `;
   const llDeliveryTimeSel = document.getElementById('ll-deliveryTime');
@@ -4681,8 +4687,32 @@ document.getElementById('loadlist-save-btn').addEventListener('click', ()=>{
     linkedJobIds: loadListLinkedJobIds.slice(),
     status: existing ? existing.status : 'Open',
     createdBy: existing ? existing.createdBy : state.userName,
-    createdAt: existing ? existing.createdAt : nowStr()
+    createdAt: existing ? existing.createdAt : nowStr(),
+    history: existing ? (existing.history||[]).slice() : []
   };
+  if(!existing){
+    addHistory(record, `Load list created by ${state.userName}.`);
+  } else {
+    const oldLinked = existing.linkedJobIds||[];
+    const newLinked = record.linkedJobIds;
+    newLinked.filter(id=>!oldLinked.includes(id)).forEach(id=>{
+      const j = jobById(id);
+      addHistory(record, `Linked order added: ${j?j.jobName:'Unknown'}${j?' ('+j.jobNumber+')':''}${j&&j.system?' — '+j.system:''} by ${state.userName}.`);
+    });
+    oldLinked.filter(id=>!newLinked.includes(id)).forEach(id=>{
+      const j = jobById(id);
+      addHistory(record, `Linked order removed: ${j?j.jobName:'Unknown'}${j?' ('+j.jobNumber+')':''} by ${state.userName}.`);
+    });
+    const TEXT_FIELDS = ['parts','sheetShop','pipeShop','equipmentOrders','toolOrders','returns','comments'];
+    const textChanged = TEXT_FIELDS.some(f=> (existing[f]||'') !== (record[f]||''));
+    const metaChanged = existing.date!==record.date || existing.projectName!==record.projectName || existing.projectNumber!==record.projectNumber ||
+      existing.deliveryTime!==record.deliveryTime || existing.deliveryTimeSpecific!==record.deliveryTimeSpecific ||
+      existing.priorityHot!==record.priorityHot || JSON.stringify(existing.truckTypes||[])!==JSON.stringify(record.truckTypes) ||
+      existing.fieldContact!==record.fieldContact || existing.fieldPhone!==record.fieldPhone ||
+      existing.requestedBy!==record.requestedBy || existing.approvedBy!==record.approvedBy;
+    if(textChanged) addHistory(record, `Requested items updated by ${state.userName}.`);
+    if(metaChanged) addHistory(record, `Load list details updated by ${state.userName}.`);
+  }
   state.loadLists = state.loadLists || [];
   if(existing){ state.loadLists = state.loadLists.map(l=> l.id===existing.id ? record : l); }
   else { state.loadLists.unshift(record); }
