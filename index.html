@@ -286,7 +286,7 @@ tbody tr:last-child td{border-bottom:none;}
 .mobile-fab-menu{display:none;}
 @media(max-width:760px){
   header.topbar nav.tabs{display:none;}
-  #new-order-btn,#new-material-btn-global,#new-metal-btn-global,#report-issue-btn,#switch-role-btn{display:none !important;}
+  #new-order-btn,#new-material-btn-global,#new-loadlist-btn-global,#new-metal-btn-global,#report-issue-btn,#switch-role-btn{display:none !important;}
   main{padding-bottom:84px !important;}
   .mobile-tabbar{
     display:flex; position:fixed; bottom:0; left:0; right:0; z-index:150;
@@ -566,6 +566,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
       <button class="switch-role" id="refresh-app-btn" title="Reload to get the newest version">⟳ Refresh</button>
       <button class="switch-role" id="new-order-btn" style="border-color:rgba(127,188,207,.5);color:var(--steel-bright);">+ New Duct Order</button>
       <button class="switch-role" id="new-material-btn-global" style="border-color:rgba(90,149,168,.5);color:var(--steel-bright);">📦 New Material Request</button>
+      <button class="switch-role" id="new-loadlist-btn-global" style="border-color:rgba(90,149,168,.5);color:var(--steel-bright);">🚛 New Load List</button>
       <button class="switch-role" id="new-metal-btn-global" style="border-color:rgba(90,149,168,.5);color:var(--steel-bright);">🧱 Log Metal Usage</button>
       <button class="switch-role" id="report-issue-btn" style="border-color:rgba(209,69,59,.5);color:#e88b83;">⚠ Report Issue</button>
       <button class="switch-role" id="switch-role-btn">Switch Role</button>
@@ -584,6 +585,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
   <div class="mobile-fab-menu no-print" id="mobile-fab-menu">
     <button data-fab-action="order">&#128230; New Duct Order</button>
     <button data-fab-action="material">&#128200; New Material Request</button>
+    <button data-fab-action="loadlist">&#128666; New Load List</button>
     <button data-fab-action="qc">&#9888; Report QC Issue</button>
   </div>
 </div>
@@ -819,6 +821,21 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
   </div>
 </div>
 
+<!-- DISTRIBUTION LOAD LIST MODAL -->
+<div class="overlay" id="loadlist-modal">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-head">
+      <div><h2 id="loadlist-modal-title">New Load List</h2><div class="sub">Request a delivery — improve communication between the field and the shop</div></div>
+      <button class="modal-close" data-close="loadlist-modal">×</button>
+    </div>
+    <div class="modal-body" id="loadlist-modal-body"></div>
+    <div class="modal-foot">
+      <button class="btn-ghost" data-close="loadlist-modal">Cancel</button>
+      <button class="btn-primary" id="loadlist-save-btn">Submit Load List</button>
+    </div>
+  </div>
+</div>
+
 <!-- METAL USAGE ENTRY MODAL -->
 <div class="overlay" id="metal-modal">
   <div class="modal" style="max-width:640px;">
@@ -975,9 +992,9 @@ function colorOptionsHTML(selected){
 }
 
 const ROLE_VIEWS = {
-  master:  ['dashboard','managers','completed','delivered','calendar','trailer','contacts','more'],
-  manager: ['dashboard','managers','completed','delivered','calendar','trailer','contacts','more'],
-  field:   ['managers','completed','delivered','calendar','trailer','contacts','more']
+  master:  ['dashboard','managers','completed','delivered','calendar','trailer','loadlists','contacts','more'],
+  manager: ['dashboard','managers','completed','delivered','calendar','trailer','loadlists','contacts','more'],
+  field:   ['managers','completed','delivered','calendar','trailer','loadlists','contacts','more']
 };
 const ROLE_LABEL = {master:'Executive',manager:'Managers',field:'Field'};
 
@@ -1041,6 +1058,8 @@ let state = {
   deletedJobs: [],
   hoursLog: {},
   metalUsage: [],
+  loadLists: [],
+  trailerCalcs: [],
   contacts: [],
   jobMasterList: [],
   pushNotifsEnabled: false,
@@ -1160,6 +1179,8 @@ function saveStateNow(){
     deletedJobsJson: JSON.stringify(state.deletedJobs),
     hoursLogJson: JSON.stringify(state.hoursLog),
     metalUsageJson: JSON.stringify(state.metalUsage),
+    loadListsJson: JSON.stringify(state.loadLists),
+    trailerCalcsJson: JSON.stringify(state.trailerCalcs),
     contactsJson: JSON.stringify(state.contacts),
     jobMasterListJson: JSON.stringify(state.jobMasterList),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -1259,6 +1280,8 @@ function startLiveSync(onFirstLoad){
       state.deletedJobs = JSON.parse(data.deletedJobsJson || '[]');
       state.hoursLog = JSON.parse(data.hoursLogJson || '{}');
       state.metalUsage = JSON.parse(data.metalUsageJson || '[]');
+      state.loadLists = JSON.parse(data.loadListsJson || '[]');
+      state.trailerCalcs = JSON.parse(data.trailerCalcsJson || '[]');
       state.contacts = JSON.parse(data.contactsJson || '[]');
       state.jobMasterList = JSON.parse(data.jobMasterListJson || '[]');
       refreshJobNamePickerIfOpen();
@@ -1316,6 +1339,23 @@ function needDateClass(job){
   if(lt===null) return 'nd-incoming';
   if(lt<7) return 'nd-short';
   return 'nd-normal';
+}
+const DELIVERY_TIME_OPTIONS = [
+  ['before1st','Before 1st Break'],['after1st','After 1st Break'],['afterlunch','After Lunch'],['specific','Specific Time']
+];
+const TRUCK_TYPES = ['Lift Gate','Box','Flatbed','Semi','Pick-Up','Trailer'];
+const LOADLIST_STATUS_CLASS = {'Open':'pending','Loaded':'inshop','Delivered':'complete'};
+function deliveryTimeLabel(job){
+  if(!job.deliveryTime) return '';
+  if(job.deliveryTime==='specific'){
+    if(!job.deliveryTimeSpecific) return 'Specific Time';
+    const [h,m] = job.deliveryTimeSpecific.split(':').map(Number);
+    const ampm = h>=12?'PM':'AM';
+    const h12 = h%12===0?12:h%12;
+    return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+  }
+  const found = DELIVERY_TIME_OPTIONS.find(([k])=>k===job.deliveryTime);
+  return found ? found[1] : '';
 }
 function needDateLabel(dateStr){
   if(!dateStr) return 'Date Pending';
@@ -1935,7 +1975,7 @@ document.getElementById('lightbox-modal').addEventListener('click', (e)=>{
 /* ============================ RENDER: SHELL ============================ */
 function renderNav(){
   const views = ROLE_VIEWS[state.role].filter(v=>v!=='more');
-  const labelMap = {dashboard:'Executive Dashboard',managers:'Production Schedule',completed:'Orders Ready',delivered:'Completed',calendar:'Delivery Calendar',trailer:'Trailer Dashboard',contacts:'Contacts'};
+  const labelMap = {dashboard:'Executive Dashboard',managers:'Production Schedule',completed:'Orders Ready',delivered:'Completed',calendar:'Delivery Calendar',trailer:'Trailer Dashboard',loadlists:'Load Lists',contacts:'Contacts'};
   const html = views.map(v=>`<button data-view="${v}" class="${state.view===v?'active':''}">${labelMap[v]}</button>`).join('');
   document.getElementById('nav-tabs').innerHTML = html;
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{ state.view=b.dataset.view; render(); }));
@@ -1953,6 +1993,8 @@ function render(){
   else if(state.view==='delivered') main.innerHTML = viewDelivered();
   else if(state.view==='calendar') main.innerHTML = viewCalendar();
   else if(state.view==='trailer') main.innerHTML = viewTrailer();
+  else if(state.view==='loadlists') main.innerHTML = viewLoadLists();
+  else if(state.view==='trailercalc') main.innerHTML = viewTrailerCalc();
   else if(state.view==='contacts') main.innerHTML = viewContacts();
   else if(state.view==='more') main.innerHTML = viewMore();
   bindMainEvents();
@@ -2992,7 +3034,7 @@ function viewCalendar(){
     const jobsToday = (byDate[iso]||[]).sort((a,b)=> (a.priority==='Urgent'?0:1)-(b.priority==='Urgent'?0:1));
     cells += `<div class="cal-cell ${otherMonth?'other-month':''} ${isToday?'today':''}" data-cal-date="${iso}">
       <div class="cal-daynum" ${jobsToday.length?`data-day-detail="${iso}" style="cursor:pointer;"`:''}>${cellDate.getDate()}</div>
-      ${jobsToday.slice(0,4).map(j=>`<div class="cal-chip ${j.priority==='Urgent'?'urgent':''}" data-open="${j.id}" ${canDrag?`draggable="true" data-drag-job="${j.id}"`:''} title="${j.jobName} — ${j.jobNumber} (${j.shippingMethod})${canDrag?' — drag to reschedule':''}">${j.shippingMethod==='Pickup'?'📦':'🚚'} ${j.jobName}</div>`).join('')}
+      ${jobsToday.slice(0,4).map(j=>`<div class="cal-chip ${j.priority==='Urgent'?'urgent':''}" data-open="${j.id}" ${canDrag?`draggable="true" data-drag-job="${j.id}"`:''} title="${j.jobName} — ${j.jobNumber} (${j.shippingMethod})${deliveryTimeLabel(j)?' — '+deliveryTimeLabel(j):''}${canDrag?' — drag to reschedule':''}">${j.shippingMethod==='Pickup'?'📦':'🚚'} ${j.jobName}${deliveryTimeLabel(j)?`<span style="opacity:.75;font-size:9.5px;"> · ${deliveryTimeLabel(j)}</span>`:''}</div>`).join('')}
       ${jobsToday.length>4?`<div class="cal-more" data-day-detail="${iso}">+${jobsToday.length-4} more</div>`:''}
     </div>`;
   }
@@ -3138,6 +3180,7 @@ function viewMore(){
   <div class="more-group">
     <button class="more-item more-item-link" id="more-new-order">New Duct Order</button>
     <button class="more-item more-item-link" id="more-new-material">New Material Request</button>
+    <button class="more-item more-item-link" id="more-new-loadlist">New Load List</button>
     <button class="more-item more-item-link" id="more-report-issue">Report QC Issue</button>
     ${canEdit ? `<button class="more-item more-item-link" id="more-log-metal">Log Metal Usage</button>` : ''}
   </div>
@@ -3145,6 +3188,7 @@ function viewMore(){
   <div class="more-group">
     <button class="more-item" data-view="completed"><span>Orders Ready</span><span class="more-count">${readyCount} &rsaquo;</span></button>
     <button class="more-item" data-view="delivered"><span>Completed &amp; Delivered</span><span class="more-count">${doneCount} &rsaquo;</span></button>
+    <button class="more-item" data-view="loadlists"><span>Load Lists</span><span class="more-count">${(state.loadLists||[]).filter(l=>l.status==='Open').length} &rsaquo;</span></button>
     <button class="more-item" data-view="contacts"><span>Contacts</span><span class="more-count">&rsaquo;</span></button>
     ${canEdit ? `<button class="more-item" data-view="dashboard"><span>Executive Dashboard</span><span class="more-count">&rsaquo;</span></button>` : ''}
     <button class="more-item" data-view="trailer"><span>Trailer Dashboard</span><span class="more-count">&rsaquo;</span></button>
@@ -3163,6 +3207,181 @@ function viewMore(){
   `;
 }
 
+const LOADLIST_ADVANCE = {'Open':'Loaded','Loaded':'Delivered'};
+/* ---- Trailer Load Calculator: replicates BCH Trailer Loading Calculator.xlsx exactly ---- */
+function tlcCompute(inputs){
+  const {trailerType, useBlueCarts, usableHeightDeduction, cartHeight, cartWidth, cartLength,
+    semiInteriorWidthIn, semiInteriorHeight, totalPacketVolume} = inputs;
+  const trailerTotalVolume = trailerType===53 ? 3800 : trailerType===48 ? 3200 : null;
+  const adjustedTrailerVolume = trailerTotalVolume===null ? null : trailerTotalVolume * (1 - (usableHeightDeduction/9));
+  const cartVolume = cartHeight * cartWidth * cartLength;
+  const semiInteriorWidthFt = semiInteriorWidthIn / 12;
+  const semiInteriorLength = trailerType===53 ? 52 : 47;
+  const usableHeight = semiInteriorHeight - usableHeightDeduction;
+  const cartsAcrossWidth = 1; // matches spreadsheet: fixed input, not a formula
+  const cartsAlongLength = Math.floor(semiInteriorLength / cartWidth);
+  const cartsStackedHigh = Math.floor(usableHeight / cartHeight);
+  const totalCartsPerSemi = cartsAcrossWidth * cartsAlongLength * cartsStackedHigh;
+  const cartCapacity = totalCartsPerSemi * cartVolume;
+  const effectiveCapacity = useBlueCarts ? cartCapacity : adjustedTrailerVolume;
+  const overUnder = effectiveCapacity===null ? null : effectiveCapacity - totalPacketVolume;
+  const trailersRequired = (effectiveCapacity && effectiveCapacity>0) ? Math.max(1, Math.ceil(totalPacketVolume/effectiveCapacity)) : 1;
+  const capacityUtilization = (!effectiveCapacity) ? null : totalPacketVolume/effectiveCapacity;
+  const distribution = [1,2,3,4,5].map(i=>{
+    if(i>trailersRequired) return {trailerNum:i, load:null, utilization:null};
+    const load = Math.min(Math.max(totalPacketVolume-(i-1)*effectiveCapacity, 0), effectiveCapacity);
+    const utilization = (!effectiveCapacity) ? null : load/effectiveCapacity;
+    return {trailerNum:i, load, utilization};
+  });
+  return {trailerTotalVolume, adjustedTrailerVolume, cartVolume, semiInteriorWidthFt, semiInteriorLength, usableHeight,
+    cartsAcrossWidth, cartsAlongLength, cartsStackedHigh, totalCartsPerSemi, cartCapacity, effectiveCapacity,
+    overUnder, trailersRequired, capacityUtilization, distribution};
+}
+function viewLoadLists(){
+  const canEdit = state.role==='master'||state.role==='manager';
+  const s = (state.loadListSearch||'').toLowerCase();
+  const lists = (state.loadLists||[]).filter(l=>{
+    if(!s) return true;
+    return [l.projectName,l.projectNumber,l.fieldContact,l.parts,l.sheetShop,l.pipeShop,l.equipmentOrders,l.toolOrders,l.returns,l.comments].join(' ').toLowerCase().includes(s);
+  }).sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.createdAt||'').localeCompare(a.createdAt||''));
+  const itemSections = [['parts','Parts'],['sheetShop','Sheet Shop'],['pipeShop','Pipe Shop'],['equipmentOrders','Equipment'],['toolOrders','Tools'],['returns','Returns']];
+  return `
+  <div class="toolbar">
+    <div class="section-title" style="margin:0;"><span class="bar"></span>Load Lists <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(distribution requests — field to shop)</span></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <input class="search-box" id="loadlist-search" placeholder="Search project, contact, items…" value="${state.loadListSearch||''}" style="min-width:220px;">
+      <button class="btn-primary" id="new-loadlist-btn-inline">+ New Load List</button>
+    </div>
+  </div>
+  <div class="card hot-list" style="margin-bottom:26px;">
+    ${lists.length ? lists.map(l=>{
+      const itemsPresent = itemSections.filter(([k])=>(l[k]||'').trim());
+      return `
+      <div class="hot-row" style="cursor:pointer;flex-direction:column;align-items:stretch;" data-edit-loadlist="${l.id}">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;min-width:0;">
+            <div class="job">${l.projectName}${l.projectNumber?` <span class="mono" style="color:var(--text-faint);font-size:11px;">${l.projectNumber}</span>`:''}${l.priorityHot?'<span class="urgent-badge">Hot Load</span>':''}</div>
+            <div class="meta">${needDateLabel(l.date)}${deliveryTimeLabel(l)?' · ⏰ '+deliveryTimeLabel(l):''}${l.truckTypes&&l.truckTypes.length?' · 🚚 '+l.truckTypes.join(', '):''}${l.fieldContact?' · '+l.fieldContact:''}</div>
+            ${itemsPresent.length ? `<div style="margin-top:4px;font-size:11px;color:var(--text-faint);">${itemsPresent.map(([,label])=>label).join(' · ')}</div>` : ''}
+          </div>
+          <span class="status ${LOADLIST_STATUS_CLASS[l.status]}">${l.status}</span>
+          ${canEdit && LOADLIST_ADVANCE[l.status] ? `<button class="btn-ghost" data-advance-loadlist="${l.id}">Mark ${LOADLIST_ADVANCE[l.status]}</button>` : ''}
+        </div>
+      </div>`;
+    }).join('') : `<div class="empty" style="padding:20px;">No load lists yet. Click "+ New Load List" to request a delivery.</div>`}
+  </div>`;
+}
+function tlcDefaultDraft(){
+  return {
+    trailerType:53, useBlueCarts:true, usableHeightDeduction:3,
+    cartHeight:6, cartWidth:4, cartLength:6,
+    semiInteriorWidthIn:100, semiInteriorHeight:9,
+    projectName:'', site:'', date:todayISO(), preparedBy: state.userName||'',
+    packets: Array.from({length:10}, ()=>({desc:'', qty:'', volEach:''}))
+  };
+}
+function tlcPacketRowHTML(i, p){
+  p = p || {desc:'',qty:'',volEach:''};
+  return `<tr data-packet-row="${i}">
+    <td class="mono">${i+1}</td>
+    <td><input class="tlc-input" data-tlc-field="desc" data-tlc-row="${i}" value="${p.desc||''}" style="width:100%;background:var(--bg-2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 7px;font-size:12.5px;"></td>
+    <td><input class="tlc-input" data-tlc-field="qty" data-tlc-row="${i}" type="number" min="0" value="${p.qty!==''&&p.qty!=null?p.qty:''}" style="width:70px;background:var(--bg-2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 7px;font-size:12.5px;"></td>
+    <td><input class="tlc-input" data-tlc-field="volEach" data-tlc-row="${i}" type="number" min="0" step="0.1" value="${p.volEach!==''&&p.volEach!=null?p.volEach:''}" style="width:90px;background:var(--bg-2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 7px;font-size:12.5px;"></td>
+    <td class="mono" data-packet-volume="${i}">0</td>
+  </tr>`;
+}
+function viewTrailerCalc(){
+  const canEdit = state.role==='master'||state.role==='manager';
+  if(!state.trailerCalcDraft) state.trailerCalcDraft = tlcDefaultDraft();
+  const d = state.trailerCalcDraft;
+  const savedPlans = (state.trailerCalcs||[]).slice().sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  return `
+  ${savedPlans.length ? `
+  <div class="section-title" style="margin-top:0;"><span class="bar"></span>Saved Load Plans</div>
+  <div class="card hot-list" style="margin-bottom:20px;">
+    ${savedPlans.map(p=>`
+      <div class="hot-row" style="cursor:pointer;" data-load-tlc="${p.id}">
+        <div style="flex:1;min-width:0;">
+          <div class="job">${p.projectName||'Untitled'}${p.site?` <span style="color:var(--text-faint);font-size:11px;">${p.site}</span>`:''}</div>
+          <div class="meta">${needDateLabel(p.date)} · ${p.trailerType}' trailer · ${p.trailersRequired} trailer${p.trailersRequired!==1?'s':''} required · ${Math.round((p.capacityUtilization||0)*100)}% full</div>
+        </div>
+        ${canEdit ? `<button class="btn-danger" data-delete-tlc="${p.id}">Delete</button>` : ''}
+      </div>`).join('')}
+  </div>` : ''}
+
+  <div class="toolbar" style="margin-top:0;">
+    <div class="section-title" style="margin:0;"><span class="bar"></span>Trailer Load Calculator <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(will it fit on one semi?)</span></div>
+    <button class="btn-ghost" id="tlc-new-btn">+ New Load Plan</button>
+  </div>
+
+  <div class="form-grid" style="margin-bottom:18px;">
+    <div class="field"><label>Project Name</label><input id="tlc-projectName" value="${d.projectName||''}"></div>
+    <div class="field"><label>Site / Location</label><input id="tlc-site" value="${d.site||''}"></div>
+    <div class="field"><label>Date</label><input id="tlc-date" type="date" value="${d.date||todayISO()}"></div>
+    <div class="field"><label>Prepared By</label><input id="tlc-preparedBy" value="${d.preparedBy||''}"></div>
+  </div>
+
+  <div class="dash-grid" style="margin-bottom:22px;">
+    <div class="card" style="padding:16px;">
+      <div class="section-title" style="margin-top:0;"><span class="bar"></span>Settings</div>
+      <div class="form-grid">
+        <div class="field"><label>Trailer Type</label>
+          <select id="tlc-trailerType">
+            <option value="53" ${d.trailerType===53?'selected':''}>53 ft</option>
+            <option value="48" ${d.trailerType===48?'selected':''}>48 ft</option>
+          </select>
+        </div>
+        <div class="field"><label>Use Blue Carts?</label>
+          <select id="tlc-useBlueCarts">
+            <option value="yes" ${d.useBlueCarts?'selected':''}>Yes — use carts</option>
+            <option value="no" ${!d.useBlueCarts?'selected':''}>No — loose ductwork</option>
+          </select>
+        </div>
+        <div class="field"><label>Usable Height Deduction (ft)</label><input id="tlc-heightDeduction" type="number" min="0" max="9" step="0.5" value="${d.usableHeightDeduction}"></div>
+        <div class="field"><label>Semi Interior Height (ft)</label><input id="tlc-semiHeight" type="number" min="1" step="0.5" value="${d.semiInteriorHeight}"></div>
+        <div class="field"><label>Semi Interior Width (in)</label><input id="tlc-semiWidth" type="number" min="1" value="${d.semiInteriorWidthIn}"></div>
+        <div class="field"></div>
+        <div class="field"><label>Cart Height (ft)</label><input id="tlc-cartHeight" type="number" min="0.5" step="0.5" value="${d.cartHeight}"></div>
+        <div class="field"><label>Cart Width (ft)</label><input id="tlc-cartWidth" type="number" min="0.5" step="0.5" value="${d.cartWidth}"></div>
+        <div class="field"><label>Cart Length (ft)</label><input id="tlc-cartLength" type="number" min="0.5" step="0.5" value="${d.cartLength}"></div>
+      </div>
+    </div>
+    <div class="card" style="padding:16px;">
+      <div class="section-title" style="margin-top:0;"><span class="bar"></span>Results</div>
+      <div class="stat-row" style="grid-template-columns:repeat(2,1fr);margin-bottom:14px;">
+        <div class="card stat-box" id="tlc-trailers-required-card"><div class="val mono" id="tlc-trailers-required">1</div><div class="lbl">Trailers Required</div></div>
+        <div class="card stat-box"><div class="val mono" id="tlc-utilization">0%</div><div class="lbl">Capacity Utilization</div></div>
+      </div>
+      <div style="font-size:12.5px;color:var(--text-dim);line-height:1.9;">
+        Total Packet Volume: <b class="mono" id="tlc-total-volume" style="color:var(--text);float:right;">0 cu ft</b><br>
+        Effective Trailer Capacity: <b class="mono" id="tlc-effective-capacity" style="color:var(--text);float:right;">0 cu ft</b><br>
+        Over / Under: <b class="mono" id="tlc-over-under" style="color:var(--text);float:right;">0 cu ft</b><br>
+        Total Blue Carts Per Semi: <b class="mono" id="tlc-carts-per-semi" style="color:var(--text);float:right;">0</b><br>
+      </div>
+      <div class="table-wrap" style="margin-top:14px;">
+        <table>
+          <thead><tr><th>Trailer #</th><th>Load (cu ft)</th><th>Utilization</th></tr></thead>
+          <tbody id="tlc-distribution-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <div class="section-title" style="margin:0;"><span class="bar"></span>Packet Manifest</div>
+    <button class="btn-ghost" id="tlc-add-row-btn">+ Add Row</button>
+  </div>
+  <div class="table-wrap" style="margin-bottom:16px;">
+    <table>
+      <thead><tr><th>Packet #</th><th>Description</th><th>Qty</th><th>Volume Each (cu ft)</th><th>Packet Volume (cu ft)</th></tr></thead>
+      <tbody id="tlc-packet-body">${d.packets.map((p,i)=>tlcPacketRowHTML(i,p)).join('')}</tbody>
+    </table>
+  </div>
+  <div style="text-align:right;margin-bottom:26px;font-size:13px;color:var(--text-dim);">Total: <b class="mono" id="tlc-manifest-total" style="color:var(--text);">0 cu ft</b></div>
+
+  <div style="margin-bottom:40px;"><button class="btn-primary" id="tlc-save-btn">💾 Save Load Plan</button></div>
+  `;
+}
 function viewContacts(){
   const canEdit = state.role==='master'||state.role==='manager';
   const s = (state.contactSearch||'').toLowerCase();
@@ -3211,6 +3430,7 @@ function bindMainEvents(){
   document.querySelectorAll('#main [data-view]').forEach(b=>b.addEventListener('click',()=>{ state.view=b.dataset.view; render(); }));
   const moreNewOrder = document.getElementById('more-new-order'); if(moreNewOrder) moreNewOrder.addEventListener('click', openAddModal);
   const moreNewMaterial = document.getElementById('more-new-material'); if(moreNewMaterial) moreNewMaterial.addEventListener('click', ()=> openMaterialModal());
+  const moreNewLoadlist = document.getElementById('more-new-loadlist'); if(moreNewLoadlist) moreNewLoadlist.addEventListener('click', ()=> openLoadListModal(null));
   const moreLogMetal = document.getElementById('more-log-metal'); if(moreLogMetal) moreLogMetal.addEventListener('click', ()=> openMetalModal(null));
   const moreReportIssue = document.getElementById('more-report-issue'); if(moreReportIssue) moreReportIssue.addEventListener('click', ()=> document.getElementById('report-issue-btn').click());
   const morePushToggle = document.getElementById('more-push-toggle');
@@ -3320,6 +3540,19 @@ function bindMainEvents(){
   if(contactSearch) contactSearch.addEventListener('input', ()=>{ state.contactSearch = contactSearch.value; renderContactsOnly(); });
   const newContactBtn = document.getElementById('new-contact-btn'); if(newContactBtn) newContactBtn.addEventListener('click', ()=> openContactModal(null));
   document.querySelectorAll('[data-edit-contact]').forEach(b=>b.addEventListener('click', ()=> openContactModal(b.dataset.editContact)));
+  const loadListSearch = document.getElementById('loadlist-search');
+  if(loadListSearch) loadListSearch.addEventListener('input', ()=>{ state.loadListSearch = loadListSearch.value; renderLoadListsOnly(); });
+  const newLoadListBtn = document.getElementById('new-loadlist-btn-inline'); if(newLoadListBtn) newLoadListBtn.addEventListener('click', ()=> openLoadListModal(null));
+  document.querySelectorAll('[data-edit-loadlist]').forEach(b=>b.addEventListener('click', ()=> openLoadListModal(b.dataset.editLoadlist)));
+  document.querySelectorAll('[data-advance-loadlist]').forEach(b=>b.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    const l = (state.loadLists||[]).find(x=>x.id===b.dataset.advanceLoadlist);
+    if(!l) return;
+    const next = LOADLIST_ADVANCE[l.status];
+    if(!next) return;
+    l.status = next;
+    saveState(); toast(`Load list marked ${next}.`); render();
+  }));
   const reportPrev = document.getElementById('report-week-prev');
   if(reportPrev) reportPrev.addEventListener('click', ()=>{ const d=new Date(state.reportWeek+'T00:00:00'); d.setDate(d.getDate()-7); state.reportWeek=mondayISO(d.toISOString().slice(0,10)); render(); });
   const reportNext = document.getElementById('report-week-next');
@@ -3504,6 +3737,12 @@ function renderContactsOnly(){
   bindMainEvents();
   const s = document.getElementById('contact-search'); if(s){ s.focus(); s.setSelectionRange(s.value.length,s.value.length); }
 }
+function renderLoadListsOnly(){
+  const main = document.getElementById('main');
+  main.innerHTML = viewLoadLists();
+  bindMainEvents();
+  const s = document.getElementById('loadlist-search'); if(s){ s.focus(); s.setSelectionRange(s.value.length,s.value.length); }
+}
 function renderHistoricalOnly(){
   render();
   const s = document.getElementById('completed-history-search');
@@ -3556,6 +3795,14 @@ async function renderJobModal(){
       <div class="field"><label>TO # (Take Off #)</label><input id="f-toNumber" type="number" value="${job.toNumber!=null?job.toNumber:''}" placeholder="e.g. 100" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>Trailer / Location</label><select id="f-trailer" ${canEdit?'':'disabled'}>${trailerOptionsHTML(job.trailer)}</select></div>
       <div class="field"><label>Need Date</label><input id="f-needdate" type="date" value="${job.needDate||''}" ${canEdit?'':'disabled'}></div>
+      <div class="field">
+        <label>Delivery Time</label>
+        <select id="f-deliverytime" ${canEdit?'':'disabled'}>
+          <option value="">— Not set —</option>
+          ${DELIVERY_TIME_OPTIONS.map(([k,label])=>`<option value="${k}" ${job.deliveryTime===k?'selected':''}>${label}</option>`).join('')}
+        </select>
+        <input id="f-deliverytime-specific" type="time" value="${job.deliveryTimeSpecific||''}" style="margin-top:6px;${job.deliveryTime==='specific'?'':'display:none;'}" ${canEdit?'':'disabled'}>
+      </div>
       <div class="field"><label>Order Qty</label><input id="f-qty" type="number" value="${job.qty}" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>Weight (lbs)</label><input id="f-weight" type="number" value="${job.weight}" ${canEdit?'':'disabled'}></div>
       <div class="field"><label>Shipping Method</label>
@@ -3577,6 +3824,11 @@ async function renderJobModal(){
     </div>`;
     foot.innerHTML = canEdit ? `<button class="btn-danger" id="delete-job-btn">Delete Job</button><button class="btn-primary" id="save-job-btn">Save Changes</button>` : '';
     if(canEdit){
+      const fDeliveryTimeSel = document.getElementById('f-deliverytime');
+      const fDeliveryTimeSpecific = document.getElementById('f-deliverytime-specific');
+      if(fDeliveryTimeSel) fDeliveryTimeSel.addEventListener('change', ()=>{
+        fDeliveryTimeSpecific.style.display = fDeliveryTimeSel.value==='specific' ? '' : 'none';
+      });
       document.getElementById('save-job-btn').onclick = ()=>{
         const toNumberRaw = val('f-toNumber');
         if(toNumberRaw && isToNumberTaken(toNumberRaw, job.id)){
@@ -3586,6 +3838,7 @@ async function renderJobModal(){
         const patch = {
           jobName: val('f-jobName'), jobNumber: val('f-jobNumber'), division: val('f-division'), customer: val('f-customer'), requesterEmail: val('f-email'),
           system: val('f-system'), area: val('f-area'), sketchNumber: val('f-sketchNumber'), toNumber: toNumberRaw ? Number(toNumberRaw) : null, trailer: val('f-trailer'), needDate: val('f-needdate'),
+          deliveryTime: val('f-deliverytime'), deliveryTimeSpecific: val('f-deliverytime-specific'),
           qty: Number(val('f-qty')), weight: Number(val('f-weight')), shippingMethod: val('f-shipping'),
           labelColor: val('f-color'), secondaryColor: val('f-color2'), notes: val('f-notes'), priority: val('f-priority')
         };
@@ -4094,6 +4347,136 @@ document.getElementById('material-save-btn').addEventListener('click', async ()=
   notifyNewJob(job);
 });
 
+function openLoadListModal(existingId){
+  editingLoadListId = existingId || null;
+  const existing = existingId ? (state.loadLists||[]).find(l=>l.id===existingId) : null;
+  document.getElementById('loadlist-modal-title').textContent = existing ? 'Edit Load List' : 'New Load List';
+  document.getElementById('loadlist-modal-body').innerHTML = `
+    <div class="form-grid">
+      <div class="field"><label>Date</label><input id="ll-date" type="date" value="${existing?existing.date:todayISO()}"></div>
+      <div class="field"><label>Project Name <span style="color:var(--red);">*</span></label><input id="ll-projectName" value="${existing?existing.projectName||'':''}"></div>
+      <div class="field"><label>Project #</label><input id="ll-projectNumber" value="${existing?existing.projectNumber||'':''}"></div>
+      <div class="field" style="grid-column:1/-1;display:flex;align-items:flex-end;">
+        <button type="button" class="btn-ghost" id="ll-autofill-btn">🔄 Auto-Fill from Schedule <span style="color:var(--text-faint);font-size:10px;">(pulls duct orders &amp; material requests due on this date, for this project)</span></button>
+      </div>
+      <div class="field" style="grid-column:1/-1;"><label>Project Address</label><input id="ll-projectAddress" value="${existing?existing.projectAddress||'':''}"></div>
+      <div class="field"><label>Field Contact</label><input id="ll-fieldContact" value="${existing?existing.fieldContact||'':''}"></div>
+      <div class="field"><label>Phone #</label><input id="ll-fieldPhone" type="tel" value="${existing?existing.fieldPhone||'':''}"></div>
+    </div>
+    <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Delivery Time</div>
+    <div class="form-grid">
+      <div class="field">
+        <select id="ll-deliveryTime">
+          <option value="">— Not set —</option>
+          ${DELIVERY_TIME_OPTIONS.map(([k,label])=>`<option value="${k}" ${existing&&existing.deliveryTime===k?'selected':''}>${label}</option>`).join('')}
+        </select>
+        <input id="ll-deliveryTimeSpecific" type="time" value="${existing?existing.deliveryTimeSpecific||'':''}" style="margin-top:6px;${existing&&existing.deliveryTime==='specific'?'':'display:none;'}">
+      </div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;flex-direction:row;">
+        <input type="checkbox" id="ll-priorityHot" style="width:auto;" ${existing&&existing.priorityHot?'checked':''}>
+        <label style="margin:0;text-transform:none;font-size:13px;">🔥 Priority / Hot Load</label>
+      </div>
+    </div>
+    <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Truck Type</div>
+    <div style="display:flex;flex-wrap:wrap;gap:14px;padding:4px 0;">
+      ${TRUCK_TYPES.map(t=>`
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-dim);cursor:pointer;">
+          <input type="checkbox" class="ll-trucktype" value="${t}" style="width:auto;" ${existing&&(existing.truckTypes||[]).includes(t)?'checked':''}> ${t}
+        </label>`).join('')}
+    </div>
+    <div class="section-title" style="margin-top:18px;"><span class="bar"></span>Requested Items</div>
+    <div class="form-grid">
+      <div class="field" style="grid-column:1/-1;"><label>Parts</label><textarea id="ll-parts">${existing?existing.parts||'':''}</textarea></div>
+      <div class="field" style="grid-column:1/-1;"><label>Sheet Shop</label><textarea id="ll-sheetShop">${existing?existing.sheetShop||'':''}</textarea></div>
+      <div class="field" style="grid-column:1/-1;"><label>Pipe Shop</label><textarea id="ll-pipeShop">${existing?existing.pipeShop||'':''}</textarea></div>
+      <div class="field" style="grid-column:1/-1;"><label>Equipment Orders</label><textarea id="ll-equipmentOrders">${existing?existing.equipmentOrders||'':''}</textarea></div>
+      <div class="field" style="grid-column:1/-1;"><label>Tool Orders</label><textarea id="ll-toolOrders">${existing?existing.toolOrders||'':''}</textarea></div>
+      <div class="field" style="grid-column:1/-1;"><label>Returns</label><textarea id="ll-returns">${existing?existing.returns||'':''}</textarea></div>
+      <div class="field" style="grid-column:1/-1;"><label>Comments</label><textarea id="ll-comments">${existing?existing.comments||'':''}</textarea></div>
+    </div>
+    <div class="form-grid" style="margin-top:6px;">
+      <div class="field"><label>Requested By</label><input id="ll-requestedBy" value="${existing?existing.requestedBy||'':state.userName||''}"></div>
+      <div class="field"><label>Approved By</label><input id="ll-approvedBy" value="${existing?existing.approvedBy||'':''}"></div>
+    </div>
+    ${existing ? `<button class="btn-danger" id="loadlist-delete-btn" style="margin-top:16px;">Delete Load List</button>` : ''}
+  `;
+  const llDeliveryTimeSel = document.getElementById('ll-deliveryTime');
+  const llDeliveryTimeSpecific = document.getElementById('ll-deliveryTimeSpecific');
+  llDeliveryTimeSel.addEventListener('change', ()=>{
+    llDeliveryTimeSpecific.style.display = llDeliveryTimeSel.value==='specific' ? '' : 'none';
+  });
+  const delBtn = document.getElementById('loadlist-delete-btn');
+  if(delBtn) delBtn.onclick = ()=>{
+    if(confirm('Delete this load list?')){
+      state.loadLists = state.loadLists.filter(l=>l.id!==existingId);
+      saveState(); closeModal('loadlist-modal'); toast('Load list deleted.'); render();
+    }
+  };
+  document.getElementById('ll-autofill-btn').addEventListener('click', autoFillLoadListFromSchedule);
+  openModal('loadlist-modal');
+}
+function appendUniqueLine(currentText, newLine){
+  const existingLines = (currentText||'').split('\n').map(l=>l.trim()).filter(Boolean);
+  if(existingLines.includes(newLine.trim())) return currentText;
+  return existingLines.concat(newLine.trim()).join('\n');
+}
+function autoFillLoadListFromSchedule(){
+  const projectName = val('ll-projectName').trim();
+  const projectNumber = val('ll-projectNumber').trim();
+  const date = val('ll-date');
+  if(!date){ toast('Set a Date first, then Auto-Fill will pull anything due that day.'); return; }
+  if(!projectName && !projectNumber){ toast('Enter a Project Name or Project # first, so Auto-Fill knows what to look for.'); return; }
+  const matches = state.jobs.filter(j=>{
+    if(j.needDate !== date) return false;
+    if(j.status==='Delivered/Picked Up') return false;
+    const nameMatch = projectName && j.jobName && j.jobName.trim().toLowerCase()===projectName.toLowerCase();
+    const numMatch = projectNumber && j.jobNumber && j.jobNumber.trim().toLowerCase()===projectNumber.toLowerCase();
+    return nameMatch || numMatch;
+  });
+  if(!matches.length){ toast(`No scheduled duct orders or material requests found for that project on ${needDateLabel(date)}.`, 6000); return; }
+  const ductOrders = matches.filter(j=>j.orderType!=='Material');
+  const materialRequests = matches.filter(j=>j.orderType==='Material');
+  let sheetShopText = val('ll-sheetShop');
+  ductOrders.forEach(j=>{
+    const line = `${j.system||'Duct'} (${j.jobNumber})${j.sketchNumber?' · Sketch #'+j.sketchNumber:''} — Qty ${j.qty}, ${fmt(j.weight)} lbs`;
+    sheetShopText = appendUniqueLine(sheetShopText, line);
+  });
+  document.getElementById('ll-sheetShop').value = sheetShopText;
+  let partsText = val('ll-parts');
+  materialRequests.forEach(j=>{
+    const itemLines = MATERIAL_ITEMS.filter(([k])=> j.materials && j.materials[k] && (j.materials[k].checked || j.materials[k].qty))
+      .map(([k,label,unit])=> `${label}${j.materials[k].qty?': '+j.materials[k].qty+' '+unit:''}`);
+    if(j.otherItems) itemLines.push(j.otherItems);
+    itemLines.forEach(line=>{ partsText = appendUniqueLine(partsText, line); });
+  });
+  document.getElementById('ll-parts').value = partsText;
+  toast(`Pulled in ${ductOrders.length} duct order${ductOrders.length!==1?'s':''} and ${materialRequests.length} material request${materialRequests.length!==1?'s':''}. Review and edit before submitting.`, 6000);
+}
+let editingLoadListId = null;
+document.getElementById('loadlist-save-btn').addEventListener('click', ()=>{
+  const projectName = val('ll-projectName');
+  if(!projectName.trim()){ toast('Project Name is required.'); return; }
+  const truckTypes = Array.from(document.querySelectorAll('.ll-trucktype:checked')).map(el=>el.value);
+  const existing = editingLoadListId ? (state.loadLists||[]).find(l=>l.id===editingLoadListId) : null;
+  const record = {
+    id: existing ? existing.id : uid(),
+    date: val('ll-date'), projectName, projectNumber: val('ll-projectNumber'), projectAddress: val('ll-projectAddress'),
+    fieldContact: val('ll-fieldContact'), fieldPhone: val('ll-fieldPhone'),
+    deliveryTime: val('ll-deliveryTime'), deliveryTimeSpecific: val('ll-deliveryTimeSpecific'),
+    priorityHot: document.getElementById('ll-priorityHot').checked, truckTypes,
+    parts: val('ll-parts'), sheetShop: val('ll-sheetShop'), pipeShop: val('ll-pipeShop'),
+    equipmentOrders: val('ll-equipmentOrders'), toolOrders: val('ll-toolOrders'), returns: val('ll-returns'), comments: val('ll-comments'),
+    requestedBy: val('ll-requestedBy'), approvedBy: val('ll-approvedBy'),
+    status: existing ? existing.status : 'Open',
+    createdBy: existing ? existing.createdBy : state.userName,
+    createdAt: existing ? existing.createdAt : nowStr()
+  };
+  state.loadLists = state.loadLists || [];
+  if(existing){ state.loadLists = state.loadLists.map(l=> l.id===existing.id ? record : l); }
+  else { state.loadLists.unshift(record); }
+  saveState(); closeModal('loadlist-modal'); toast(existing?'Load list updated.':'Load list submitted.'); render();
+});
+
 let editingMetalId = null;
 let editingContactId = null;
 function refreshJobNamePickerIfOpen(){
@@ -4290,7 +4673,7 @@ function openDayDetailModal(iso){
     <div class="qc-item" data-open="${j.id}" style="cursor:pointer;">
       <div class="qh"><span>${j.jobNumber}${j.division?' · '+j.division:''}</span><span class="status ${STATUS_CLASS[j.status]}">${j.status}</span></div>
       <div class="qd">${orderTypeIcon(j)}<b>${j.jobName}</b>${priorityBadge(j)}</div>
-      <div class="qd" style="margin-top:4px;color:var(--text-faint);font-size:11.5px;">${j.shippingMethod==='Pickup'?'📦 Pickup':'🚚 Deliver'} · ${fmt(j.weight)} lbs${j.system?' · '+j.system:''}</div>
+      <div class="qd" style="margin-top:4px;color:var(--text-faint);font-size:11.5px;">${j.shippingMethod==='Pickup'?'📦 Pickup':'🚚 Deliver'}${deliveryTimeLabel(j)?' · ⏰ '+deliveryTimeLabel(j):''} · ${fmt(j.weight)} lbs${j.system?' · '+j.system:''}</div>
     </div>`).join('') : '<div class="empty">No jobs need this date.</div>';
   document.querySelectorAll('#day-detail-body [data-open]').forEach(el=>el.addEventListener('click',()=>{
     closeModal('day-detail-modal'); openJob(el.dataset.open);
@@ -4357,6 +4740,14 @@ function openAddModal(){
     </div>
     <div class="field"><label>Date Submitted</label><input id="n-date" type="date" value="${todayISO()}"></div>
     <div class="field"><label>Need Date <span style="color:var(--red);">*</span></label><input id="n-needdate" type="date"></div>
+    <div class="field">
+      <label>Delivery Time</label>
+      <select id="n-deliverytime">
+        <option value="">— Not set —</option>
+        ${DELIVERY_TIME_OPTIONS.map(([k,label])=>`<option value="${k}">${label}</option>`).join('')}
+      </select>
+      <input id="n-deliverytime-specific" type="time" style="display:none;margin-top:6px;">
+    </div>
     <div class="field"><label>Shipping Method <span style="color:var(--red);">*</span></label><select id="n-shipping"><option value="">— Select —</option><option>Deliver</option><option>Pickup</option></select></div>
     <div class="field"><label>Order Qty <span style="color:var(--red);">*</span></label><input id="n-qty" type="number" value="1" min="1"></div>
     ${isField ? '' : `<div class="field"><label>Weight (lbs)</label><input id="n-weight" type="number" value="0"></div>`}
@@ -4452,6 +4843,11 @@ function openAddModal(){
     pdfInput.value='';
   });
   wireDropZone('n-pdf-dropzone', 'application/pdf', processNewJobPdfFiles);
+  const deliveryTimeSel = document.getElementById('n-deliverytime');
+  const deliveryTimeSpecific = document.getElementById('n-deliverytime-specific');
+  deliveryTimeSel.addEventListener('change', ()=>{
+    deliveryTimeSpecific.style.display = deliveryTimeSel.value==='specific' ? '' : 'none';
+  });
   renderNewJobPhotoGallery();
   renderNewJobPdfList();
   openModal('add-modal');
@@ -4497,6 +4893,7 @@ document.getElementById('add-save-btn').addEventListener('click', async ()=>{
     qty:Number(val('n-qty')), weight:Number(val('n-weight')), priority:val('n-priority'), labelColor:val('n-color'), secondaryColor:val('n-color2'),
     notes:val('n-notes'), status:'Pending', hasPhoto:false, photoKeys:[], pdfFiles:[], drawingType:'Field Drwg', sketchNumber:val('n-sketchNumber'),
     toNumber: toNumberRaw ? Number(toNumberRaw) : null,
+    deliveryTime: val('n-deliverytime'), deliveryTimeSpecific: val('n-deliverytime-specific'),
     manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Job created by ${state.userName}.`}], qc:[]
   };
   const saveBtn = document.getElementById('add-save-btn');
@@ -4555,6 +4952,7 @@ function resetQcReportForm(){
 }
 document.getElementById('new-order-btn').addEventListener('click', openAddModal);
 document.getElementById('new-material-btn-global').addEventListener('click', ()=> openMaterialModal());
+document.getElementById('new-loadlist-btn-global').addEventListener('click', ()=> openLoadListModal(null));
 document.getElementById('new-metal-btn-global').addEventListener('click', ()=> openMetalModal(null));
 document.getElementById('lightbox-print-btn').addEventListener('click', ()=> printImage(lightboxCurrent.url, lightboxCurrent.caption));
 document.querySelectorAll('.mtab').forEach(b=>b.addEventListener('click', ()=>{
@@ -4569,11 +4967,12 @@ document.querySelectorAll('[data-fab-action]').forEach(b=>b.addEventListener('cl
   const action = b.dataset.fabAction;
   if(action==='order') openAddModal();
   else if(action==='material') openMaterialModal();
+  else if(action==='loadlist') openLoadListModal(null);
   else if(action==='qc') document.getElementById('report-issue-btn').click();
 }));
 function updateMobileTabbar(){
   document.querySelectorAll('.mtab').forEach(b=>{
-    const mapped = b.dataset.mtab==='managers' ? ['managers'] : b.dataset.mtab==='more' ? ['more','dashboard','completed','delivered','contacts'] : [b.dataset.mtab];
+    const mapped = b.dataset.mtab==='managers' ? ['managers'] : b.dataset.mtab==='more' ? ['more','dashboard','completed','delivered','contacts','loadlists'] : [b.dataset.mtab];
     b.classList.toggle('active', mapped.includes(state.view));
   });
   const openQc = state.jobs.some(j=>(j.qc||[]).some(q=>q.status==='Open'));
