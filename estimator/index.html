@@ -917,6 +917,21 @@ const jobsCollection = jobsDb.collection('jobs');
 </script>
 <script>
 const GLBS={16:2.656,18:2.156,20:1.656,22:1.406,24:1.156,26:0.906};
+/* GLBS is the standard galvanized-steel (MSG + G90 coating) weight-per-sqft
+   table — verified against a published galvanized sheet metal weight chart
+   (exact match at every gauge). But it was previously applied to EVERY metal
+   type, which is wrong: aluminum and stainless are not the same weight per
+   gauge as galvanized steel. Aluminum in particular uses a different gauge
+   system (thinner at the same nominal number) AND a much lower density —
+   industry duct-weight tools put aluminum at roughly 1/3 the weight of
+   galvanized steel at the "same" gauge; stainless is close to galvanized
+   (~2% heavier, nearly identical density). Applying GLBS unmodified to
+   aluminum duct was overweighing (and overcharging on a $/lb basis) it by
+   roughly 3x. Black iron, paintgrip/galvanneal, and perforated stay at 1.0x
+   for now — pending confirmed correction factors, not because they're
+   necessarily identical to galvanized. */
+const MATERIAL_WT_FACTOR={galv:1,paintgrip:1,ss:1.02,alum:0.35,perf:1,black:1};
+function matWtFactor(m){return MATERIAL_WT_FACTOR[m]!=null?MATERIAL_WT_FACTOR[m]:1;}
 
 /* ── SMACNA MINIMUM GAUGE CHECK ──
    Typical SMACNA minimum gauge for galvanized unreinforced low-pressure
@@ -1637,7 +1652,7 @@ function addRect(){
   }
   const ppLb=rp(base,g,ov);
   if(!ppLb){alert('No price for this metal/gauge. Enter a $/lb override or update Settings.');return;}
-  const lbsEa=2*(w+h)/12*len*(GLBS[g]||1.156);
+  const lbsEa=2*(w+h)/12*len*(GLBS[g]||1.156)*matWtFactor(base||metal);
   const tLbs=lbsEa*qty;
   const mLabel=isDW?(dwSkin==='perf'?'Dual wall \u2014 perf':'Dual wall \u2014 solid'):(METALS[metal]?.label||metal);
   const weldChk=document.getElementById('r-weld-chk');
@@ -1691,7 +1706,7 @@ function addRound(){
   if(!dia||!len){alert('Enter diameter and length.');return;}
   const ppLb=rp(metal,g,ov);
   if(!ppLb&&CO()<=0){alert('Enter a charge-out rate in Settings, or a \$/lb override on this item.');return;}
-  const lbsEa=Math.PI*dia/12*len*(GLBS[g]||1.156);
+  const lbsEa=Math.PI*dia/12*len*(GLBS[g]||1.156)*matWtFactor(metal);
   // Round liner sqft = circumference_ft × length × qty
   const lSqft=roLiner!=='none'?Math.PI*dia/12*len*qty:0;
   const lCost=lSqft*lp(roLiner);
@@ -1908,8 +1923,8 @@ function updFitDimLabels(){
   }
 }
 
-function calcFitLbs(type,fw1,fh1,fw2,fh2,fl,gauge,fw3,fh3){
-  const wt=GLBS[gauge]||1.156;
+function calcFitLbs(type,fw1,fh1,fw2,fh2,fl,gauge,fw3,fh3,metal){
+  const wt=(GLBS[gauge]||1.156)*matWtFactor(metal);
   const info=FIT_FACTORS[type]||{factor:1.20};
   if(type==='Drain pan'){
     // Box geometry: flat bottom (W x L) + 4 upturned sides at the given depth.
@@ -1940,6 +1955,7 @@ function calcFitLbs(type,fw1,fh1,fw2,fh2,fl,gauge,fw3,fh3){
 function updFitWt(){
   const type=document.getElementById('f-type').value;
   const g=parseInt(document.getElementById('f-gauge').value)||24;
+  const metal=document.getElementById('f-metal').value;
   const fw1=parseFloat(document.getElementById('f-w1').value)||null;
   const fh1=parseFloat(document.getElementById('f-h1').value)||null;
   const fw2=parseFloat(document.getElementById('f-w2').value)||null;
@@ -1955,7 +1971,7 @@ function updFitWt(){
     flbl.textContent='enter dims + length';
     return;
   }
-  const lbsEa=calcFitLbs(type,fw1,fh1,fw2,fh2,fl,g,fw3,fh3);
+  const lbsEa=calcFitLbs(type,fw1,fh1,fw2,fh2,fl,g,fw3,fh3,metal);
   prev.textContent=lbsEa.toFixed(2)+' lbs';
   flbl.textContent=info.note;
 }
@@ -1999,7 +2015,7 @@ function addFit(){
   if(!fw1&&!fw2&&!fw3&&!fh1&&!fh2&&!fh3){alert('Enter at least one dimension (width or height).');return;}
   const ppLb=rp(metal,g,ov);
   if(!ppLb&&CO()<=0){alert('Enter a charge-out rate in Settings, or a \$/lb override on this item.');return;}
-  const lbsEa=calcFitLbs(type,fw1,fh1,fw2,fh2,fl,g,fw3,fh3);
+  const lbsEa=calcFitLbs(type,fw1,fh1,fw2,fh2,fl,g,fw3,fh3,metal);
   const lCost=fLiner!=='none'?fLsqft*lp(fLiner):0;
   const info=FIT_FACTORS[type]||{factor:1.20,note:'×1.20'};
   const fWeldChk=document.getElementById('f-weld-chk');
@@ -2806,7 +2822,7 @@ function parseCAMductCSV(text,fname){
       }
       if(!ppLb){skipped.push(`#${g(col.itemno)} no price set for ${metal} ${gauge}ga — add it in Settings`);return;}
       const lenFt=parseFloat((lenAngle/12).toFixed(3));
-      const lbsEa=2*(side1.w+side1.h)/12*lenFt*(GLBS[gauge]||1.156);
+      const lbsEa=2*(side1.w+side1.h)/12*lenFt*(GLBS[gauge]||1.156)*matWtFactor(metal);
       const rid=nid++;
       items.rect.push({id:rid,desc:desc||'Straight',metal,base:metal,
         mLabel:METALS[metal]?.label||metal,g:gauge,w:side1.w,h:side1.h,
@@ -2821,7 +2837,7 @@ function parseCAMductCSV(text,fname){
     } else {
       if(!ppLb){skipped.push(`#${g(col.itemno)} no price for ${metal} ${gauge}ga`);return;}
       const fl=isAngle?null:lenAngle;
-      const lbsEa=calcFitLbs(ftype,side1.w,side1.h,side2.w,side2.h,fl||(side1.w||12),gauge);
+      const lbsEa=calcFitLbs(ftype,side1.w,side1.h,side2.w,side2.h,fl||(side1.w||12),gauge,null,null,metal);
       const info=FIT_FACTORS[ftype]||{factor:1.2};
       items.fit.push({id:nid++,desc:desc||ftype,type:ftype,metal,
         mLabel:METALS[metal]?.label||metal,g:gauge,
@@ -3464,7 +3480,7 @@ function parseFabShop(text,fname){
       }
       if(!ppLb){skipped.push(`FN=${f['FN']}: no price for ${metal} ${gauge}ga`);return;}
       const lenFt=parseFloat((lenIn/12).toFixed(4));
-      const lbsEa=2*(w1+d1)/12*lenFt*(GLBS[gauge]||1.156);
+      const lbsEa=2*(w1+d1)/12*lenFt*(GLBS[gauge]||1.156)*matWtFactor(metal);
       const lSqft=linerKey?2*(w1+d1)/12*lenFt*qty:0;
       const lCost=lSqft*lp(linerKey||'none');
       const rid=nid++;
@@ -3486,7 +3502,7 @@ function parseFabShop(text,fname){
       // Fitting
       if(!ppLb){skipped.push(`FN=${f['FN']}: no price for ${metal} ${gauge}ga`);return;}
       const fl=lenIn; // length in inches for fittings
-      const lbsEa=calcFitLbs(type,w1,d1,w2,d2,fl||(w1||12),gauge);
+      const lbsEa=calcFitLbs(type,w1,d1,w2,d2,fl||(w1||12),gauge,null,null,metal);
       const lSqft=0; // manual entry for fittings
       const lCost=0;
       const info=FIT_FACTORS[type]||{factor:1.2};
