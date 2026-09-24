@@ -431,12 +431,35 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
         <div class="field"><label>Gauge</label><select id="ro-gauge" onchange="updGaugeCheckRound()"></select></div>
       </div>
       <div class="g4 mb">
-        <div class="field"><label>Diameter (in)</label><input type="number" id="ro-dia" min="1" placeholder="12" oninput="updRoundWeld();updGaugeCheckRound()"></div>
-        <div class="field"><label>Length (ft)</label><input type="number" id="ro-len" min="0.1" step="0.5" placeholder="20" oninput="updRoundWeld()"></div>
-        <div class="field"><label>Qty (pcs)</label><input type="number" id="ro-qty" min="1" placeholder="1" oninput="updRoundWeld()"></div>
+        <div class="field"><label>Diameter (in)</label><input type="number" id="ro-dia" min="1" placeholder="12" oninput="updRoundWeld();updGaugeCheckRound();updRoundReinfPreview()"></div>
+        <div class="field"><label>Length (ft)</label><input type="number" id="ro-len" min="0.1" step="0.5" placeholder="20" oninput="updRoundWeld();updRoundReinfPreview()"></div>
+        <div class="field"><label>Qty (pcs)</label><input type="number" id="ro-qty" min="1" placeholder="1" oninput="updRoundWeld();updRoundReinfPreview()"></div>
         <div class="field"><label>$/lb override</label><input type="number" id="ro-pprice" step="0.01" min="0" placeholder="auto"></div>
       </div>
       <div id="ro-gauge-warn" style="display:none;background:#fff4e0;border:1px solid #e0a530;color:#8a5a00;border-radius:var(--r);padding:8px 12px;font-size:12px;margin-bottom:12px;"></div>
+      <div class="g3 mb">
+        <div class="field"><label>Pressure class</label>
+          <select id="ro-press" onchange="updRoundReinfPreview()">
+            <option value="0.5">1/2&Prime; w.g.</option>
+            <option value="1">1&Prime; w.g.</option>
+            <option value="2" selected>2&Prime; w.g.</option>
+            <option value="3">3&Prime; w.g.</option>
+            <option value="4">4&Prime; w.g.</option>
+            <option value="6">6&Prime; w.g.</option>
+            <option value="10">10&Prime; w.g.</option>
+          </select>
+        </div>
+        <div class="field"><label>Pressure direction</label>
+          <div class="radio-group">
+            <label class="radio-opt selected"><input type="radio" name="ro-press-dir" value="Positive" checked onchange="selRoPressDir(this);updRoundReinfPreview()"> Positive</label>
+            <label class="radio-opt"><input type="radio" name="ro-press-dir" value="Negative" onchange="selRoPressDir(this);updRoundReinfPreview()"> Negative</label>
+          </div>
+        </div>
+      </div>
+      <div id="ro-reinf-box" style="display:none;background:#fdf3ea;border:1px solid #d98c3f;border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:12px;color:#6e3d10;">
+        <div id="ro-reinf-detail"></div>
+        <div id="ro-reinf-cost" style="font-weight:600;margin-top:4px;"></div>
+      </div>
       <div class="field mb">
         <label>Liner</label>
         <select id="ro-liner" style="max-width:320px;">
@@ -1086,9 +1109,64 @@ function calcReinforcement(w,h,pressureVal,direction,lenFt){
   }
   return {emt,ext};
 }
+
+/* ── ROUND/SPIRAL DUCT REINFORCEMENT ──
+   Round duct is inherently much stiffer than a flat rectangular panel — the
+   circular cross-section resists collapse/bulging on its own — so it needs
+   far less reinforcement than rectangular duct at a comparable size and
+   pressure. It doesn't get EMT mid-panel ties at all (there's no flat span
+   for a tie bar to brace); the only category that applies here is exterior
+   stiffening rings/angle bands around the full circumference on large-
+   diameter and/or higher-pressure runs. Trigger thresholds are set higher
+   than rectangular's for the same reason. Same estimating-approximation
+   caveat as the rectangular version — verify against the real chart. */
+function calcRoundReinforcement(dia,pressureVal,direction,lenFt){
+  if(!dia||!lenFt) return {ring:null};
+  const p=parseFloat(pressureVal)||0;
+  let spacingFt;
+  if(p<=1) spacingFt=8;
+  else if(p<=2) spacingFt=6;
+  else if(p<=4) spacingFt=4;
+  else if(p<=6) spacingFt=3;
+  else spacingFt=2;
+  if(direction==='Negative') spacingFt*=0.75;
+  // Round is stiffer than rect, so the trigger sizes are larger and the
+  // reinforcement spacing (once triggered) is wider than rect's exterior band.
+  const triggered=dia>60||(p>=6&&dia>36)||(direction==='Negative'&&dia>48);
+  if(!triggered) return {ring:null};
+  const ringSpacingFt=spacingFt*2;
+  const numLocations=Math.max(1,Math.round(lenFt/ringSpacingFt)||1);
+  const circumferenceFt=Math.PI*dia/12;
+  const totalFt=circumferenceFt*numLocations;
+  const pricePerFt=EXT_PRICE();
+  const materialCost=totalFt*pricePerFt;
+  const installMins=numLocations*EXT_INSTALL_MIN();
+  const laborCost=(installMins/60)*(parseFloat(document.getElementById('p-wr')?.value)||95);
+  const ring={numLocations,type:'R Angle 2.5\u00d71.5, 10ga Galv (stiffening ring)',spacingFt:ringSpacingFt,circumferenceFt:parseFloat(circumferenceFt.toFixed(1)),totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost};
+  return {ring};
+}
+function selRoPressDir(r){
+  document.querySelectorAll('input[name="ro-press-dir"]').forEach(x=>x.parentElement.classList.remove('selected'));
+  r.parentElement.classList.add('selected');
+}
 function selPressDir(r){
   document.querySelectorAll('input[name="r-press-dir"]').forEach(x=>x.parentElement.classList.remove('selected'));
   r.parentElement.classList.add('selected');
+}
+function updRoundReinfPreview(){
+  const box=document.getElementById('ro-reinf-box');
+  if(!box) return;
+  const dia=parseFloat(document.getElementById('ro-dia').value)||0;
+  const len=parseFloat(document.getElementById('ro-len').value)||0;
+  const qty=parseFloat(document.getElementById('ro-qty').value)||1;
+  const press=document.getElementById('ro-press').value;
+  const dir=document.querySelector('input[name="ro-press-dir"]:checked')?.value||'Positive';
+  const {ring}=calcRoundReinforcement(dia,press,dir,len);
+  if(!ring){ box.style.display='none'; return; }
+  const totalCost=ring.totalCost*qty;
+  document.getElementById('ro-reinf-detail').innerHTML=`&#9888; ${dia}&Prime; diameter, ${len}' long at ${dir.toLowerCase()} ${press}&Prime; w.g. calls for stiffening rings every ~${ring.spacingFt}' &mdash; ${ring.numLocations} band${ring.numLocations===1?'':'s'} of ${ring.type} (full circumference, ~${ring.circumferenceFt}' each) per duct${qty>1?` &times; ${qty}pc`:''}.`;
+  document.getElementById('ro-reinf-cost').textContent=`+${fmt(totalCost)} (material + install)`;
+  box.style.display='block';
 }
 function updReinfPreview(){
   const box=document.getElementById('r-reinf-box');
@@ -1324,10 +1402,13 @@ function editRound(id){
   document.getElementById('ro-pprice').value=x.ov||'';
   document.getElementById('ro-liner').value=x.linerKey||'none';
   document.getElementById('ro-weld-chk').checked=!!x.welded;
+  document.getElementById('ro-press').value=x.pressClass||'2';
+  selectRadioByValue('ro-press-dir',x.pressDir||'Positive');
   editState.round=id;
   setAddBtnState('round',true);
   updRoundWeld();
   updGaugeCheckRound();
+  updRoundReinfPreview();
   document.getElementById('tab-round')?.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function editFit(id){
@@ -1710,6 +1791,7 @@ function resetRoundFormFields(){
   document.getElementById('ro-weld-detail').textContent='';
   document.getElementById('ro-weld-cost').textContent='';
   const rogw=document.getElementById('ro-gauge-warn'); if(rogw) rogw.style.display='none';
+  const rorb=document.getElementById('ro-reinf-box'); if(rorb) rorb.style.display='none';
 }
 function addRound(){
   const desc=document.getElementById('ro-desc').value.trim()||'Round duct';
@@ -1729,15 +1811,21 @@ function addRound(){
   const lCost=lSqft*lp(roLiner);
   const roWeldChk=document.getElementById('ro-weld-chk');
   const roWeldR=roWeldChk&&roWeldChk.checked?weldCostRound(dia,len,qty,metal):null;
+  const roPressClass=document.getElementById('ro-press').value;
+  const roPressDir=document.querySelector('input[name="ro-press-dir"]:checked')?.value||'Positive';
+  const {ring}=calcRoundReinforcement(dia,roPressClass,roPressDir,len);
+  const ringMaterialCost=ring?ring.materialCost*qty:0;
+  const ringLaborCost=ring?ring.laborCost*qty:0;
+  const ringInfo=ring?{type:ring.type,numLocations:ring.numLocations,circumferenceFt:ring.circumferenceFt}:null;
   if(editState.round!=null){
     const idx=items.round.findIndex(it=>it.id===editState.round);
     if(idx>-1){
-      items.round[idx]=Object.assign({},items.round[idx],{desc,metal,mLabel:METALS[metal]?.label||metal,g,dia,len,qty,lbsEa,tLbs:lbsEa*qty,ppLb,ov,linerKey:roLiner!=='none'?roLiner:null,lSqft,lCost,weldCost:roWeldR?roWeldR.cost:0,weldMins:roWeldR?roWeldR.mins:0,welded:!!roWeldR});
+      items.round[idx]=Object.assign({},items.round[idx],{desc,metal,mLabel:METALS[metal]?.label||metal,g,dia,len,qty,lbsEa,tLbs:lbsEa*qty,ppLb,ov,linerKey:roLiner!=='none'?roLiner:null,lSqft,lCost,weldCost:roWeldR?roWeldR.cost:0,weldMins:roWeldR?roWeldR.mins:0,welded:!!roWeldR,pressClass:roPressClass,pressDir:roPressDir,ringMaterialCost,ringLaborCost,ringInfo});
     }
     editState.round=null;
     setAddBtnState('round',false);
   } else {
-    items.round.push({id:nid++,desc,metal,mLabel:METALS[metal]?.label||metal,g,dia,len,qty,lbsEa,tLbs:lbsEa*qty,ppLb,ov,linerKey:roLiner!=='none'?roLiner:null,lSqft,lCost,weldCost:roWeldR?roWeldR.cost:0,weldMins:roWeldR?roWeldR.mins:0,welded:!!roWeldR});
+    items.round.push({id:nid++,desc,metal,mLabel:METALS[metal]?.label||metal,g,dia,len,qty,lbsEa,tLbs:lbsEa*qty,ppLb,ov,linerKey:roLiner!=='none'?roLiner:null,lSqft,lCost,weldCost:roWeldR?roWeldR.cost:0,weldMins:roWeldR?roWeldR.mins:0,welded:!!roWeldR,pressClass:roPressClass,pressDir:roPressDir,ringMaterialCost,ringLaborCost,ringInfo});
   }
   resetRoundFormFields();
   renderAll();
@@ -2206,17 +2294,20 @@ function renderRect(){
   }).join('');
 }
 
+function ringB(ringInfo){return ringInfo?`<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;background:#fdeaea;color:#8a1f1f;border:1px solid rgba(163,45,45,.3);margin-left:4px;" title="${ringInfo.numLocations} band(s) ${ringInfo.type}, ~${ringInfo.circumferenceFt}' circumference each">RING &times;${ringInfo.numLocations}</span>`:'';}
 function renderRound(){
   const el=document.getElementById('round-list');
   if(!items.round.length){el.innerHTML='<div class="empty">No items yet</div>';return;}
   el.innerHTML=items.round.map(x=>{
+    const ringTotal=(x.ringMaterialCost||0)+(x.ringLaborCost||0);
+    const tot=x.tLbs*effRate(x)+(x.lCost||0)+(x.weldCost||0)+ringTotal;
     const editing=editState.round===x.id;
     return `<div class="li li-round${editing?' li-editing':''}" onclick="editRound(${x.id})" title="Click to edit this line">
     <span class="iv">${x.desc}</span><span class="is">${x.mLabel}</span>
     <span class="iv">${x.g}ga</span><span class="iv">${x.dia}\u2033\u00d7${x.len}'</span>
     <span class="iv">${x.qty}pc</span><span class="iv">${x.tLbs.toFixed(1)}lb</span>
-    <span class="iv">${lb(x.linerKey)}${wb(x.welded)}</span>
-    <span class="ip">${fmt(x.tLbs*effRate(x)+(x.lCost||0)+(x.weldCost||0))}<br>${rateBadge(x)}</span>
+    <span class="iv">${lb(x.linerKey)}${wb(x.welded)}${ringB(x.ringInfo)}</span>
+    <span class="ip">${fmt(tot)}<br>${rateBadge(x)}</span>
     <button class="btn-rm" onclick="event.stopPropagation();remove('round',${x.id})">&times;</button>
   </div>`;
   }).join('');
@@ -2286,19 +2377,21 @@ function calcTotals(){
   items.round.forEach(x=>{metalMat+=x.tLbs*(co>0?co:x.ppLb); linerMat+=(x.lCost||0);});
   items.fit.forEach(x=>{metalMat+=x.tLbs*(co>0?co:x.ppLb); linerMat+=(x.lCost||0);});
   const scrapCost=metalMat*scrapPct;
-  // Reinforcement: material and install labor tracked separately (rect duct only)
+  // Reinforcement: material and install labor tracked separately
   const emtMaterialCost=items.rect.reduce((s,x)=>s+(x.emtMaterialCost||0),0);
   const emtLaborCost=items.rect.reduce((s,x)=>s+(x.emtLaborCost||0),0);
   const extMaterialCost=items.rect.reduce((s,x)=>s+(x.extMaterialCost||0),0);
   const extLaborCost=items.rect.reduce((s,x)=>s+(x.extLaborCost||0),0);
-  let mat=metalMat+scrapCost+linerMat+emtMaterialCost+extMaterialCost;
+  const ringMaterialCost=items.round.reduce((s,x)=>s+(x.ringMaterialCost||0),0);
+  const ringLaborCost=items.round.reduce((s,x)=>s+(x.ringLaborCost||0),0);
+  let mat=metalMat+scrapCost+linerMat+emtMaterialCost+extMaterialCost+ringMaterialCost;
   items.acc.forEach(x=>mat+=x.price*x.q);
   items.hw.forEach(x=>mat+=x.price*x.q);
   // Mode B only: add fabrication labor based on weight
   const fabLab=co>0?0:(dLbs/100)*LH()*LR();
   // Weld labor and reinforcement install labor: always time-based regardless of mode
   const weldCost=[...items.rect,...items.round,...items.fit].reduce((s,x)=>s+(x.weldCost||0),0);
-  const base=mat+fabLab+weldCost+emtLaborCost+extLaborCost;
+  const base=mat+fabLab+weldCost+emtLaborCost+extLaborCost+ringLaborCost;
   // Mode A: the $/lb charge-out rate is by definition already a loaded rate —
   // it's meant to be your final sell price per pound, with overhead and
   // profit already built into that number. Applying Overhead% and Profit
@@ -2308,7 +2401,7 @@ function calcTotals(){
   const total=co>0
     ? base*(1+TX()/100)
     : base*(1+OH()/100)*(1+PM()/100)*(1+TX()/100);
-  return {dLbs,mat,fabLab,weldCost,emtMaterialCost,emtLaborCost,extMaterialCost,extLaborCost,total,scrapCost};
+  return {dLbs,mat,fabLab,weldCost,emtMaterialCost,emtLaborCost,extMaterialCost,extLaborCost,ringMaterialCost,ringLaborCost,total,scrapCost};
 }
 
 function recalc(){
@@ -2318,7 +2411,7 @@ function recalc(){
   document.getElementById('s-lbs').textContent=t.dLbs.toFixed(1);
   document.getElementById('s-mat').textContent=fmt(t.mat);
   // Labor line: Mode A = weld + reinforcement install; Mode B = fab labor + weld + reinforcement install
-  const labDisplay=co>0?(t.weldCost+t.emtLaborCost+t.extLaborCost):(t.fabLab+t.weldCost+t.emtLaborCost+t.extLaborCost);
+  const labDisplay=co>0?(t.weldCost+t.emtLaborCost+t.extLaborCost+t.ringLaborCost):(t.fabLab+t.weldCost+t.emtLaborCost+t.extLaborCost+t.ringLaborCost);
   document.getElementById('s-lab').textContent=fmt(labDisplay);
   document.getElementById('s-tlbl').textContent='Total';
   document.getElementById('s-total').textContent=fmt(t.total);
@@ -2333,10 +2426,12 @@ function recalc(){
   if(si){
     const emtTotal=t.emtMaterialCost+t.emtLaborCost;
     const extTotal=t.extMaterialCost+t.extLaborCost;
+    const ringTotal=t.ringMaterialCost+t.ringLaborCost;
     const parts=[];
     if(t.scrapCost>0.005) parts.push(`${SCRAP()}% scrap allowance: +${fmt(t.scrapCost)}`);
     if(emtTotal>0.005) parts.push(`EMT reinforcement: +${fmt(emtTotal)}`);
     if(extTotal>0.005) parts.push(`Exterior reinforcement: +${fmt(extTotal)}`);
+    if(ringTotal>0.005) parts.push(`Round duct stiffening rings: +${fmt(ringTotal)}`);
     if(parts.length){
       si.textContent='Includes '+parts.join(' \u00b7 ');
       si.style.display='block';
@@ -2420,6 +2515,16 @@ function recomputeItemPricing(){
       const wr=weldCostRound(x.dia,x.len,x.qty,x.metal);
       if(wr){ x.weldCost=wr.cost; x.weldMins=wr.mins; }
     }
+    if(x.pressClass&&x.dia&&x.len){
+      const {ring}=calcRoundReinforcement(x.dia,x.pressClass,x.pressDir,x.len);
+      if(ring){
+        x.ringMaterialCost=ring.materialCost*x.qty;
+        x.ringLaborCost=ring.laborCost*x.qty;
+        x.ringInfo={type:ring.type,numLocations:ring.numLocations,circumferenceFt:ring.circumferenceFt};
+      } else {
+        x.ringMaterialCost=0; x.ringLaborCost=0; x.ringInfo=null;
+      }
+    }
   });
   items.fit.forEach(x=>{
     x.ppLb=rp(x.metal,x.g,x.ov)||x.ppLb;
@@ -2490,12 +2595,14 @@ function propLetterhead(docType){
 function propTotals(t,showBreakdown){
   if(showBreakdown){
     const rows=[];
-    rows.push(`<div class="trow"><span class="tl">Duct &amp; materials</span><span>${fmt(t.mat-(t.emtMaterialCost||0)-(t.extMaterialCost||0))}</span></div>`);
+    rows.push(`<div class="trow"><span class="tl">Duct &amp; materials</span><span>${fmt(t.mat-(t.emtMaterialCost||0)-(t.extMaterialCost||0)-(t.ringMaterialCost||0))}</span></div>`);
     if(t.emtMaterialCost>0) rows.push(`<div class="trow"><span class="tl">EMT reinforcement (material)</span><span>${fmt(t.emtMaterialCost)}</span></div>`);
     if(t.extMaterialCost>0) rows.push(`<div class="trow"><span class="tl">Exterior/joint reinforcement (material)</span><span>${fmt(t.extMaterialCost)}</span></div>`);
+    if(t.ringMaterialCost>0) rows.push(`<div class="trow"><span class="tl">Round duct stiffening rings (material)</span><span>${fmt(t.ringMaterialCost)}</span></div>`);
     if(t.weldCost>0) rows.push(`<div class="trow"><span class="tl">Weld labor</span><span>${fmt(t.weldCost)}</span></div>`);
     if(t.emtLaborCost>0) rows.push(`<div class="trow"><span class="tl">EMT reinforcement (install labor)</span><span>${fmt(t.emtLaborCost)}</span></div>`);
     if(t.extLaborCost>0) rows.push(`<div class="trow"><span class="tl">Exterior/joint reinforcement (install labor)</span><span>${fmt(t.extLaborCost)}</span></div>`);
+    if(t.ringLaborCost>0) rows.push(`<div class="trow"><span class="tl">Round duct stiffening rings (install labor)</span><span>${fmt(t.ringLaborCost)}</span></div>`);
     rows.push(`<div class="trow"><span class="tl">Total</span><span>${fmt(t.total)}</span></div>`);
     return `<div class="tot-block">${rows.join('')}</div>`;
   }
@@ -2532,7 +2639,8 @@ function renderSimple(){
   if(items.acc.length)   scope.push({l:'Accessories &amp; connection hardware',v:items.acc.length+' line item'+(items.acc.length!==1?'s':'')});
   if(items.hw.length)    scope.push({l:'Hardware',           v:items.hw.length+' line item'+(items.hw.length!==1?'s':'')});
   if(items.rect.some(x=>x.emtInfo)) scope.push({l:'EMT duct reinforcement', v:items.rect.reduce((s,x)=>s+(x.emtInfo?x.emtInfo.numLocations*x.qty:0),0)+' pc total'});
-  if(items.rect.some(x=>x.emtInfo)) scope.push({l:'EMT duct reinforcement', v:items.rect.reduce((s,x)=>s+(x.emtInfo?x.emtInfo.numLocations*x.qty:0),0)+' pc total'});
+  if(items.rect.some(x=>x.extInfo)) scope.push({l:'Exterior/joint reinforcement', v:items.rect.reduce((s,x)=>s+(x.extInfo?x.extInfo.numLocations*x.qty:0),0)+' band(s) total'});
+  if(items.round.some(x=>x.ringInfo)) scope.push({l:'Round duct stiffening rings', v:items.round.reduce((s,x)=>s+(x.ringInfo?x.ringInfo.numLocations*x.qty:0),0)+' band(s) total'});
   return `<div class="prop-sheet">
     ${propLetterhead('Proposal')}
     <div class="scope-box">
@@ -2559,8 +2667,10 @@ function renderItemized(){
     return Array.from({length:x.qty},(_,i)=>pli(`${x.desc}${x.qty>1?' <span style="font-size:11px;color:#aaa;">pc '+(i+1)+' of '+x.qty+'</span>':''}`,sub,fmt(priceEa)));
   });
   const roRows=items.round.flatMap(x=>{
-    const priceEa=x.lbsEa*x.ppLb+((x.lCost||0)/x.qty);
-    const sub=`${x.mLabel} &middot; ${x.g}ga &middot; ${x.dia}\u2033 dia \u00d7 ${x.len}'${x.linerKey?' &middot; '+ll(x.linerKey):''}`;
+    const ringEa=((x.ringMaterialCost||0)+(x.ringLaborCost||0))/x.qty;
+    const priceEa=x.lbsEa*x.ppLb+((x.lCost||0)/x.qty)+((x.weldCost||0)/x.qty)+ringEa;
+    const ringNote=x.ringInfo?` &middot; incl. stiffening ring (${x.ringInfo.numLocations} band(s))`:'';
+    const sub=`${x.mLabel} &middot; ${x.g}ga &middot; ${x.dia}\u2033 dia \u00d7 ${x.len}'${x.linerKey?' &middot; '+ll(x.linerKey):''}${ringNote}`;
     return Array.from({length:x.qty},(_,i)=>pli(`${x.desc}${x.qty>1?' <span style="font-size:11px;color:#aaa;">pc '+(i+1)+' of '+x.qty+'</span>':''}`,sub,fmt(priceEa)));
   });
   const fRows=items.fit.flatMap(x=>{
@@ -2595,6 +2705,8 @@ function renderQuote(){
   if(items.fit.length)   scope.push('Fittings fabrication &amp; delivery');
   if(items.acc.length||items.hw.length) scope.push('Accessories, hardware &amp; connection materials');
   if(items.rect.some(x=>x.emtInfo)) scope.push('EMT duct reinforcement (material &amp; install)');
+  if(items.rect.some(x=>x.extInfo)) scope.push('Exterior/joint reinforcement (material &amp; install)');
+  if(items.round.some(x=>x.ringInfo)) scope.push('Round duct stiffening rings (material &amp; install)');
   return `<div class="prop-sheet">
     ${propLetterhead('Price Quote')}
     <div class="quote-divider"></div>
