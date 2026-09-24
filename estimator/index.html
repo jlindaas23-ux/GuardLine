@@ -232,22 +232,8 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
   </div>
 </div>
 
-<!-- JOB SAVE / LOAD BAR -->
-<div style="display:flex;align-items:center;gap:8px;margin:-6px 0 14px;flex-wrap:wrap;">
-  <input type="text" id="job-name-input" placeholder="Untitled job &mdash; type a name, then Save" style="flex:1 1 260px;min-width:200px;padding:8px 12px;border:1px solid var(--bd);border-radius:var(--r);font-size:13px;" oninput="currentJobName=this.value;">
-  <button class="btn btn-sm" onclick="saveJob()">&#128190; Save job</button>
-  <button class="btn btn-sm" onclick="openJobsModal()">&#128193; Jobs</button>
-  <button class="btn btn-sm" onclick="newJob()">&#128203; New job</button>
-  <span id="job-save-status" style="font-size:12px;color:var(--txs);"></span>
-</div>
-
-<!-- DRAFT RESTORE BANNER -->
-<div id="draft-banner" style="display:none;background:var(--bgs);border:1px solid rgba(39,80,10,.2);border-radius:var(--r);padding:10px 16px;margin-bottom:14px;font-size:13px;color:var(--txs);">
-  <span id="draft-banner-text"></span>
-  <button class="btn btn-sm" style="margin-left:10px;" onclick="document.getElementById('draft-banner').style.display='none';">Dismiss</button>
-</div>
-
-<!-- JOBS MODAL -->
+<!-- JOBS MODAL (stays outside both views — inert overlay until opened, and only
+     reachable from buttons inside est-view, so it can't surface on the proposal) -->
 <div id="jobs-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:var(--bg);border-radius:var(--r);max-width:540px;width:92%;max-height:80vh;overflow:auto;padding:20px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
@@ -258,18 +244,33 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
   </div>
 </div>
 
-<!-- IMPORT RESULT BANNER -->
-<div id="import-banner" style="display:none;background:var(--bgs);border:1px solid rgba(39,80,10,.2);border-radius:var(--r);padding:14px 18px;margin-bottom:14px;font-size:13px;color:var(--txs);position:relative;">
-  <div id="import-banner-text"></div>
-  <button onclick="document.getElementById('import-banner').style.display='none'" style="position:absolute;top:8px;right:10px;background:none;border:none;cursor:pointer;font-size:18px;color:var(--txs);">&times;</button>
-</div>
-<div id="import-warn-banner" style="display:none;background:var(--bgw);border:1px solid rgba(99,56,6,.2);border-radius:var(--r);padding:14px 18px;margin-bottom:14px;font-size:13px;color:var(--txw);position:relative;">
-  <div id="import-warn-text"></div>
-  <button onclick="document.getElementById('import-warn-banner').style.display='none'" style="position:absolute;top:8px;right:10px;background:none;border:none;cursor:pointer;font-size:18px;color:var(--txw);">&times;</button>
-</div>
-
 <!-- ══ ESTIMATOR ══ -->
 <div id="est-view">
+
+  <!-- JOB SAVE / LOAD BAR — inside est-view so it never shows on the proposal -->
+  <div style="display:flex;align-items:center;gap:8px;margin:0 0 14px;flex-wrap:wrap;">
+    <input type="text" id="job-name-input" placeholder="Untitled job &mdash; type a name, then Save" style="flex:1 1 260px;min-width:200px;padding:8px 12px;border:1px solid var(--bd);border-radius:var(--r);font-size:13px;" oninput="currentJobName=this.value;">
+    <button class="btn btn-sm" onclick="saveJob()">&#128190; Save job</button>
+    <button class="btn btn-sm" onclick="openJobsModal()">&#128193; Jobs</button>
+    <button class="btn btn-sm" onclick="newJob()">&#128203; New job</button>
+    <span id="job-save-status" style="font-size:12px;color:var(--txs);"></span>
+  </div>
+
+  <!-- DRAFT RESTORE BANNER -->
+  <div id="draft-banner" style="display:none;background:var(--bgs);border:1px solid rgba(39,80,10,.2);border-radius:var(--r);padding:10px 16px;margin-bottom:14px;font-size:13px;color:var(--txs);">
+    <span id="draft-banner-text"></span>
+    <button class="btn btn-sm" style="margin-left:10px;" onclick="document.getElementById('draft-banner').style.display='none';">Dismiss</button>
+  </div>
+
+  <!-- IMPORT RESULT BANNER -->
+  <div id="import-banner" style="display:none;background:var(--bgs);border:1px solid rgba(39,80,10,.2);border-radius:var(--r);padding:14px 18px;margin-bottom:14px;font-size:13px;color:var(--txs);position:relative;">
+    <div id="import-banner-text"></div>
+    <button onclick="document.getElementById('import-banner').style.display='none'" style="position:absolute;top:8px;right:10px;background:none;border:none;cursor:pointer;font-size:18px;color:var(--txs);">&times;</button>
+  </div>
+  <div id="import-warn-banner" style="display:none;background:var(--bgw);border:1px solid rgba(99,56,6,.2);border-radius:var(--r);padding:14px 18px;margin-bottom:14px;font-size:13px;color:var(--txw);position:relative;">
+    <div id="import-warn-text"></div>
+    <button onclick="document.getElementById('import-warn-banner').style.display='none'" style="position:absolute;top:8px;right:10px;background:none;border:none;cursor:pointer;font-size:18px;color:var(--txw);">&times;</button>
+  </div>
 
   <div class="card">
     <p class="stitle">Job information</p>
@@ -711,6 +712,10 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
     </div>
     <p id="s-mode-indicator" style="text-align:center;font-size:12px;font-weight:600;margin:2px 0 0;"></p>
     <p id="s-scrap-indicator" style="text-align:center;font-size:12px;color:var(--tx3);margin:2px 0 0;display:none;"></p>
+    <div id="s-markup-box" style="margin-top:10px;padding:10px 14px;background:var(--bg2);border-radius:var(--r);font-size:12px;color:var(--tx2);display:none;">
+      <p style="font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em;font-size:11px;margin:0 0 6px;">How Total is calculated</p>
+      <div id="s-markup-rows"></div>
+    </div>
     <div class="actions">
       <button class="btn btn-danger" onclick="if(confirm('Clear all items?')){items={rect:[],round:[],fit:[],acc:[],hw:[]};renderAll();}">&#128465; Clear all</button>
       <button class="btn" onclick="renderAll();" title="Recalculate every line item from the current Settings rates">&#8635; Refresh pricing</button>
@@ -2297,6 +2302,25 @@ function recalc(){
     } else {
       si.style.display='none';
     }
+  }
+  // Full markup chain, always visible — this is what turns "Duct & materials + Labor"
+  // into "Total": Subtotal × (1+Overhead%) × (1+Profit margin%) × (1+Sales tax%).
+  const mBox=document.getElementById('s-markup-box');
+  const mRows=document.getElementById('s-markup-rows');
+  if(mBox&&mRows){
+    const subtotal=t.mat+labDisplay;
+    const ohPct=OH(), pmPct=PM(), txPct=TX();
+    const afterOh=subtotal*(1+ohPct/100);
+    const afterPm=afterOh*(1+pmPct/100);
+    const afterTx=afterPm*(1+txPct/100);
+    const rowHtml=(label,val,bold)=>`<div style="display:flex;justify-content:space-between;padding:2px 0;${bold?'font-weight:600;border-top:1px solid var(--bd);margin-top:4px;padding-top:6px;':''}"><span>${label}</span><span>${fmt(val)}</span></div>`;
+    mRows.innerHTML=
+      rowHtml('Subtotal (materials + labor)',subtotal)+
+      rowHtml(`+ Overhead (${ohPct}%)`,afterOh-subtotal)+
+      rowHtml(`+ Profit margin (${pmPct}%)`,afterPm-afterOh)+
+      rowHtml(`+ Sales tax (${txPct}%)`,afterTx-afterPm)+
+      rowHtml('Total',afterTx,true);
+    mBox.style.display='block';
   }
   updMode();
 }
