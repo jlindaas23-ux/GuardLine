@@ -497,7 +497,7 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
       <div class="g3 mb">
         <div class="field"><label>Description</label><input type="text" id="f-desc" placeholder="e.g. 90&deg; elbow supply main"></div>
         <div class="field"><label>Fitting type</label>
-          <select id="f-type" onchange="updFLenLabel();updFitDimLabels();updFitWt()">
+          <select id="f-type" onchange="updFLenLabel();updFitDimLabels();updFitWt();updGaugeCheckFit();updFitReinfPreview()">
             <option>90&deg; elbow &mdash; rectangular</option><option>45&deg; elbow &mdash; rectangular</option>
             <option>90&deg; elbow &mdash; round</option><option>45&deg; elbow &mdash; round</option>
             <option>Tee &mdash; rectangular</option><option>Tee &mdash; round</option><option>Wye &mdash; round</option>
@@ -509,7 +509,7 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
           </select>
         </div>
         <div class="field"><label>Metal type</label>
-          <select id="f-metal" onchange="updG('f-metal','f-gauge');const m=this.value;const chk=document.getElementById('f-weld-chk');if(chk)chk.checked=(m==='ss'||m==='black');updFitWeld()">
+          <select id="f-metal" onchange="updG('f-metal','f-gauge');const m=this.value;const chk=document.getElementById('f-weld-chk');if(chk)chk.checked=(m==='ss'||m==='black');updFitWeld();updGaugeCheckFit()">
             <option value="galv">Galvanized G90</option><option value="ss">Stainless Steel</option>
             <option value="alum">Aluminum</option><option value="paintgrip">Galvanneal</option>
             <option value="perf">Perforated</option><option value="black">Black Iron</option>
@@ -521,29 +521,29 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
         <div id="f-side1-box" style="flex:1 1 200px;min-width:180px;">
           <p id="f-side1-title" style="font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px;">Side 1 (inlet)</p>
           <div id="f-side1-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div class="field"><label id="f-w1-label">Width (in)</label><input type="number" id="f-w1" min="0" step="0.5" placeholder="24" oninput="updFitWt();updVanePreview()"></div>
-            <div class="field" id="f-h1-field"><label id="f-h1-label">Height (in)</label><input type="number" id="f-h1" min="0" step="0.5" placeholder="12" oninput="updFitWt();updVanePreview()"></div>
+            <div class="field"><label id="f-w1-label">Width (in)</label><input type="number" id="f-w1" min="0" step="0.5" placeholder="24" oninput="updFitWt();updVanePreview();updGaugeCheckFit();updFitReinfPreview()"></div>
+            <div class="field" id="f-h1-field"><label id="f-h1-label">Height (in)</label><input type="number" id="f-h1" min="0" step="0.5" placeholder="12" oninput="updFitWt();updVanePreview();updGaugeCheckFit();updFitReinfPreview()"></div>
           </div>
         </div>
         <div id="f-side2-box" style="flex:1 1 200px;min-width:180px;">
           <p id="f-side2-title" style="font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px;">Side 2 (outlet)</p>
           <div id="f-side2-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div class="field"><label id="f-w2-label">Width (in)</label><input type="number" id="f-w2" min="0" step="0.5" placeholder="14" oninput="updFitWt()"></div>
-            <div class="field" id="f-h2-field"><label id="f-h2-label">Height (in)</label><input type="number" id="f-h2" min="0" step="0.5" placeholder="10" oninput="updFitWt()"></div>
+            <div class="field"><label id="f-w2-label">Width (in)</label><input type="number" id="f-w2" min="0" step="0.5" placeholder="14" oninput="updFitWt();updGaugeCheckFit();updFitReinfPreview()"></div>
+            <div class="field" id="f-h2-field"><label id="f-h2-label">Height (in)</label><input type="number" id="f-h2" min="0" step="0.5" placeholder="10" oninput="updFitWt();updGaugeCheckFit();updFitReinfPreview()"></div>
           </div>
         </div>
         <div id="f-side3-box" style="display:none;flex:1 1 200px;min-width:180px;">
           <p id="f-side3-title" style="font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px;">Branch</p>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div class="field"><label id="f-w3-label">Width (in)</label><input type="number" id="f-w3" min="0" step="0.5" placeholder="12" oninput="updFitWt()"></div>
-            <div class="field" id="f-h3-field"><label id="f-h3-label">Height (in)</label><input type="number" id="f-h3" min="0" step="0.5" placeholder="8" oninput="updFitWt()"></div>
+            <div class="field"><label id="f-w3-label">Width (in)</label><input type="number" id="f-w3" min="0" step="0.5" placeholder="12" oninput="updFitWt();updGaugeCheckFit();updFitReinfPreview()"></div>
+            <div class="field" id="f-h3-field"><label id="f-h3-label">Height (in)</label><input type="number" id="f-h3" min="0" step="0.5" placeholder="8" oninput="updFitWt();updGaugeCheckFit();updFitReinfPreview()"></div>
           </div>
         </div>
         <div style="flex:1 1 200px;min-width:180px;">
           <p style="font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px;">Overall</p>
           <div class="field" style="margin-bottom:6px;">
             <label id="f-len-label">Length (in)</label>
-            <input type="number" id="f-len" min="0" step="0.5" placeholder="18" oninput="updFitWt()">
+            <input type="number" id="f-len" min="0" step="0.5" placeholder="18" oninput="updFitWt();updFitReinfPreview()">
           </div>
           <div id="f-len-type-row" style="display:none;gap:5px;flex-wrap:wrap;">
             <label style="font-size:11px;color:var(--tx3);display:flex;align-items:center;gap:4px;cursor:pointer;">
@@ -608,7 +608,7 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;" class="mb">
-        <div class="field"><label>Gauge</label><select id="f-gauge" onchange="updFitWt()"></select></div>
+        <div class="field"><label>Gauge</label><select id="f-gauge" onchange="updFitWt();updGaugeCheckFit()"></select></div>
         <div class="field"><label>Qty (pcs)</label><input type="number" id="f-qty" min="1" placeholder="1" oninput="updFitWt();updVanePreview()"></div>
         <div class="field"><label>$/lb override</label><input type="number" id="f-pprice" step="0.01" min="0" placeholder="auto"></div>
         <div style="background:var(--bg2);border-radius:var(--r);padding:8px 12px;display:flex;flex-direction:column;justify-content:center;">
@@ -616,6 +616,30 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
           <div id="f-wt-preview" style="font-size:15px;font-weight:600;color:var(--txi);">—</div>
           <div id="f-factor-label" style="font-size:10px;color:var(--tx3);margin-top:2px;"></div>
         </div>
+      </div>
+      <div id="f-gauge-warn" style="display:none;background:#fff4e0;border:1px solid #e0a530;color:#8a5a00;border-radius:var(--r);padding:8px 12px;font-size:12px;margin-bottom:12px;"></div>
+      <div class="g3 mb">
+        <div class="field"><label>Pressure class</label>
+          <select id="f-press" onchange="updFitReinfPreview()">
+            <option value="0.5">1/2&Prime; w.g.</option>
+            <option value="1">1&Prime; w.g.</option>
+            <option value="2" selected>2&Prime; w.g.</option>
+            <option value="3">3&Prime; w.g.</option>
+            <option value="4">4&Prime; w.g.</option>
+            <option value="6">6&Prime; w.g.</option>
+            <option value="10">10&Prime; w.g.</option>
+          </select>
+        </div>
+        <div class="field"><label>Pressure direction</label>
+          <div class="radio-group">
+            <label class="radio-opt selected"><input type="radio" name="f-press-dir" value="Positive" checked onchange="selFPressDir(this);updFitReinfPreview()"> Positive</label>
+            <label class="radio-opt"><input type="radio" name="f-press-dir" value="Negative" onchange="selFPressDir(this);updFitReinfPreview()"> Negative</label>
+          </div>
+        </div>
+      </div>
+      <div id="f-reinf-box" style="display:none;background:#fdf3ea;border:1px solid #d98c3f;border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:12px;color:#6e3d10;">
+        <div id="f-reinf-detail"></div>
+        <div id="f-reinf-cost" style="font-weight:600;margin-top:4px;"></div>
       </div>
       <div class="g2 mb">
         <div class="field">
@@ -1168,6 +1192,76 @@ function updRoundReinfPreview(){
   document.getElementById('ro-reinf-cost').textContent=`+${fmt(totalCost)} (material + install)`;
   box.style.display='block';
 }
+
+/* ── FITTINGS: SMACNA GAUGE CHECK + REINFORCEMENT ──
+   Reuses the same rect/round reinforcement math above, applied to a
+   fitting's own dimensions and length (throat/heel/centerline, converted
+   from inches to feet) instead of a straight run — same approximation
+   caveat as the rest of this reinforcement logic. */
+function updGaugeCheckFit(){
+  const warn=document.getElementById('f-gauge-warn');
+  if(!warn) return;
+  const type=document.getElementById('f-type').value;
+  const metal=document.getElementById('f-metal').value;
+  const g=parseInt(document.getElementById('f-gauge').value)||0;
+  const fw1=parseFloat(document.getElementById('f-w1').value)||0;
+  const fh1=parseFloat(document.getElementById('f-h1').value)||0;
+  const fw2=parseFloat(document.getElementById('f-w2').value)||0;
+  const fh2=parseFloat(document.getElementById('f-h2').value)||0;
+  const fw3=parseFloat(document.getElementById('f-w3').value)||0;
+  const fh3=parseFloat(document.getElementById('f-h3').value)||0;
+  const isRound=ROUND_FIT_TYPES.has(type);
+  const maxSide=Math.max(fw1,fh1,fw2,fh2,fw3,fh3);
+  if(!maxSide||!g||metal==='dualwall'){ warn.style.display='none'; return; }
+  const table=isRound?SMACNA_MIN_GA_ROUND:SMACNA_MIN_GA_RECT;
+  const minGa=smacnaMinGa(table,maxSide);
+  if(g>minGa){
+    const label=isRound?`${maxSide}\u2033 diameter`:`${maxSide}\u2033 is the longest dimension`;
+    warn.innerHTML=`&#9888; ${label} &mdash; SMACNA calls for ${minGa}ga or heavier ${isRound?'round':'rectangular'} fitting this size. ${g}ga is lighter than that.`;
+    warn.style.display='block';
+  } else {
+    warn.style.display='none';
+  }
+}
+function selFPressDir(r){
+  document.querySelectorAll('input[name="f-press-dir"]').forEach(x=>x.parentElement.classList.remove('selected'));
+  r.parentElement.classList.add('selected');
+}
+function updFitReinfPreview(){
+  const box=document.getElementById('f-reinf-box');
+  if(!box) return;
+  const type=document.getElementById('f-type').value;
+  const fw1=parseFloat(document.getElementById('f-w1').value)||0;
+  const fh1=parseFloat(document.getElementById('f-h1').value)||0;
+  const fw2=parseFloat(document.getElementById('f-w2').value)||0;
+  const fh2=parseFloat(document.getElementById('f-h2').value)||0;
+  const fl=parseFloat(document.getElementById('f-len').value)||0;
+  const qty=parseFloat(document.getElementById('f-qty').value)||1;
+  const press=document.getElementById('f-press').value;
+  const dir=document.querySelector('input[name="f-press-dir"]:checked')?.value||'Positive';
+  const lenFt=fl/12;
+  const isRound=ROUND_FIT_TYPES.has(type);
+  if(isRound){
+    const dia=Math.max(fw1,fw2)||fw1;
+    const {ring}=calcRoundReinforcement(dia,press,dir,lenFt);
+    if(!ring){ box.style.display='none'; return; }
+    const totalCost=ring.totalCost*qty;
+    document.getElementById('f-reinf-detail').innerHTML=`&#9888; ${dia}&Prime; diameter fitting calls for a stiffening ring &mdash; ${ring.numLocations} band${ring.numLocations===1?'':'s'} of ${ring.type}${qty>1?` &times; ${qty}pc`:''}.`;
+    document.getElementById('f-reinf-cost').textContent=`+${fmt(totalCost)} (material + install)`;
+    box.style.display='block';
+  } else {
+    const w=Math.max(fw1,fw2)||fw1;
+    const h=Math.max(fh1,fh2)||fh1;
+    const {emt,ext}=calcReinforcement(w,h,press,dir,lenFt);
+    if(!emt&&!ext){ box.style.display='none'; return; }
+    const lines=[]; let totalCost=0;
+    if(emt){ totalCost+=emt.totalCost*qty; lines.push(`&#9888; Intermediate reinforcement &mdash; ${emt.numLocations} pc ${emt.emtSize} EMT${qty>1?` &times; ${qty}pc`:''}.`); }
+    if(ext){ totalCost+=ext.totalCost*qty; lines.push(`&#9888; Exterior/joint reinforcement &mdash; ${ext.numLocations} band${ext.numLocations===1?'':'s'} of ${ext.type}${qty>1?` &times; ${qty}pc`:''}.`); }
+    document.getElementById('f-reinf-detail').innerHTML=lines.join('<br>');
+    document.getElementById('f-reinf-cost').textContent=`+${fmt(totalCost)} (material + install)`;
+    box.style.display='block';
+  }
+}
 function updReinfPreview(){
   const box=document.getElementById('r-reinf-box');
   if(!box) return;
@@ -1432,10 +1526,14 @@ function editFit(id){
   document.getElementById('f-liner').value=x.linerKey||'none';
   document.getElementById('f-lsqft').value=x.lSqft||'';
   document.getElementById('f-weld-chk').checked=!!x.welded;
+  document.getElementById('f-press').value=x.pressClass||'2';
+  selectRadioByValue('f-press-dir',x.pressDir||'Positive');
   selectRadioByValue('f-conn',x.conn||'TDC');
   updFLenLabel();
   updFitDimLabels();
   updFitWt();
+  updGaugeCheckFit();
+  updFitReinfPreview();
   editState.fit=id;
   setAddBtnState('fit',true);
   document.getElementById('tab-fit')?.scrollIntoView({behavior:'smooth',block:'start'});
@@ -2096,6 +2194,8 @@ function resetFitFormFields(){
   updFitWt();
   document.querySelectorAll('input[name="f-conn"]').forEach(r=>r.checked=r.value==='TDC');
   document.querySelectorAll('input[name="f-conn"]').forEach(r=>r.parentElement.classList.toggle('selected',r.value==='TDC'));
+  const fgw=document.getElementById('f-gauge-warn'); if(fgw) fgw.style.display='none';
+  const frb=document.getElementById('f-reinf-box'); if(frb) frb.style.display='none';
 }
 function addFit(){
   const desc=document.getElementById('f-desc').value.trim()||'Fitting';
@@ -2125,11 +2225,27 @@ function addFit(){
   const info=FIT_FACTORS[type]||{factor:1.20,note:'×1.20'};
   const fWeldChk=document.getElementById('f-weld-chk');
   const fWeldR=fWeldChk&&fWeldChk.checked?weldCostFit(fw1,fh1,fw2,fh2,qty,metal):null;
+  const fPressClass=document.getElementById('f-press').value;
+  const fPressDir=document.querySelector('input[name="f-press-dir"]:checked')?.value||'Positive';
+  const fIsRound=ROUND_FIT_TYPES.has(type);
+  const fLenFt=(fl||0)/12;
+  let fEmtMaterialCost=0,fEmtLaborCost=0,fEmtInfo=null,fExtMaterialCost=0,fExtLaborCost=0,fExtInfo=null,fRingMaterialCost=0,fRingLaborCost=0,fRingInfo=null;
+  if(fIsRound){
+    const fDia=Math.max(fw1||0,fw2||0)||fw1||0;
+    const {ring}=calcRoundReinforcement(fDia,fPressClass,fPressDir,fLenFt);
+    if(ring){ fRingMaterialCost=ring.materialCost*qty; fRingLaborCost=ring.laborCost*qty; fRingInfo={type:ring.type,numLocations:ring.numLocations,circumferenceFt:ring.circumferenceFt}; }
+  } else {
+    const fW=Math.max(fw1||0,fw2||0)||fw1||0;
+    const fH=Math.max(fh1||0,fh2||0)||fh1||0;
+    const {emt,ext}=calcReinforcement(fW,fH,fPressClass,fPressDir,fLenFt);
+    if(emt){ fEmtMaterialCost=emt.materialCost*qty; fEmtLaborCost=emt.laborCost*qty; fEmtInfo={emtSize:emt.emtSize,numLocations:emt.numLocations,spacingFt:emt.spacingFt}; }
+    if(ext){ fExtMaterialCost=ext.materialCost*qty; fExtLaborCost=ext.laborCost*qty; fExtInfo={type:ext.type,numLocations:ext.numLocations,perimeterFt:ext.perimeterFt}; }
+  }
 
   if(editState.fit!=null){
     const idx=items.fit.findIndex(it=>it.id===editState.fit);
     if(idx>-1){
-      items.fit[idx]=Object.assign({},items.fit[idx],{desc,type,metal,mLabel:METALS[metal]?.label||metal,g,fw1,fh1,fw2,fh2,fw3,fh3,fl,flType,conn,lbsEa,qty,tLbs:lbsEa*qty,ppLb,ov,linerKey:fLiner!=='none'?fLiner:null,lSqft:fLsqft,lCost,factor:info.factor,weldCost:fWeldR?fWeldR.cost:0,weldMins:fWeldR?fWeldR.mins:0,welded:!!fWeldR});
+      items.fit[idx]=Object.assign({},items.fit[idx],{desc,type,metal,mLabel:METALS[metal]?.label||metal,g,fw1,fh1,fw2,fh2,fw3,fh3,fl,flType,conn,lbsEa,qty,tLbs:lbsEa*qty,ppLb,ov,linerKey:fLiner!=='none'?fLiner:null,lSqft:fLsqft,lCost,factor:info.factor,weldCost:fWeldR?fWeldR.cost:0,weldMins:fWeldR?fWeldR.mins:0,welded:!!fWeldR,pressClass:fPressClass,pressDir:fPressDir,emtMaterialCost:fEmtMaterialCost,emtLaborCost:fEmtLaborCost,emtInfo:fEmtInfo,extMaterialCost:fExtMaterialCost,extLaborCost:fExtLaborCost,extInfo:fExtInfo,ringMaterialCost:fRingMaterialCost,ringLaborCost:fRingLaborCost,ringInfo:fRingInfo});
     }
     editState.fit=null;
     setAddBtnState('fit',false);
@@ -2139,7 +2255,7 @@ function addFit(){
   }
 
   const fid=nid++;
-  items.fit.push({id:fid,desc,type,metal,mLabel:METALS[metal]?.label||metal,g,fw1,fh1,fw2,fh2,fw3,fh3,fl,flType,conn,lbsEa,qty,tLbs:lbsEa*qty,ppLb,ov,linerKey:fLiner!=='none'?fLiner:null,lSqft:fLsqft,lCost,factor:info.factor,weldCost:fWeldR?fWeldR.cost:0,weldMins:fWeldR?fWeldR.mins:0,welded:!!fWeldR});
+  items.fit.push({id:fid,desc,type,metal,mLabel:METALS[metal]?.label||metal,g,fw1,fh1,fw2,fh2,fw3,fh3,fl,flType,conn,lbsEa,qty,tLbs:lbsEa*qty,ppLb,ov,linerKey:fLiner!=='none'?fLiner:null,lSqft:fLsqft,lCost,factor:info.factor,weldCost:fWeldR?fWeldR.cost:0,weldMins:fWeldR?fWeldR.mins:0,welded:!!fWeldR,pressClass:fPressClass,pressDir:fPressDir,emtMaterialCost:fEmtMaterialCost,emtLaborCost:fEmtLaborCost,emtInfo:fEmtInfo,extMaterialCost:fExtMaterialCost,extLaborCost:fExtLaborCost,extInfo:fExtInfo,ringMaterialCost:fRingMaterialCost,ringLaborCost:fRingLaborCost,ringInfo:fRingInfo});
 
   // ── AUTO-ADD TURNING VANES ──
   const vaneChk=document.getElementById('f-vane-chk');
@@ -2324,6 +2440,7 @@ function renderFit(){
     const s3Label=s3?s3+' branch':'';
     const dimParts=[s1,s2].filter(Boolean).join(' \u2192 ')+(s3Label?' + '+s3Label:'')+(x.fl!=null?' \u00d7 '+x.fl+'\u2033 '+lenLabel:'');
     const editing=editState.fit===x.id;
+    const fReinfTotal=(x.emtMaterialCost||0)+(x.emtLaborCost||0)+(x.extMaterialCost||0)+(x.extLaborCost||0)+(x.ringMaterialCost||0)+(x.ringLaborCost||0);
     return `<div class="li li-fit${editing?' li-editing':''}" onclick="editFit(${x.id})" title="Click to edit this line">
       <span class="iv">${x.desc}</span>
       <span class="is">${x.mLabel}</span>
@@ -2332,9 +2449,9 @@ function renderFit(){
       <span class="dim">${dimParts||'\u2014'}</span>
       <span>${cb(x.conn||'Raw')}</span>
       <span class="iv">${x.tLbs.toFixed(1)}lb</span>
-      <span class="iv">${lb(x.linerKey)}${wb(x.welded)}</span>
+      <span class="iv">${lb(x.linerKey)}${wb(x.welded)}${rb(x.emtInfo)}${extB(x.extInfo)}${ringB(x.ringInfo)}</span>
       <span class="iv">${x.qty}pc</span>
-      <span class="ip">${fmt(x.tLbs*effRate(x)+(x.lCost||0)+(x.weldCost||0))}<br>${rateBadge(x)}</span>
+      <span class="ip">${fmt(x.tLbs*effRate(x)+(x.lCost||0)+(x.weldCost||0)+fReinfTotal)}<br>${rateBadge(x)}</span>
       <button class="btn-rm" onclick="event.stopPropagation();remove('fit',${x.id})">&times;</button>
     </div>`;
   }).join('');
@@ -2378,12 +2495,12 @@ function calcTotals(){
   items.fit.forEach(x=>{metalMat+=x.tLbs*(co>0?co:x.ppLb); linerMat+=(x.lCost||0);});
   const scrapCost=metalMat*scrapPct;
   // Reinforcement: material and install labor tracked separately
-  const emtMaterialCost=items.rect.reduce((s,x)=>s+(x.emtMaterialCost||0),0);
-  const emtLaborCost=items.rect.reduce((s,x)=>s+(x.emtLaborCost||0),0);
-  const extMaterialCost=items.rect.reduce((s,x)=>s+(x.extMaterialCost||0),0);
-  const extLaborCost=items.rect.reduce((s,x)=>s+(x.extLaborCost||0),0);
-  const ringMaterialCost=items.round.reduce((s,x)=>s+(x.ringMaterialCost||0),0);
-  const ringLaborCost=items.round.reduce((s,x)=>s+(x.ringLaborCost||0),0);
+  const emtMaterialCost=[...items.rect,...items.fit].reduce((s,x)=>s+(x.emtMaterialCost||0),0);
+  const emtLaborCost=[...items.rect,...items.fit].reduce((s,x)=>s+(x.emtLaborCost||0),0);
+  const extMaterialCost=[...items.rect,...items.fit].reduce((s,x)=>s+(x.extMaterialCost||0),0);
+  const extLaborCost=[...items.rect,...items.fit].reduce((s,x)=>s+(x.extLaborCost||0),0);
+  const ringMaterialCost=[...items.round,...items.fit].reduce((s,x)=>s+(x.ringMaterialCost||0),0);
+  const ringLaborCost=[...items.round,...items.fit].reduce((s,x)=>s+(x.ringLaborCost||0),0);
   let mat=metalMat+scrapCost+linerMat+emtMaterialCost+extMaterialCost+ringMaterialCost;
   items.acc.forEach(x=>mat+=x.price*x.q);
   items.hw.forEach(x=>mat+=x.price*x.q);
@@ -2533,6 +2650,24 @@ function recomputeItemPricing(){
       const wr=weldCostFit(x.fw1,x.fh1,x.fw2,x.fh2,x.qty,x.metal);
       if(wr){ x.weldCost=wr.cost; x.weldMins=wr.mins; }
     }
+    if(x.pressClass&&x.fl){
+      const fLenFt=x.fl/12;
+      const fIsRound=ROUND_FIT_TYPES.has(x.type);
+      if(fIsRound){
+        const fDia=Math.max(x.fw1||0,x.fw2||0)||x.fw1||0;
+        const {ring}=calcRoundReinforcement(fDia,x.pressClass,x.pressDir,fLenFt);
+        if(ring){ x.ringMaterialCost=ring.materialCost*x.qty; x.ringLaborCost=ring.laborCost*x.qty; x.ringInfo={type:ring.type,numLocations:ring.numLocations,circumferenceFt:ring.circumferenceFt}; }
+        else { x.ringMaterialCost=0; x.ringLaborCost=0; x.ringInfo=null; }
+      } else {
+        const fW=Math.max(x.fw1||0,x.fw2||0)||x.fw1||0;
+        const fH=Math.max(x.fh1||0,x.fh2||0)||x.fh1||0;
+        const {emt,ext}=calcReinforcement(fW,fH,x.pressClass,x.pressDir,fLenFt);
+        if(emt){ x.emtMaterialCost=emt.materialCost*x.qty; x.emtLaborCost=emt.laborCost*x.qty; x.emtInfo={emtSize:emt.emtSize,numLocations:emt.numLocations,spacingFt:emt.spacingFt}; }
+        else { x.emtMaterialCost=0; x.emtLaborCost=0; x.emtInfo=null; }
+        if(ext){ x.extMaterialCost=ext.materialCost*x.qty; x.extLaborCost=ext.laborCost*x.qty; x.extInfo={type:ext.type,numLocations:ext.numLocations,perimeterFt:ext.perimeterFt}; }
+        else { x.extMaterialCost=0; x.extLaborCost=0; x.extInfo=null; }
+      }
+    }
   });
 }
 
@@ -2638,9 +2773,9 @@ function renderSimple(){
   if(items.fit.length)   scope.push({l:'Fittings',           v:items.fit.reduce((s,x)=>s+x.qty,0)+' pc total'});
   if(items.acc.length)   scope.push({l:'Accessories &amp; connection hardware',v:items.acc.length+' line item'+(items.acc.length!==1?'s':'')});
   if(items.hw.length)    scope.push({l:'Hardware',           v:items.hw.length+' line item'+(items.hw.length!==1?'s':'')});
-  if(items.rect.some(x=>x.emtInfo)) scope.push({l:'EMT duct reinforcement', v:items.rect.reduce((s,x)=>s+(x.emtInfo?x.emtInfo.numLocations*x.qty:0),0)+' pc total'});
-  if(items.rect.some(x=>x.extInfo)) scope.push({l:'Exterior/joint reinforcement', v:items.rect.reduce((s,x)=>s+(x.extInfo?x.extInfo.numLocations*x.qty:0),0)+' band(s) total'});
-  if(items.round.some(x=>x.ringInfo)) scope.push({l:'Round duct stiffening rings', v:items.round.reduce((s,x)=>s+(x.ringInfo?x.ringInfo.numLocations*x.qty:0),0)+' band(s) total'});
+  if(items.rect.some(x=>x.emtInfo)||items.fit.some(x=>x.emtInfo)) scope.push({l:'EMT duct reinforcement', v:[...items.rect,...items.fit].reduce((s,x)=>s+(x.emtInfo?x.emtInfo.numLocations*x.qty:0),0)+' pc total'});
+  if(items.rect.some(x=>x.extInfo)||items.fit.some(x=>x.extInfo)) scope.push({l:'Exterior/joint reinforcement', v:[...items.rect,...items.fit].reduce((s,x)=>s+(x.extInfo?x.extInfo.numLocations*x.qty:0),0)+' band(s) total'});
+  if(items.round.some(x=>x.ringInfo)||items.fit.some(x=>x.ringInfo)) scope.push({l:'Round duct stiffening rings', v:[...items.round,...items.fit].reduce((s,x)=>s+(x.ringInfo?x.ringInfo.numLocations*x.qty:0),0)+' band(s) total'});
   return `<div class="prop-sheet">
     ${propLetterhead('Proposal')}
     <div class="scope-box">
@@ -2674,12 +2809,14 @@ function renderItemized(){
     return Array.from({length:x.qty},(_,i)=>pli(`${x.desc}${x.qty>1?' <span style="font-size:11px;color:#aaa;">pc '+(i+1)+' of '+x.qty+'</span>':''}`,sub,fmt(priceEa)));
   });
   const fRows=items.fit.flatMap(x=>{
-    const priceEa=x.lbsEa*x.ppLb+((x.lCost||0)/x.qty);
+    const fReinfEa=((x.emtMaterialCost||0)+(x.emtLaborCost||0)+(x.extMaterialCost||0)+(x.extLaborCost||0)+(x.ringMaterialCost||0)+(x.ringLaborCost||0))/x.qty;
+    const priceEa=x.lbsEa*x.ppLb+((x.lCost||0)/x.qty)+((x.weldCost||0)/x.qty)+fReinfEa;
     const s1=(x.fw1!=null&&x.fh1!=null)?x.fw1+'\u2033\u00d7'+x.fh1+'\u2033':(x.fw1!=null?x.fw1+'\u2033W':(x.fh1!=null?x.fh1+'\u2033H':''));
     const s2=(x.fw2!=null&&x.fh2!=null)?x.fw2+'\u2033\u00d7'+x.fh2+'\u2033':(x.fw2!=null?x.fw2+'\u2033W':(x.fh2!=null?x.fh2+'\u2033H':''));
     const lenLabel=(x.flType&&x.flType!=='Length')?x.flType:'L';
     const dimStr=[s1,s2].filter(Boolean).join(' \u2192 ')+(x.fl!=null?' \u00d7 '+x.fl+'\u2033 '+lenLabel:'');
-    const sub=`${x.type} &middot; ${x.mLabel} &middot; ${x.g}ga${dimStr?' &middot; '+dimStr:''}${x.conn?' &middot; <span class="cbadge '+(CC[x.conn]||'cb-raw')+'">'+x.conn+'</span>':''}${x.linerKey?' &middot; '+ll(x.linerKey):''}`;
+    const fReinfNote=(x.emtInfo?` &middot; incl. ${x.emtInfo.emtSize} EMT reinforcement`:'')+(x.extInfo?` &middot; incl. ${x.extInfo.type}`:'')+(x.ringInfo?` &middot; incl. stiffening ring`:'');
+    const sub=`${x.type} &middot; ${x.mLabel} &middot; ${x.g}ga${dimStr?' &middot; '+dimStr:''}${x.conn?' &middot; <span class="cbadge '+(CC[x.conn]||'cb-raw')+'">'+x.conn+'</span>':''}${x.linerKey?' &middot; '+ll(x.linerKey):''}${fReinfNote}`;
     return Array.from({length:x.qty},(_,i)=>pli(`${x.desc}${x.qty>1?' <span style="font-size:11px;color:#aaa;">pc '+(i+1)+' of '+x.qty+'</span>':''}`,sub,fmt(priceEa)));
   });
   const aRows=items.acc.map(x=>pli(`${x.name}${x.isAuto?'<span class="auto-chip">auto</span>':''}`,`${x.desc||''} &middot; ${x.q}&nbsp;${x.uom}`,fmt(x.price*x.q)));
@@ -2704,9 +2841,9 @@ function renderQuote(){
   if(items.round.length) scope.push('Round / spiral duct fabrication &amp; delivery');
   if(items.fit.length)   scope.push('Fittings fabrication &amp; delivery');
   if(items.acc.length||items.hw.length) scope.push('Accessories, hardware &amp; connection materials');
-  if(items.rect.some(x=>x.emtInfo)) scope.push('EMT duct reinforcement (material &amp; install)');
-  if(items.rect.some(x=>x.extInfo)) scope.push('Exterior/joint reinforcement (material &amp; install)');
-  if(items.round.some(x=>x.ringInfo)) scope.push('Round duct stiffening rings (material &amp; install)');
+  if(items.rect.some(x=>x.emtInfo)||items.fit.some(x=>x.emtInfo)) scope.push('EMT duct reinforcement (material &amp; install)');
+  if(items.rect.some(x=>x.extInfo)||items.fit.some(x=>x.extInfo)) scope.push('Exterior/joint reinforcement (material &amp; install)');
+  if(items.round.some(x=>x.ringInfo)||items.fit.some(x=>x.ringInfo)) scope.push('Round duct stiffening rings (material &amp; install)');
   return `<div class="prop-sheet">
     ${propLetterhead('Price Quote')}
     <div class="quote-divider"></div>
