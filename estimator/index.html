@@ -2282,7 +2282,15 @@ function calcTotals(){
   // Weld labor and reinforcement install labor: always time-based regardless of mode
   const weldCost=[...items.rect,...items.round,...items.fit].reduce((s,x)=>s+(x.weldCost||0),0);
   const base=mat+fabLab+weldCost+emtLaborCost+extLaborCost;
-  const total=base*(1+OH()/100)*(1+PM()/100)*(1+TX()/100);
+  // Mode A: the $/lb charge-out rate is by definition already a loaded rate —
+  // it's meant to be your final sell price per pound, with overhead and
+  // profit already built into that number. Applying Overhead% and Profit
+  // margin% on top of it would double-count markup you already priced in.
+  // Sales tax is different — it's a state-collected tax on the sale price,
+  // not an internal margin decision, so it still applies in both modes.
+  const total=co>0
+    ? base*(1+TX()/100)
+    : base*(1+OH()/100)*(1+PM()/100)*(1+TX()/100);
   return {dLbs,mat,fabLab,weldCost,emtMaterialCost,emtLaborCost,extMaterialCost,extLaborCost,total,scrapCost};
 }
 
@@ -2319,23 +2327,35 @@ function recalc(){
       si.style.display='none';
     }
   }
-  // Full markup chain, always visible — this is what turns "Duct & materials + Labor"
-  // into "Total": Subtotal × (1+Overhead%) × (1+Profit margin%) × (1+Sales tax%).
+  // Full markup chain, always visible. Mode A's $/lb rate is already a loaded
+  // rate (overhead + profit baked in), so those two steps are skipped there —
+  // only Sales tax (a real pass-through tax, not an internal margin choice)
+  // still applies on top. Mode B builds up from raw cost, so all three apply.
   const mBox=document.getElementById('s-markup-box');
   const mRows=document.getElementById('s-markup-rows');
   if(mBox&&mRows){
     const subtotal=t.mat+labDisplay;
-    const ohPct=OH(), pmPct=PM(), txPct=TX();
-    const afterOh=subtotal*(1+ohPct/100);
-    const afterPm=afterOh*(1+pmPct/100);
-    const afterTx=afterPm*(1+txPct/100);
+    const txPct=TX();
     const rowHtml=(label,val,bold)=>`<div style="display:flex;justify-content:space-between;padding:2px 0;${bold?'font-weight:600;border-top:1px solid var(--bd);margin-top:4px;padding-top:6px;':''}"><span>${label}</span><span>${fmt(val)}</span></div>`;
-    mRows.innerHTML=
-      rowHtml('Subtotal (materials + labor)',subtotal)+
-      rowHtml(`+ Overhead (${ohPct}%)`,afterOh-subtotal)+
-      rowHtml(`+ Profit margin (${pmPct}%)`,afterPm-afterOh)+
-      rowHtml(`+ Sales tax (${txPct}%)`,afterTx-afterPm)+
-      rowHtml('Total',afterTx,true);
+    if(co>0){
+      const afterTx=subtotal*(1+txPct/100);
+      mRows.innerHTML=
+        rowHtml('Subtotal (materials + labor at $'+co.toFixed(2)+'/lb)',subtotal)+
+        `<div style="font-size:11px;color:var(--tx3);padding:2px 0;">Overhead &amp; profit margin skipped &mdash; your $/lb charge-out rate is already a loaded rate.</div>`+
+        rowHtml(`+ Sales tax (${txPct}%)`,afterTx-subtotal)+
+        rowHtml('Total',afterTx,true);
+    } else {
+      const ohPct=OH(), pmPct=PM();
+      const afterOh=subtotal*(1+ohPct/100);
+      const afterPm=afterOh*(1+pmPct/100);
+      const afterTx=afterPm*(1+txPct/100);
+      mRows.innerHTML=
+        rowHtml('Subtotal (materials + labor)',subtotal)+
+        rowHtml(`+ Overhead (${ohPct}%)`,afterOh-subtotal)+
+        rowHtml(`+ Profit margin (${pmPct}%)`,afterPm-afterOh)+
+        rowHtml(`+ Sales tax (${txPct}%)`,afterTx-afterPm)+
+        rowHtml('Total',afterTx,true);
+    }
     mBox.style.display='block';
   }
   updMode();
