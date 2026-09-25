@@ -3123,7 +3123,7 @@ function viewCalendar(){
 /* ============================ TRAILER DASHBOARD ============================ */
 function trailerCard(t, isMaster){
   const loc = t.location || 'At Shop';
-  const jobs = state.jobs.filter(j=> j.trailer===t.name && j.status==='Complete');
+  const jobs = state.jobs.filter(j=> j.trailer===t.name && (j.status==='Complete' || j.status==='Delivered/Picked Up'));
   const totalW = jobs.reduce((s,j)=>s+Number(j.weight||0),0);
   return `
   <div class="card" style="padding:18px;">
@@ -3133,13 +3133,13 @@ function trailerCard(t, isMaster){
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
       <div style="color:${t.siteNote?'var(--steel-bright)':'var(--text-faint)'};font-size:11.5px;flex:1;">
-        ${t.siteNote ? `📍 ${t.siteNote}` : (jobs.length ? `${jobs.length} completed job${jobs.length!==1?'s':''} loaded` : 'Empty — available to load')}
+        ${t.siteNote ? `📍 ${t.siteNote}` : ''}${t.siteNote && jobs.length ? ' — ' : ''}${jobs.length ? `${jobs.length} order${jobs.length!==1?'s':''} loaded` : (t.siteNote ? '' : 'Empty — available to load')}
       </div>
       ${isMaster ? `<button data-edit-site="${t.id}" style="background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:12px;padding:2px 4px;" title="Edit current location">✎</button>` : ''}
     </div>
     ${jobs.length ? jobs.map(j=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft);gap:8px;cursor:pointer;" data-open="${j.id}">
-        <div style="flex:1;min-width:0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${j.jobName}${priorityBadge(j)}</div>
+        <div style="flex:1;min-width:0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${j.jobName}${priorityBadge(j)}${j.status==='Delivered/Picked Up'?'<span class="status delivered" style="margin-left:6px;font-size:9px;">Delivered</span>':''}</div>
         <div class="mono" style="font-size:11.5px;flex-shrink:0;">${fmt(j.weight)} lbs</div>
       </div>`).join('') : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
@@ -3574,10 +3574,15 @@ function bindMainEvents(){
   }));
   document.querySelectorAll('[data-trailer-toshop]').forEach(b=>b.addEventListener('click', ()=>{
     const t = (state.trailers||[]).find(x=>x.id===b.dataset.trailerToshop); if(!t) return;
+    const unloaded = state.jobs.filter(j=> j.trailer===t.name && (j.status==='Complete' || j.status==='Delivered/Picked Up'));
+    unloaded.forEach(j=>{ j.trailer = ''; });
     t.location = 'At Shop';
     t.siteNote = '';
     t.history = t.history || [];
-    t.history.unshift({when:nowStr(), note:`Marked back at shop by ${state.userName}.`});
+    const note = unloaded.length
+      ? `Marked back at shop by ${state.userName} — unloaded ${unloaded.length} order${unloaded.length!==1?'s':''}: ${unloaded.map(j=>j.jobName).join(', ')}.`
+      : `Marked back at shop by ${state.userName}.`;
+    t.history.unshift({when:nowStr(), note});
     saveState(); toast(`${t.name} marked back at shop.`); render();
   }));
   document.querySelectorAll('[data-trailer-history]').forEach(b=>b.addEventListener('click', ()=>{
