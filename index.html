@@ -640,8 +640,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
     <div class="modal-body">
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1;">
-          <label>Search for Your Order <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(by job name, job number, TO#, sketch #, or system)</span></label>
-          <input id="qc-report-job-search" placeholder="🔍 Start typing to find your order…">
+          <label>Search for Your Order <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(by job name, job number, TO#, sketch #, or system — searches the whole schedule, including Orders Ready and Completed)</span></label>
+          <input id="qc-report-job-search" placeholder="🔍 Start typing to find your order, then tap it below…">
+          <div id="qc-report-search-results" style="margin-top:8px;max-height:180px;overflow-y:auto;"></div>
         </div>
         <div class="field" style="grid-column:1/-1;">
           <label>Job Name</label>
@@ -5236,6 +5237,7 @@ let qcReportPhotoDraft = null;
 function resetQcReportForm(){
   qcReportPhotoDraft = null;
   document.getElementById('qc-report-job-search').value = '';
+  document.getElementById('qc-report-search-results').innerHTML = '';
   document.getElementById('qc-report-division').innerHTML = divisionOptionsHTML('');
   document.getElementById('qc-report-type').innerHTML = ISSUE_TYPES.map(t=>`<option>${t}</option>`).join('');
   document.getElementById('qc-report-ref').value = '';
@@ -5278,23 +5280,42 @@ function updateMobileTabbar(){
   const openQc = state.jobs.some(j=>(j.qc||[]).some(q=>q.status==='Open'));
   const dot = document.getElementById('mtab-dot'); if(dot) dot.classList.toggle('show', openQc);
 }
-function renderQcReportJobOptions(term){
+function renderQcReportJobOptions(){
   const sel = document.getElementById('qc-report-job');
-  const s = (term||'').trim().toLowerCase();
   const sorted = [...state.jobs].sort((a,b)=> a.jobName.localeCompare(b.jobName));
-  const filtered = s ? sorted.filter(j=>{
+  sel.innerHTML = sorted.map(j=>`<option value="${j.id}">${j.jobName} — ${j.jobNumber}${j.sketchNumber?' · Sketch #'+j.sketchNumber:''}${j.toNumber!=null?' · TO #'+j.toNumber:''}${j.system?' ('+j.system+')':''}</option>`).join('') || `<option value="">No jobs on the schedule yet</option>`;
+}
+function renderQcReportSearchResults(term){
+  const container = document.getElementById('qc-report-search-results');
+  const s = (term||'').trim().toLowerCase();
+  if(!s){ container.innerHTML = ''; return; }
+  const results = state.jobs.filter(j=>{
     const haystack = [j.jobName,j.jobNumber,j.toNumber,j.sketchNumber,j.system].filter(v=>v!=null).join(' ').toLowerCase();
     return haystack.includes(s);
-  }) : sorted;
-  sel.innerHTML = filtered.map(j=>`<option value="${j.id}">${j.jobName} — ${j.jobNumber}${j.sketchNumber?' · Sketch #'+j.sketchNumber:''}${j.toNumber!=null?' · TO #'+j.toNumber:''}${j.system?' ('+j.system+')':''}</option>`).join('') || `<option value="">${s?'No matching orders found':'No jobs on the schedule yet'}</option>`;
+  }).slice(0,20);
+  if(!results.length){ container.innerHTML = `<div style="color:var(--text-faint);font-size:12px;padding:6px 0;">No matching orders found.</div>`; return; }
+  container.innerHTML = results.map(j=>`
+    <div class="hot-row" data-qc-pick-job="${j.id}" style="cursor:pointer;padding:8px 10px;margin-bottom:6px;background:var(--panel-2);border-radius:8px;">
+      <div style="flex:1;">
+        <div class="job" style="font-size:12.5px;">${j.jobName} <span class="mono" style="color:var(--text-faint);font-size:10.5px;">${j.jobNumber}</span></div>
+        <div class="meta" style="font-size:11px;">${j.system||''}${j.sketchNumber?' · Sketch #'+j.sketchNumber:''}${j.toNumber!=null?' · TO #'+j.toNumber:''} · ${j.status}</div>
+      </div>
+      <button type="button" class="btn-primary" style="font-size:11px;padding:4px 10px;">Select</button>
+    </div>`).join('');
+  container.querySelectorAll('[data-qc-pick-job]').forEach(el=>el.addEventListener('click', ()=>{
+    document.getElementById('qc-report-job').value = el.dataset.qcPickJob;
+    document.getElementById('qc-report-job-search').value = '';
+    container.innerHTML = '';
+    toast('Order selected.');
+  }));
 }
 document.getElementById('report-issue-btn').addEventListener('click', ()=>{
-  renderQcReportJobOptions('');
+  renderQcReportJobOptions();
   resetQcReportForm();
   openModal('qc-report-modal');
   document.getElementById('qc-report-job-search').focus();
 });
-document.getElementById('qc-report-job-search').addEventListener('input', (e)=> renderQcReportJobOptions(e.target.value));
+document.getElementById('qc-report-job-search').addEventListener('input', (e)=> renderQcReportSearchResults(e.target.value));
 function wirePhotoInput(inputId, previewId, onCapture){
   document.getElementById(inputId).addEventListener('change', async (e)=>{
     const file = e.target.files[0]; if(!file) return;
