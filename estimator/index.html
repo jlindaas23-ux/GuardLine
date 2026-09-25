@@ -719,6 +719,27 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
     <!-- HARDWARE -->
     <div id="tab-hw" class="tab-panel">
       <p class="help">Enter piece count and length where applicable.</p>
+
+      <!-- VOLUME DAMPER -->
+      <div class="card" style="background:var(--bg2);margin-bottom:16px;padding:16px;">
+        <p class="stitle" style="margin:0 0 10px;">Volume damper</p>
+        <div class="g3 mb">
+          <div class="field"><label>Width (in)</label><input type="number" id="vd-w" min="1" placeholder="24" oninput="updDamperPreview()"></div>
+          <div class="field"><label>Height (in)</label><input type="number" id="vd-h" min="1" placeholder="12" oninput="updDamperPreview()"></div>
+          <div class="field"><label>Qty</label><input type="number" id="vd-qty" min="1" placeholder="1" oninput="updDamperPreview()"></div>
+        </div>
+        <div class="field mb">
+          <label>Handle type</label>
+          <div class="radio-group">
+            <label class="radio-opt selected"><input type="radio" name="vd-handle" value="flat" checked onchange="selDamperHandle(this);updDamperPreview()"> Flat handle</label>
+            <label class="radio-opt"><input type="radio" name="vd-handle" value="standoff" onchange="selDamperHandle(this);updDamperPreview()"> 2&Prime; standoff handle</label>
+          </div>
+        </div>
+        <div id="vd-preview" style="background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--tx2);margin-bottom:10px;">&#8212;</div>
+        <p style="font-size:11px;color:var(--tx3);margin:0 0 10px;">Price includes damper frame, opposed blades, and bearings. Handle is priced separately by type selected above.</p>
+        <button class="btn" onclick="addDamper()">+ Add damper</button>
+      </div>
+
       <div class="g3 mb">
         <div class="field"><label>Item</label>
           <select id="hw-item">
@@ -846,6 +867,7 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
       <div class="s2col">
         <div>
           <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:0 0 6px;">Material ($/ft)</p>
+          <div class="prow"><span>1/2&Prime; EMT</span><div class="pin"><span class="psub">$</span><input type="number" id="p-emt-05" value="0.85" min="0" step="0.05" oninput="renderAll()"></div></div>
           <div class="prow"><span>3/4&Prime; EMT</span><div class="pin"><span class="psub">$</span><input type="number" id="p-emt-075" value="1.20" min="0" step="0.05" oninput="renderAll()"></div></div>
           <div class="prow"><span>1&Prime; EMT</span><div class="pin"><span class="psub">$</span><input type="number" id="p-emt-1" value="1.90" min="0" step="0.05" oninput="renderAll()"></div></div>
           <div class="prow"><span>1-1/4&Prime; EMT</span><div class="pin"><span class="psub">$</span><input type="number" id="p-emt-125" value="2.80" min="0" step="0.05" oninput="renderAll()"></div></div>
@@ -875,6 +897,23 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
         </div>
       </div>
       <p style="font-size:11px;color:var(--tx3);margin:8px 0 0;">&#9888; Triggers on larger duct and/or higher pressure classes, same estimating-approximation caveat as EMT above. Defaults to the most common spec (R Angle 2.5&times;1.5, 10ga Galv) &mdash; actual type (angle vs. Z-bar) and size vary by chart. Update once real chart data is confirmed.</p>
+    </div>
+    <div class="hr"></div>
+
+    <!-- VOLUME DAMPER PRICING -->
+    <div style="margin:20px 0;">
+      <p style="font-size:12px;font-weight:600;color:var(--tx2);margin:0 0 8px;">Volume damper pricing</p>
+      <div class="s2col">
+        <div>
+          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:0 0 6px;">Damper ($/sqft)</p>
+          <div class="prow"><span>Frame, blades &amp; bearings</span><div class="pin"><span class="psub">$</span><input type="number" id="p-damper-sqft" value="9.50" min="0" step="0.25" oninput="updDamperPreview()"></div></div>
+        </div>
+        <div>
+          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:0 0 6px;">Handle (each)</p>
+          <div class="prow"><span>Flat handle</span><div class="pin"><span class="psub">$</span><input type="number" id="p-damper-handle-flat" value="22.00" min="0" step="0.50" oninput="updDamperPreview()"></div></div>
+          <div class="prow"><span>2&Prime; standoff handle</span><div class="pin"><span class="psub">$</span><input type="number" id="p-damper-handle-standoff" value="28.00" min="0" step="0.50" oninput="updDamperPreview()"></div></div>
+        </div>
+      </div>
     </div>
     <div class="hr"></div>
 
@@ -1067,12 +1106,31 @@ function OH(){return parseFloat(document.getElementById('p-oh')?.value)||0;}
 function PM(){return parseFloat(document.getElementById('p-pm')?.value)||0;}
 function SCRAP(){return parseFloat(document.getElementById('p-scrap')?.value)||0;}
 function EMT_PRICE(size){
-  const id=size==='3/4'?'p-emt-075':(size==='1'?'p-emt-1':'p-emt-125');
+  const id=size==='1/2'?'p-emt-05':(size==='3/4'?'p-emt-075':(size==='1'?'p-emt-1':'p-emt-125'));
   return parseFloat(document.getElementById(id)?.value)||0;
 }
 function EMT_INSTALL_MIN(){return parseFloat(document.getElementById('p-emt-min')?.value)||0;}
 function EXT_PRICE(){return parseFloat(document.getElementById('p-ext-price')?.value)||0;}
 function EXT_INSTALL_MIN(){return parseFloat(document.getElementById('p-ext-min')?.value)||0;}
+
+/* ── REAL EMT SIZE TABLE (from BCH's own NAMI reinforcement/TieRods data) ──
+   Unlike the reinforcement trigger/spacing logic elsewhere in this file
+   (still an estimating approximation), this EMT-size-by-span table is taken
+   directly from BCH's own TieRods reference sheet — not approximated. Which
+   EMT size to use depends on BOTH the panel span AND the pressure class:
+   at 4"/6"/10" w.g., a given span calls for a heavier EMT size sooner than
+   the same span would at 1/2"-3" w.g. */
+const EMT_SIZE_TABLE={
+  low:[{max:42,size:'1/2'},{max:62,size:'3/4'},{max:74,size:'1'},{max:96,size:'1-1/4'}],   // up to 3" w.g.
+  high:[{max:36,size:'1/2'},{max:48,size:'3/4'},{max:74,size:'1'},{max:96,size:'1-1/4'}],  // 4", 6", 10" w.g.
+};
+function emtSizeFor(pressureVal,maxSide){
+  const p=parseFloat(pressureVal)||0;
+  const table=p<=3?EMT_SIZE_TABLE.low:EMT_SIZE_TABLE.high;
+  for(const row of table){ if(maxSide<=row.max) return row.size; }
+  return table[table.length-1].size;
+}
+function emtSizeLabel(size){return size+'\u2033';}
 
 /* ── DUCT REINFORCEMENT (rectangular duct) ──
    This is an ESTIMATING APPROXIMATION of when SMACNA-style reinforcement is
@@ -1103,10 +1161,9 @@ function calcReinforcement(w,h,pressureVal,direction,lenFt){
   if(maxSide>18&&lenFt>spacingFt){
     const numLocations=Math.floor(lenFt/spacingFt);
     if(numLocations>=1){
-      let emtSize,pricePerFt;
-      if(maxSide<=36){emtSize='3/4\u2033';pricePerFt=EMT_PRICE('3/4');}
-      else if(maxSide<=60){emtSize='1\u2033';pricePerFt=EMT_PRICE('1');}
-      else{emtSize='1-1/4\u2033';pricePerFt=EMT_PRICE('1.25');}
+      const emtSizeRaw=emtSizeFor(pressureVal,maxSide);
+      const emtSize=emtSizeLabel(emtSizeRaw);
+      const pricePerFt=EMT_PRICE(emtSizeRaw);
       const barLenFt=maxSide/12+0.5;
       const totalFt=barLenFt*numLocations;
       const materialCost=totalFt*pricePerFt;
@@ -1304,7 +1361,7 @@ function rp(m,g,ov){
    back to Mode B pricing after Mode A looked like it was set. */
 const SETTINGS_KEY='bchEstimatorSettings_v1';
 function collectSettingsIds(){
-  const ids=['p-co','p-lr','p-lh','p-oh','p-pm','p-tx','p-wr','p-tx-a','p-scrap','p-emt-075','p-emt-1','p-emt-125','p-emt-min','p-ext-price','p-ext-min'];
+  const ids=['p-co','p-lr','p-lh','p-oh','p-pm','p-tx','p-wr','p-tx-a','p-scrap','p-emt-05','p-emt-075','p-emt-1','p-emt-125','p-emt-min','p-ext-price','p-ext-min'];
   document.querySelectorAll('#price-table input[id^="pr-"]').forEach(e=>ids.push(e.id));
   document.querySelectorAll('#liner-grid input[id^="lp-"]').forEach(e=>ids.push(e.id));
   return ids;
@@ -2315,6 +2372,52 @@ function addAcc(){
   }
   items.acc.push({id:nid++,name,desc,uom,q,len,price,isAuto:false});
   ['a-desc','a-qty','a-len','a-uprice','a-size-w','a-size-h','a-size-d'].forEach(i=>document.getElementById(i).value='');
+  renderAll();
+}
+
+/* ── VOLUME DAMPER ──
+   Priced by sqft (frame, opposed blades, and bearings all included in that
+   rate — bearings are a structural part of the damper, not an optional
+   add-on) plus a separate per-unit handle charge, since handle style is a
+   genuine choice that changes cost. */
+function selDamperHandle(r){
+  document.querySelectorAll('input[name="vd-handle"]').forEach(x=>x.parentElement.classList.remove('selected'));
+  r.parentElement.classList.add('selected');
+}
+function calcDamperPrice(w,h,handleType){
+  const sqft=(w*h)/144;
+  const sqftPrice=parseFloat(document.getElementById('p-damper-sqft')?.value)||0;
+  const handlePrice=handleType==='standoff'
+    ?(parseFloat(document.getElementById('p-damper-handle-standoff')?.value)||0)
+    :(parseFloat(document.getElementById('p-damper-handle-flat')?.value)||0);
+  const baseCost=sqft*sqftPrice;
+  const unitPrice=baseCost+handlePrice;
+  return {sqft,baseCost,handlePrice,unitPrice};
+}
+function updDamperPreview(){
+  const prev=document.getElementById('vd-preview');
+  if(!prev) return;
+  const w=parseFloat(document.getElementById('vd-w').value)||0;
+  const h=parseFloat(document.getElementById('vd-h').value)||0;
+  const qty=parseFloat(document.getElementById('vd-qty').value)||1;
+  const handleType=document.querySelector('input[name="vd-handle"]:checked')?.value||'flat';
+  if(!w||!h){ prev.textContent='\u2014'; return; }
+  const {sqft,baseCost,handlePrice,unitPrice}=calcDamperPrice(w,h,handleType);
+  const handleLabel=handleType==='standoff'?'2\u2033 standoff handle':'flat handle';
+  prev.innerHTML=`${w}\u2033&times;${h}\u2033 (${sqft.toFixed(2)} sqft) &middot; ${fmt(baseCost)} damper + ${fmt(handlePrice)} ${handleLabel} = <strong>${fmt(unitPrice)}/ea</strong>${qty>1?` &middot; ${fmt(unitPrice*qty)} total for ${qty}`:''}`;
+}
+function addDamper(){
+  const w=parseFloat(document.getElementById('vd-w').value)||0;
+  const h=parseFloat(document.getElementById('vd-h').value)||0;
+  const qty=parseFloat(document.getElementById('vd-qty').value)||1;
+  const handleType=document.querySelector('input[name="vd-handle"]:checked')?.value||'flat';
+  if(!w||!h){alert('Enter damper width and height.');return;}
+  const {unitPrice}=calcDamperPrice(w,h,handleType);
+  const handleLabel=handleType==='standoff'?'2\u2033 standoff handle':'flat handle';
+  items.hw.push({id:nid++,name:'Volume Damper',desc:`${w}\u2033\u00d7${h}\u2033 \u2014 opposed blade, bearings incl. \u2014 ${handleLabel}`,uom:'EA',q:qty,len:null,price:unitPrice});
+  ['vd-w','vd-h'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('vd-qty').value='';
+  document.getElementById('vd-preview').textContent='\u2014';
   renderAll();
 }
 
