@@ -5297,12 +5297,14 @@ async function fileQcReport(job, opts){
   addHistory(job, `Quality issue reported by ${state.userName} (${opts.priority}${opts.remake?', remake requested':''}): "${opts.desc}"`);
 
   if(opts.remake){
+    const originalPhotoKeys = (job.photoKeys && job.photoKeys.length) ? job.photoKeys.slice() : (job.hasPhoto ? [job.id] : []);
     const remakeJob = {
       id: uid(), orderType:'Duct', jobName: `${job.jobName} (Remake)`, jobNumber: job.jobNumber + '-RM', division: opts.division || job.division, customer: job.customer,
       system: job.system, area: job.area, trailer: job.trailer, dateSubmitted: todayISO(), needDate: opts.needDate || job.needDate, shippingMethod: job.shippingMethod,
       qty: job.qty, weight: 0, priority: opts.priority, labelColor:'', secondaryColor:'', drawingType: job.drawingType,
       sketchNumber: opts.ref || job.sketchNumber, notes: `REMAKE — ${opts.issueType}: ${opts.desc}`, status:'QC Hold',
-      hasPhoto:false, manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Remake job created automatically from a callback reported by ${state.userName} on ${job.jobName} (${job.jobNumber}).`}], qc:[]
+      hasPhoto: originalPhotoKeys.length>0, photoKeys: originalPhotoKeys, pdfFiles: (job.pdfFiles||[]).slice(),
+      manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Remake job created automatically from a callback reported by ${state.userName} on ${job.jobName} (${job.jobNumber}).${originalPhotoKeys.length||(job.pdfFiles||[]).length?' Original sketch/PDF carried over for reference.':''}`}], qc:[]
     };
     state.jobs.unshift(remakeJob);
     addHistory(job, `Remake job ${remakeJob.jobNumber} created automatically and added to the schedule (${opts.priority}). Original order left as ${job.status}.`);
