@@ -384,14 +384,14 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
       <div class="g5 mb">
         <div class="field"><label>Width (in)</label><input type="number" id="r-w" min="1" placeholder="24" oninput="updPrev();updRectWeld();updGaugeCheckRect();updReinfPreview()"></div>
         <div class="field"><label>Height (in)</label><input type="number" id="r-h" min="1" placeholder="12" oninput="updPrev();updRectWeld();updGaugeCheckRect();updReinfPreview()"></div>
-        <div class="field"><label>Length (ft)</label><input type="number" id="r-len" min="0.1" step="0.5" placeholder="10" oninput="updPrev();updRectWeld();updReinfPreview()"></div>
+        <div class="field"><label>Length (ft)</label><input type="number" id="r-len" min="0.1" step="0.5" placeholder="10" oninput="updPrev();updRectWeld();updReinfPreview();updGaugeCheckRect()"></div>
         <div class="field"><label>Qty (pcs)</label><input type="number" id="r-qty" min="1" placeholder="1" oninput="updPrev();updRectWeld();updReinfPreview()"></div>
         <div class="field"><label>$/lb override</label><input type="number" id="r-pprice" step="0.01" min="0" placeholder="auto"></div>
       </div>
       <div id="r-gauge-warn" style="display:none;background:#fff4e0;border:1px solid #e0a530;color:#8a5a00;border-radius:var(--r);padding:8px 12px;font-size:12px;margin-bottom:12px;"></div>
       <div class="g3 mb">
         <div class="field"><label>Pressure class</label>
-          <select id="r-press" onchange="updReinfPreview()">
+          <select id="r-press" onchange="updReinfPreview();updGaugeCheckRect()">
             <option value="0.5">1/2&Prime; w.g.</option>
             <option value="1">1&Prime; w.g.</option>
             <option value="2" selected>2&Prime; w.g.</option>
@@ -403,8 +403,8 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
         </div>
         <div class="field"><label>Pressure direction</label>
           <div class="radio-group">
-            <label class="radio-opt selected"><input type="radio" name="r-press-dir" value="Positive" checked onchange="selPressDir(this);updReinfPreview()"> Positive</label>
-            <label class="radio-opt"><input type="radio" name="r-press-dir" value="Negative" onchange="selPressDir(this);updReinfPreview()"> Negative</label>
+            <label class="radio-opt selected"><input type="radio" name="r-press-dir" value="Positive" checked onchange="selPressDir(this);updReinfPreview();updGaugeCheckRect()"> Positive</label>
+            <label class="radio-opt"><input type="radio" name="r-press-dir" value="Negative" onchange="selPressDir(this);updReinfPreview();updGaugeCheckRect()"> Negative</label>
           </div>
         </div>
       </div>
@@ -1038,10 +1038,25 @@ function updGaugeCheckRect(){
   const w=parseFloat(document.getElementById('r-w').value)||0;
   const h=parseFloat(document.getElementById('r-h').value)||0;
   const g=parseInt(document.getElementById('r-gauge').value)||0;
+  const len=parseFloat(document.getElementById('r-len').value)||0;
+  const press=document.getElementById('r-press')?.value;
+  const dir=document.querySelector('input[name="r-press-dir"]:checked')?.value||'Positive';
   const maxSide=Math.max(w,h);
   // Only meaningful for standard sheet metal duct — skip for dual wall/perf where the
   // liner/skin construction changes the rules, and skip until dims + gauge are entered.
   if(!maxSide||!g||metal==='dualwall'){ warn.style.display='none'; return; }
+  const real=len?rschedLookup(press,dir,maxSide,len*12):null;
+  if(real){
+    if(g>real.gauge){
+      warn.innerHTML=`&#9888; ${maxSide}&Prime; wide &times; ${len}' long at ${dir.toLowerCase()} ${press}&Prime; w.g. calls for ${real.gauge}ga or heavier (BCH reinforcement schedule). ${g}ga is lighter than that.`;
+      warn.style.display='block';
+    } else {
+      warn.style.display='none';
+    }
+    return;
+  }
+  // Outside the real schedule's charted range (duct wider than 60", or a run
+  // longer than 300") — fall back to the generic SMACNA minimum-gauge table.
   const minGa=smacnaMinGa(SMACNA_MIN_GA_RECT,maxSide);
   if(g>minGa){
     warn.innerHTML=`&#9888; ${maxSide}&Prime; is the longest side &mdash; SMACNA calls for ${minGa}ga or heavier on low-pressure unreinforced duct this size. ${g}ga is lighter than that.`;
@@ -1145,9 +1160,100 @@ function emtSizeLabel(size){return size+'\u2033';}
    Verify against the actual SMACNA manual / house reinforcement chart before
    it goes to the shop floor — the trigger sizes and spacing here are my own
    estimate, not lifted from a specific chart. */
+/* ── REAL DUCT REINFORCEMENT SCHEDULE ──
+   This replaces the estimating-approximation reinforcement logic below (for
+   rectangular duct, within its covered range) with BCH's own real
+   reinforcement schedule data. Structure: RSCHED[sheetKey][widthBracket] =
+   array of [sizeLE, gauge, jointCount, midPanel, internalType, cType,
+   externalType] rows, sorted ascending by sizeLE (the duct run length, in
+   inches, up to which that spec applies). sheetKey is 'P'+pressure or
+   'N'+pressure (e.g. 'P2', 'N4'). Covers pressure classes 2/3/4/6/10" w.g.;
+   1/2" and 1" w.g. map to the 2" w.g. table (conservative — real spec at
+   those lighter classes would need equal or less reinforcement, never more).
+   Covers duct widths up to 60" and run lengths up to 300" (25ft); outside
+   that range there's no chart data, so the estimating approximation below
+   is used instead with a note that it's outside the charted range. */
+const RSCHED={"P2":{"60":[[26,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[54,22,0,1,"1/2\" EMT","Internal","N/A"],[60,22,1,1,"1/2\" EMT","Internal","N/A"],[72,20,1,1,"1/2\" EMT","Internal","N/A"],[96,20,1,2,"1/2\" EMT","Internal","N/A"],[108,18,1," R Angle","N/A","Internal","R 2.875x1.5 10ga Galv"],[120,18,1," R Angle","N/A","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,3,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"48":[[28,26,0,0,"N/A","N/A","N/A"],[36,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[48,20,0,0,"N/A","N/A","N/A"],[60,20,1,0,"1/2\" EMT","Internal","N/A"],[72,20,1,1,"1/2\" EMT","Internal","N/A"],[96,20,1,2,"1/2\" EMT","Internal","N/A"],[108,18,1," R Angle","N/A","Internal","R 2.875x1.5 10ga Galv"],[120,18,1," R Angle","N/A","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,3,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"36":[[30,26,0,0,"N/A","N/A","N/A"],[42,24,0,0,"N/A","N/A","N/A"],[48,22,0,0,"N/A","N/A","N/A"],[60,20,0,0,"N/A","N/A","N/A"],[72,18,0,1,"1/2\" EMT","Internal","N/A"],[84,18,1,1,"1/2\" EMT","Internal","N/A"],[96,18,1," R Angle","N/A","Internal","R 2.875x1.5 10ga Galv"],[108,18,1," R Angle","N/A","Internal","R 2.875x1.5 10ga Galv"],[120,18,1,1,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,2,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,3,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"30":[[36,26,0,0,"N/A","N/A","N/A"],[42,24,0,0,"N/A","N/A","N/A"],[54,22,0,0,"N/A","N/A","N/A"],[60,20,0,0,"N/A","N/A","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]],"24":[[36,26,0,0,"N/A","N/A","N/A"],[48,24,0,0,"N/A","N/A","N/A"],[60,22,0,0,"N/A","N/A","N/A"],[72,18,0,0,"N/A","N/A","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]]},"P3":{"60":[[12,26,0,0,"N/A","N/A","N/A"],[26,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[36,20,0,0,"N/A","N/A","N/A"],[42,20,0,1,"1/2\" EMT","Internal","N/A"],[54,22,1,1,"1/2\" EMT","Internal","N/A"],[60,20,1,1,"1/2\" EMT","Internal","N/A"],[84,20,1,2,"1/2\" EMT","Internal","N/A"],[96,18,1,2,"1/2\" EMT","Internal","N/A"],[120,18,1," R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,3,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"48":[[18,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[48,22,0,1,"1/2\" EMT","Internal","N/A"],[60,22,1,1,"1/2\" EMT","Internal","N/A"],[72,20,1,1,"1/2\" EMT","Internal","N/A"],[96,20,1,2,"1/2\" EMT","Internal","N/A"],[120,18,1," R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,3,3,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,4,4,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"36":[[26,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[54,22,0,0,"N/A","N/A","N/A"],[72,20,1,0,"1/2\" EMT","Internal","N/A"],[84,18,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]],"30":[[28,26,0,0,"N/A","N/A","N/A"],[36,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[54,20,0,0,"N/A","N/A","N/A"],[60,18,0,0,"N/A","N/A","N/A"],[84,18,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]],"24":[[36,26,0,0,"N/A","N/A","N/A"],[42,24,0,0,"N/A","N/A","N/A"],[48,2,0,0,"N/A","N/A","N/A"],[60,22,1,0,"1/2\" EMT","Internal","N/A"],[84,20,1,0,"1/2\" EMT","Internal","N/A"],[96,18,0,0,"N/A","N/A","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]]},"P4":{"60":[[12,26,0,0,"N/A","N/A","N/A"],[22,24,0,0,"N/A","N/A","N/A"],[28,22,0,0,"N/A","N/A","N/A"],[30,20,0,0,"N/A","N/A","N/A"],[36,22,0,1,"1/2\" EMT","Internal","N/A"],[42,20,0,1,"1/2\" EMT","Internal","N/A"],[54,18,0,1,"1/2\" EMT","Internal","N/A"],[60,20,1,1,"1/2\" EMT","Internal","N/A"],[72,20,1,2,"1/2\" EMT","Internal","N/A"],[96,18,1,2,"1/2\" EMT","Internal","N/A"],[120,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"48":[[18,26,0,0,"N/A","N/A","N/A"],[24,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[36,24,0,1,"1/2\" EMT","Internal","N/A"],[42,22,0,1,"1/2\" EMT","Internal","N/A"],[60,18,1,1,"1/2\" EMT","Internal","N/A"],[72,20,1,1,"1/2\" EMT","Internal","N/A"],[84,18,1,1,"1/2\" EMT","Internal","N/A"],[96,18,1,2,"1/2\" EMT","Internal","N/A"],[120,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"36":[[24,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[48,22,0,0,"N/A","N/A","N/A"],[60,20,1,0,"1/2\" EMT","Internal","N/A"],[72,18,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[150,18,1,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"30":[[24,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[54,22,0,0,"N/A","N/A","N/A"],[72,20,0,0,"N/A","N/A","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[150,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]],"24":[[28,26,0,0,"N/A","N/A","N/A"],[36,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[72,22,1,0,"1/2\" EMT","Internal","N/A"],[84,20,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]]},"P6":{"60":[[8,26,0,0,"N/A","N/A","N/A"],[12,24,0,0,"N/A","N/A","N/A"],[24,22,0,0,"N/A","N/A","N/A"],[26,20,0,0,"N/A","N/A","N/A"],[30,22,0,1,"1/2\" EMT","Internal","N/A"],[36,20,0,1,"1/2\" EMT","Internal","N/A"],[42,18,0,1,"1/2\" EMT","Internal","N/A"],[60,20,1,1,"1/2\" EMT","Internal","N/A"],[72,18,1,1,"1/2\" EMT","Internal","N/A"],[96,18,1,2,"1/2\" EMT","Internal","N/A"],[108,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,18,1,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,2,5,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[210,16,2,6,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,16,3,7,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[270,16,3,8,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,16,4,9,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"48":[[8,26,0,0,"N/A","N/A","N/A"],[20,24,0,0,"N/A","N/A","N/A"],[26,22,0,0,"N/A","N/A","N/A"],[36,24,0,1,"1/2\" EMT","Internal","N/A"],[42,22,1,1,"1/2\" EMT","Internal","N/A"],[60,20,1,1,"1/2\" EMT","Internal","N/A"],[72,18,1,1,"1/2\" EMT","Internal","N/A"],[96,18,1,2,"1/2\" EMT","Internal","N/A"],[108,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,18,1,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,2,5,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[210,16,2,6,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,16,3,7,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[270,16,3,8,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,16,4,9,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"36":[[18,26,0,0,"N/A","N/A","N/A"],[24,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[54,20,1,0,"1/2\" EMT","Internal","N/A"],[84,18,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,2,5,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[210,16,2,6,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,16,3,7,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[270,16,3,8,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,16,4,9,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"30":[[20,26,0,0,"N/A","N/A","N/A"],[26,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[36,20,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[48,18,1,0,"1/2\" EMT","Internal","N/A"],[60,18,1,0,"1/2\" EMT","Internal","N/A"],[84,18,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,16,2,0,"1/2\" EMT","Internal","N/A"],[240,16,3,0,"1/2\" EMT","Internal","N/A"],[300,16,4,0,"1/2\" EMT","Internal","N/A"]],"24":[[22,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[60,20,1,0,"1/2\" EMT","Internal","N/A"],[84,18,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,16,2,0,"1/2\" EMT","Internal","N/A"],[240,16,3,0,"1/2\" EMT","Internal","N/A"],[300,16,4,0,"1/2\" EMT","Internal","N/A"]]},"P10":{"60":[[8,24,0,0,"N/A","N/A","N/A"],[12,22,0,0,"N/A","N/A","N/A"],[18,20,0,0,"N/A","N/A","N/A"],[30,18,1,0,"1/2\" EMT","Internal","N/A"],[36,18,0,"R Angle","N/A","External","R 2.875x1.5 10ga Galv"],[42,20,1,"R Angle","1/2\" EMT","External","R 2.875x1.5 10ga Galv"],[84,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[96,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[120,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[84,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[96,16,1,1,"1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[108,16,1,1,"1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,1,"1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"]],"48":[[12,24,0,0,"N/A","N/A","N/A"],[14,22,0,0,"N/A","N/A","N/A"],[22,20,0,0,"N/A","N/A","N/A"],[28,18,0,0,"N/A","N/A","N/A"],[42,18,1,0,"1/2\" EMT","Internal","N/A"],[54,20,1,"R Angle","1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[84,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[96,16,2,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[108,16,2,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,3,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"36":[[14,26,0,0,"N/A","N/A","N/A"],[18,24,0,0,"N/A","N/A","N/A"],[22,22,0,0,"N/A","N/A","N/A"],[26,20,0,0,"N/A","N/A","N/A"],[30,18,0,0,"N/A","N/A","N/A"],[42,20,1,"R Angle","1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[54,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[72,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[96,16,2,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[108,16,2,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,3,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"30":[[16,26,0,0,"N/A","N/A","N/A"],[20,24,0,0,"N/A","N/A","N/A"],[26,22,0,0,"N/A","N/A","N/A"],[28,20,0,0,"N/A","N/A","N/A"],[36,18,0,0,"N/A","N/A","N/A"],[48,20,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[72,18,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,16,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,16,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,16,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,16,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,16,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[96,16,2,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[108,16,2,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,3,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"24":[[18,26,0,0,"N/A","N/A","N/A"],[22,24,0,0,"N/A","N/A","N/A"],[28,22,0,0,"N/A","N/A","N/A"],[30,20,0,0,"N/A","N/A","N/A"],[36,18,0,0,"N/A","N/A","N/A"],[54,20,1,0,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[84,18,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]]},"N2":{"60":[[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[48,18,0,0,"N/A","N/A","N/A"],[54,22,0,1,"3/4\" EMT","Internal","N/A"],[60,22,1,1,"3/4\" EMT","Internal","N/A"],[72,20,1,1,"1\" EMT","Internal","N/A"],[96,20,1,2,"1 1/4\" EMT","Internal","N/A"],[108,18,1,"R Angle","1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[120,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,3,3,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,4,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"48":[[28,26,0,0,"N/A","N/A","N/A"],[36,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[48,20,0,0,"N/A","N/A","N/A"],[60,20,1,0,"3/4\" EMT","Internal","N/A"],[72,20,1,1,"1\" EMT","Internal","N/A"],[96,20,1,2,"1 1/4\" EMT","Internal","N/A"],[108,18,1,"R Angle","1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[120,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,3,3,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,4,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"36":[[30,26,0,0,"N/A","N/A","N/A"],[42,24,0,0,"N/A","N/A","N/A"],[48,22,0,0,"N/A","N/A","N/A"],[60,20,0,0,"N/A","N/A","N/A"],[72,18,0,1,"1\" EMT","Internal","N/A"],[84,18,1,1,"1 1/4\" EMT","Internal","N/A"],[96,18,1,"R Angle","1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[108,18,1,"R Angle","1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[120,18,1,1,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,3,3,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,4,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"30":[[36,26,0,0,"N/A","N/A","N/A"],[42,24,0,0,"N/A","N/A","N/A"],[54,22,0,0,"N/A","N/A","N/A"],[60,20,0,0,"N/A","N/A","N/A"],[72,18,1,0,"1\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[180,18,2,0,"1 1/4\" EMT","Internal","N/A"],[240,18,3,0,"1 1/4\" EMT","Internal","N/A"],[300,18,4,0,"1 1/4\" EMT","Internal","N/A"]],"24":[[36,26,0,0,"N/A","N/A","N/A"],[48,24,0,0,"N/A","N/A","N/A"],[60,22,0,0,"N/A","N/A","N/A"],[72,18,0,0,"N/A","N/A","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[180,18,2,0,"1 1/4\" EMT","Internal","N/A"],[240,18,3,0,"1 1/4\" EMT","Internal","N/A"],[300,18,4,0,"1 1/4\" EMT","Internal","N/A"]]},"N3":{"60":[[12,26,0,0,"N/A","N/A","N/A"],[26,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[36,20,0,0,"N/A","N/A","N/A"],[42,20,0,1,"1/2\" EMT","Internal","N/A"],[54,22,1,1,"3/4\" EMT","Internal","N/A"],[60,20,1,1,"3/4\" EMT","Internal","N/A"],[84,20,1,2,"1 1/4\" EMT","Internal","N/A"],[96,18,1,2,"1 1/4\" EMT","Internal","N/A"],[120,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,3,3,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,4,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"48":[[18,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[48,22,0,1,"3/4\" EMT","Internal","N/A"],[60,22,1,1,"3/4\" EMT","Internal","N/A"],[72,20,1,1,"1\" EMT","Internal","N/A"],[96,20,1,2,"1 1/4\" EMT","Internal","N/A"],[108,18,1,2,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,3,3,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,4,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"36":[[26,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[54,22,0,0,"3/4\" EMT","N/A","N/A"],[72,20,1,0,"3/4\" EMT","Internal","N/A"],[84,18,1,0," 1 1/4\" EMT","Internal","N/A"],[120,18,1,0," 1 1/4\" EMT","Internal","N/A"],[180,18,2,0," 1 1/4\" EMT","Internal","N/A"],[240,18,3,0," 1 1/4\" EMT","Internal","N/A"],[300,18,4,0," 1 1/4\" EMT","Internal","N/A"]],"30":[[28,26,0,0,"N/A","N/A","N/A"],[36,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[54,20,0,0,"N/A","N/A","N/A"],[60,18,0,0,"N/A","N/A","N/A"],[84,18,1,0," 1 1/4\" EMT","Internal","N/A"],[120,18,1,0," 1 1/4\" EMT","Internal","N/A"],[180,18,2,0," 1 1/4\" EMT","Internal","N/A"],[240,18,3,0," 1 1/4\" EMT","Internal","N/A"],[300,18,4,0," 1 1/4\" EMT","Internal","N/A"]],"24":[[36,26,0,0,"N/A","N/A","N/A"],[42,24,0,0,"N/A","N/A","N/A"],[48,2,0,0,"N/A","N/A","N/A"],[60,22,1,0,"3/4\" EMT","Internal","N/A"],[84,20,1,0," 1 1/4\" EMT","Internal","N/A"],[96,18,1,0," 1 1/4\" EMT","Internal","N/A"],[120,18,1,0," 1 1/4\" EMT","Internal","N/A"],[180,18,2,0," 1 1/4\" EMT","Internal","N/A"],[240,18,3,0," 1 1/4\" EMT","Internal","N/A"],[300,18,4,0," 1 1/4\" EMT","Internal","N/A"]]},"N4":{"60":[[12,26,0,0,"N/A","N/A","N/A"],[22,24,0,0,"N/A","N/A","N/A"],[28,22,0,0,"N/A","N/A","N/A"],[30,20,0,0,"N/A","N/A","N/A"],[36,22,0,1,"1/2\" EMT","Internal","N/A"],[42,20,1,1,"1/2\" EMT","Internal","N/A"],[54,18,1,1,"3/4\" EMT","Internal","N/A"],[60,20,1,1,"3/4\" EMT","Internal","N/A"],[72,20,1,2,"1\" EMT","Internal","N/A"],[96,18,1,2,"1 1/4\" EMT","Internal","N/A"],[120,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"48":[[18,26,0,0,"N/A","N/A","N/A"],[24,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[36,24,0,1,"1/2\" EMT","Internal","N/A"],[42,22,0,1,"1/2\" EMT","Internal","N/A"],[60,18,1,1,"3/4\" EMT","Internal","N/A"],[72,20,1,1,"1\" EMT","Internal","N/A"],[84,18,1,1,"1 1/4\" EMT","Internal","N/A"],[96,18,1,2,"1 1/4\" EMT","Internal","N/A"],[120,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"36":[[24,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[48,22,1,0,"3/4\" EMT","Internal","N/A"],[60,20,0,0,"3/4\" EMT","Internal","N/A"],[72,18,1,0,"1\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[150,18,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"30":[[24,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[54,22,1,0,"3/4\" EMT","Internal","N/A"],[72,20,1,0,"1\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[150,18,2,0,"1 1/4\" EMT","Internal","N/A"],[240,18,3,0,"1 1/4\" EMT","Internal","N/A"],[300,18,4,0,"1 1/4\" EMT","Internal","N/A"]],"24":[[28,26,0,0,"N/A","N/A","N/A"],[36,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[72,22,1,0,"1\" EMT","Internal","N/A"],[84,20,1,0,"1 1/4\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[180,18,2,0,"1 1/4\" EMT","Internal","N/A"],[240,18,3,0,"1 1/4\" EMT","Internal","N/A"],[300,18,4,0,"1 1/4\" EMT","Internal","N/A"]]},"N6":{"60":[[8,26,0,0,"N/A","N/A","N/A"],[12,24,0,0,"N/A","N/A","N/A"],[24,22,0,0,"N/A","N/A","N/A"],[26,20,0,0,"N/A","N/A","N/A"],[30,22,0,1,"1/2\" EMT","Internal","N/A"],[36,20,0,1,"1/2\" EMT","Internal","N/A"],[42,18,0,1,"1/2\" EMT","Internal","N/A"],[60,20,1,1,"3/4\" EMT","Internal","N/A"],[72,18,1,1,"1\" EMT","Internal","N/A"],[96,18,1,2,"1 1/4\" EMT","Internal","N/A"],[108,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,18,1,1,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"48":[[8,26,0,0,"N/A","N/A","N/A"],[20,24,0,0,"N/A","N/A","N/A"],[26,22,0,0,"N/A","N/A","N/A"],[36,24,0,1,"1/2\" EMT","Internal","N/A"],[42,22,1,1,"1/2\" EMT","Internal","N/A"],[60,20,1,1,"3/4\" EMT","Internal","N/A"],[72,18,1,1,"1\" EMT","Internal","N/A"],[96,18,1,2,"1 1/4\" EMT","Internal","N/A"],[108,18,1,"R Angle","1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[120,18,1,1,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[150,18,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"36":[[18,26,0,0,"N/A","N/A","N/A"],[24,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[54,20,1,0,"3/4\" EMT","Internal","N/A"],[84,18,1,0,"1 1/4\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[150,18,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"30":[[20,26,0,0,"N/A","N/A","N/A"],[26,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[36,20,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[48,20,1,0,"3/4\" EMT","Internal","N/A"],[60,20,1,0,"3/4\" EMT","Internal","N/A"],[84,18,1,0,"1 1/4\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[180,18,2,0,"1 1/4\" EMT","Internal","N/A"],[240,18,3,0,"1 1/4\" EMT","Internal","N/A"],[300,18,4,0,"1 1/4\" EMT","Internal","N/A"]],"24":[[22,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[60,20,1,0,"3/4\" EMT","Internal","N/A"],[84,18,1,0,"1 1/4\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[180,18,2,0,"1 1/4\" EMT","Internal","N/A"],[240,18,3,0,"1 1/4\" EMT","Internal","N/A"],[300,18,4,0,"1 1/4\" EMT","Internal","N/A"]]},"N10":{"60":[[8,24,0,0,"N/A","N/A","N/A"],[12,22,0,0,"N/A","N/A","N/A"],[18,20,0,0,"N/A","N/A","N/A"],[26,18,1,0,"1/2\" EMT","Internal","Internal"],[30,18,1,0,"1/2\" EMT","Internal","Internal"],[36,18,0,"R Angle","N/A","External","R 2.875x1.5 10ga Galv"],[42,20,1,"R Angle","N/A","External","R 2.875x1.5 10ga Galv"],[54,18,1,"R Angle","3/4\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[84,18,1,"R Angle","1\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,1,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,16,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,16,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,16,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,16,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,16,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,16,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"48":[[12,24,0,0,"N/A","N/A","N/A"],[14,22,0,0,"N/A","N/A","N/A"],[22,20,0,0,"N/A","N/A","N/A"],[28,18,0,0,"N/A","N/A","N/A"],[42,18,1,0,"1/2\" EMT","Internal","Internal"],[54,20,1,"R Angle","3/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[84,18,1,1,"1\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,1,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,null,2,"1/2\" EMT","Both","L 2 1/2x1/4 Galv"],[240,16,null,3,"1/2\" EMT","Both","L 2 1/2x1/4 Galv"],[300,16,null,4,"1/2\" EMT","Both","L 2 1/2x1/4 Galv"],[150,16,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,16,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,16,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,16,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,16,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,16,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"36":[[14,26,0,0,"N/A","N/A","N/A"],[18,24,0,0,"N/A","N/A","N/A"],[22,22,0,0,"N/A","N/A","N/A"],[26,20,0,0,"N/A","N/A","N/A"],[30,18,0,0,"N/A","N/A","N/A"],[22,22,0,0,"N/A","N/A","N/A"],[26,20,0,0,"N/A","N/A","N/A"],[30,18,0,0,"N/A","N/A","N/A"],[42,20,1,"R Angle","1/2\" EMT","Internal","R 2.875x1.5 10ga Galv"],[54,18,1,"R Angle","3/4\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[72,16,1,"R Angle","1\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[84,18,1,1,"1\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,1,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,16,1,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,2,5,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[210,16,2,6,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,16,3,7,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[270,16,3,8,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,16,4,9,"5 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"30":[[16,26,0,0,"N/A","N/A","N/A"],[20,24,0,0,"N/A","N/A","N/A"],[26,22,0,0,"N/A","N/A","N/A"],[28,20,0,0,"N/A","N/A","N/A"],[36,18,0,0,"N/A","N/A","N/A"],[48,20,1,"R Angle","1/2\" EMT","N/A","R 3.25 x 1.5 10 GA(2) Galv"],[72,18,1,"R Angle","1\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,16,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,1,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,16,1,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,2,5,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[210,16,2,6,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,16,3,7,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[270,16,3,8,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,16,4,9,"5 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"24":[[18,26,0,0,"N/A","N/A","N/A"],[22,24,0,0,"N/A","N/A","N/A"],[28,22,0,0,"N/A","N/A","N/A"],[30,20,1,0,"N/A","N/A","N/A"],[36,18,2,0,"N/A","N/A","N/A"],[54,20,1,"R Angle","3/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,18,1,"R Angle","1\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,16,1,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,2,5,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[210,16,2,6,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,16,3,7,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[270,16,3,8,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,16,4,9,"5 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]]}};
+function rschedLookup(pressureVal,direction,width,lengthIn){
+  const p=parseFloat(pressureVal)||0;
+  const pKey=p<=2?2:(p<=3?3:(p<=4?4:(p<=6?6:10)));
+  const sheetKey=(direction==='Negative'?'N':'P')+pKey;
+  const sheet=RSCHED[sheetKey];
+  if(!sheet) return null;
+  const brackets=[24,30,36,48,60];
+  const bracket=brackets.find(b=>width<=b);
+  if(!bracket) return null; // duct wider than 60" — outside charted range
+  const rows=sheet[String(bracket)];
+  if(!rows||!rows.length) return null;
+  const row=rows.find(r=>lengthIn<=r[0]);
+  if(!row) return null; // longer than 300" — outside charted range
+  const [sizeLE,gauge,jointCount,midPanel,internal,cType,external]=row;
+  return {bracket,sizeLE,gauge,jointCount,midPanel,internal,cType,external};
+}
+/* Two defensive fixes for data-entry issues found in BCH's own source file
+   (flagged, not silently "corrected" — worth checking against the original):
+   - A handful of rows show internal size "5 1/4\" EMT" (N4/N6/N10, at the
+     longest/heaviest row in each). No such EMT size exists; every other row
+     in the same position across sheets calls for "1 1/4\" EMT", so that's
+     almost certainly a typo (probably "1 1/4" mis-keyed as "5 1/4") and is
+     treated as 1-1/4" here.
+   - A few N10 rows show the External column literally reading "Internal" —
+     that's the C-Type value bleeding into the wrong column, not a real
+     external spec. Treated as no exterior reinforcement (N/A). */
+function rschedEmtSize(internalStr){
+  if(!internalStr||typeof internalStr!=='string') return null;
+  const s=internalStr.trim();
+  if(s.indexOf('1/2')===0) return '1/2';
+  if(s.indexOf('3/4')===0) return '3/4';
+  if(s.indexOf('1 1/4')===0||s.indexOf('5 1/4')===0) return '1-1/4';
+  if(s.indexOf('1"')===0) return '1';
+  return null;
+}
+function rschedExtType(externalStr){
+  if(!externalStr||externalStr==='N/A'||externalStr==='Internal'||externalStr==='External') return null;
+  return externalStr.trim();
+}
 function calcReinforcement(w,h,pressureVal,direction,lenFt){
+  const maxSide0=Math.max(w||0,h||0);
+  if(!maxSide0||!lenFt) return {emt:null,ext:null,isReal:false};
+  const wr=parseFloat(document.getElementById('p-wr')?.value)||95;
+  const lengthIn=lenFt*12;
+  const real=rschedLookup(pressureVal,direction,maxSide0,lengthIn);
+  if(real){
+    let emt=null,ext=null;
+    const emtSizeRaw=rschedEmtSize(real.internal);
+    if(emtSizeRaw&&typeof real.midPanel==='number'&&real.midPanel>0){
+      const numLocations=real.midPanel;
+      const emtSize=emtSizeLabel(emtSizeRaw);
+      const pricePerFt=EMT_PRICE(emtSizeRaw);
+      const barLenFt=maxSide0/12+0.5;
+      const totalFt=barLenFt*numLocations;
+      const materialCost=totalFt*pricePerFt;
+      const installMins=numLocations*EMT_INSTALL_MIN();
+      const laborCost=(installMins/60)*wr;
+      emt={numLocations,emtSize,spacingFt:null,totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost,real:true};
+    }
+    const extType=rschedExtType(real.external);
+    if(extType){
+      const numLocations=Math.max(1,real.jointCount||1);
+      const perimeterFt=2*((w||maxSide0)+(h||maxSide0))/12;
+      const totalFt=perimeterFt*numLocations;
+      const pricePerFt=EXT_PRICE();
+      const materialCost=totalFt*pricePerFt;
+      const installMins=numLocations*EXT_INSTALL_MIN();
+      const laborCost=(installMins/60)*wr;
+      ext={numLocations,type:extType,spacingFt:null,perimeterFt:parseFloat(perimeterFt.toFixed(1)),totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost,real:true};
+    }
+    return {emt,ext,isReal:true,realGauge:real.gauge,realJoints:real.jointCount};
+  }
+  return calcReinforcementApprox(w,h,pressureVal,direction,lenFt,wr);
+}
+/* Fallback estimating approximation — only used outside the real schedule's
+   charted range (duct wider than 60", or a run longer than 300"/25ft). Same
+   caveat as before: this is my own reasoned estimate, not chart data. */
+function calcReinforcementApprox(w,h,pressureVal,direction,lenFt,wr){
   const maxSide=Math.max(w||0,h||0);
-  if(!maxSide||!lenFt) return {emt:null,ext:null};
+  if(!maxSide||!lenFt) return {emt:null,ext:null,isReal:false};
   const p=parseFloat(pressureVal)||0;
   let spacingFt;
   if(p<=1) spacingFt=8;
@@ -1168,8 +1274,8 @@ function calcReinforcement(w,h,pressureVal,direction,lenFt){
       const totalFt=barLenFt*numLocations;
       const materialCost=totalFt*pricePerFt;
       const installMins=numLocations*EMT_INSTALL_MIN();
-      const laborCost=(installMins/60)*(parseFloat(document.getElementById('p-wr')?.value)||95);
-      emt={numLocations,emtSize,spacingFt,totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost};
+      const laborCost=(installMins/60)*wr;
+      emt={numLocations,emtSize,spacingFt,totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost,real:false};
     }
   }
 
@@ -1185,10 +1291,10 @@ function calcReinforcement(w,h,pressureVal,direction,lenFt){
     const pricePerFt=EXT_PRICE();
     const materialCost=totalFt*pricePerFt;
     const installMins=numExtLocations*EXT_INSTALL_MIN();
-    const laborCost=(installMins/60)*(parseFloat(document.getElementById('p-wr')?.value)||95);
-    ext={numLocations:numExtLocations,type:'R Angle 2.5\u00d71.5, 10ga Galv',spacingFt:extSpacingFt,perimeterFt:parseFloat(perimeterFt.toFixed(1)),totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost};
+    const laborCost=(installMins/60)*wr;
+    ext={numLocations:numExtLocations,type:'R Angle 2.5\u00d71.5, 10ga Galv',spacingFt:extSpacingFt,perimeterFt:parseFloat(perimeterFt.toFixed(1)),totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost,real:false};
   }
-  return {emt,ext};
+  return {emt,ext,isReal:false};
 }
 
 /* ── ROUND/SPIRAL DUCT REINFORCEMENT ──
@@ -1309,11 +1415,12 @@ function updFitReinfPreview(){
   } else {
     const w=Math.max(fw1,fw2)||fw1;
     const h=Math.max(fh1,fh2)||fh1;
-    const {emt,ext}=calcReinforcement(w,h,press,dir,lenFt);
+    const {emt,ext,isReal}=calcReinforcement(w,h,press,dir,lenFt);
     if(!emt&&!ext){ box.style.display='none'; return; }
+    const tag=isReal?'<span style="font-weight:600;color:#0f6e56;">[BCH schedule]</span> ':'<span style="font-weight:600;color:#8a5a00;">[estimate]</span> ';
     const lines=[]; let totalCost=0;
-    if(emt){ totalCost+=emt.totalCost*qty; lines.push(`&#9888; Intermediate reinforcement &mdash; ${emt.numLocations} pc ${emt.emtSize} EMT${qty>1?` &times; ${qty}pc`:''}.`); }
-    if(ext){ totalCost+=ext.totalCost*qty; lines.push(`&#9888; Exterior/joint reinforcement &mdash; ${ext.numLocations} band${ext.numLocations===1?'':'s'} of ${ext.type}${qty>1?` &times; ${qty}pc`:''}.`); }
+    if(emt){ totalCost+=emt.totalCost*qty; lines.push(`${tag}Intermediate reinforcement &mdash; ${emt.numLocations} pc ${emt.emtSize} EMT${qty>1?` &times; ${qty}pc`:''}.`); }
+    if(ext){ totalCost+=ext.totalCost*qty; lines.push(`${tag}Exterior/joint reinforcement &mdash; ${ext.numLocations} band${ext.numLocations===1?'':'s'} of ${ext.type}${qty>1?` &times; ${qty}pc`:''}.`); }
     document.getElementById('f-reinf-detail').innerHTML=lines.join('<br>');
     document.getElementById('f-reinf-cost').textContent=`+${fmt(totalCost)} (material + install)`;
     box.style.display='block';
@@ -1328,17 +1435,19 @@ function updReinfPreview(){
   const qty=parseFloat(document.getElementById('r-qty').value)||1;
   const press=document.getElementById('r-press').value;
   const dir=document.querySelector('input[name="r-press-dir"]:checked')?.value||'Positive';
-  const {emt,ext}=calcReinforcement(w,h,press,dir,len);
+  const {emt,ext,isReal}=calcReinforcement(w,h,press,dir,len);
   if(!emt&&!ext){ box.style.display='none'; return; }
   const lines=[];
   let totalCost=0;
+  const tag=isReal?'<span style="font-weight:600;color:#0f6e56;">[BCH schedule]</span> ':'<span style="font-weight:600;color:#8a5a00;">[estimate]</span> ';
   if(emt){
     totalCost+=emt.totalCost*qty;
-    lines.push(`&#9888; Intermediate reinforcement every ~${emt.spacingFt}' &mdash; ${emt.numLocations} piece${emt.numLocations===1?'':'s'} of ${emt.emtSize} EMT per duct${qty>1?` &times; ${qty}pc`:''}.`);
+    const spacingNote=emt.spacingFt?` every ~${emt.spacingFt}'`:'';
+    lines.push(`${tag}Intermediate reinforcement${spacingNote} &mdash; ${emt.numLocations} piece${emt.numLocations===1?'':'s'} of ${emt.emtSize} EMT per duct${qty>1?` &times; ${qty}pc`:''}.`);
   }
   if(ext){
     totalCost+=ext.totalCost*qty;
-    lines.push(`&#9888; Exterior/joint reinforcement &mdash; ${ext.numLocations} band${ext.numLocations===1?'':'s'} of ${ext.type} (full perimeter, ~${ext.perimeterFt}' each) per duct${qty>1?` &times; ${qty}pc`:''}.`);
+    lines.push(`${tag}Exterior/joint reinforcement &mdash; ${ext.numLocations} band${ext.numLocations===1?'':'s'} of ${ext.type} (full perimeter, ~${ext.perimeterFt}' each) per duct${qty>1?` &times; ${qty}pc`:''}.`);
   }
   document.getElementById('r-reinf-detail').innerHTML=lines.join('<br>');
   document.getElementById('r-reinf-cost').textContent=`+${fmt(totalCost)} (material + install)`;
