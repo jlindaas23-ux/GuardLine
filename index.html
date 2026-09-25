@@ -675,7 +675,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
         </div>
         <div class="field" style="grid-column:1/-1;display:flex;align-items:center;gap:10px;background:var(--panel-2);padding:12px 14px;border-radius:8px;border:1px solid var(--border);">
           <input type="checkbox" id="qc-report-remake" style="width:auto;flex-shrink:0;">
-          <label style="margin:0;text-transform:none;font-size:13px;color:var(--text);" for="qc-report-remake">This needs a remake — automatically add it to the production schedule as <b style="color:var(--red);">Urgent</b></label>
+          <label style="margin:0;text-transform:none;font-size:13px;color:var(--text);" for="qc-report-remake">This needs a remake — automatically add it to the production schedule with the priority selected above</label>
+        </div>
+        <div class="field" id="qc-report-remake-date-field" style="grid-column:1/-1;display:none;">
+          <label>Date Needed for Remake <span style="color:var(--red);">*</span></label>
+          <input id="qc-report-remake-date" type="date">
         </div>
       </div>
     </div>
@@ -4159,7 +4163,11 @@ async function renderJobModal(){
       </div>
       <div class="field" style="grid-column:1/-1;display:flex;align-items:center;gap:10px;background:var(--bg-2);padding:12px 14px;border-radius:8px;border:1px solid var(--border);">
         <input type="checkbox" id="qc-remake" style="width:auto;flex-shrink:0;">
-        <label style="margin:0;text-transform:none;font-size:13px;color:var(--text);" for="qc-remake">This needs a remake — automatically add it to the production schedule as <b style="color:var(--red);">Urgent</b></label>
+        <label style="margin:0;text-transform:none;font-size:13px;color:var(--text);" for="qc-remake">This needs a remake — automatically add it to the production schedule with the priority selected above</label>
+      </div>
+      <div class="field" id="qc-remake-date-field" style="grid-column:1/-1;display:none;">
+        <label>Date Needed for Remake <span style="color:var(--red);">*</span></label>
+        <input id="qc-remake-date" type="date">
       </div>
     </div>` : `
     <div class="card" style="padding:16px;margin-top:16px;background:var(--panel-2);">
@@ -4182,11 +4190,17 @@ async function renderJobModal(){
     if(showForm){
       wirePhotoInput('qc-camera','qc-photo-preview', (url)=>{ jmQcPhotoDraft = url; });
       wirePhotoInput('qc-upload','qc-photo-preview', (url)=>{ jmQcPhotoDraft = url; });
+      document.getElementById('qc-remake').addEventListener('change', function(){
+        document.getElementById('qc-remake-date-field').style.display = this.checked ? '' : 'none';
+      });
       document.getElementById('qc-submit-btn').onclick = async ()=>{
         const desc = val('qc-desc'); if(!desc.trim()){ toast('Describe the issue first.'); return; }
+        const remake = document.getElementById('qc-remake').checked;
+        const needDate = val('qc-remake-date');
+        if(remake && !needDate){ toast('Set a date needed for the remake.'); return; }
         await fileQcReport(job, {
           ref: val('qc-ref'), issueType: val('qc-type'), priority: val('qc-priority'), division: job.division,
-          desc, photoDataUrl: jmQcPhotoDraft, remake: document.getElementById('qc-remake').checked
+          desc, photoDataUrl: jmQcPhotoDraft, remake, needDate
         });
         toast('Callback submitted.'); renderJobModal();
       };
@@ -4472,7 +4486,7 @@ function renderAddOrderResults(term){
   const results = state.jobs.filter(j=>{
     if(j.orderType==='Material') return false;
     if(loadListLinkedJobIds.includes(j.id)) return false;
-    const haystack = [j.jobName,j.jobNumber,j.toNumber,j.system].filter(v=>v!=null).join(' ').toLowerCase();
+    const haystack = [j.jobName,j.jobNumber,j.toNumber,j.sketchNumber,j.system].filter(v=>v!=null).join(' ').toLowerCase();
     return haystack.includes(s);
   }).slice(0,20);
   if(!results.length){ container.innerHTML = `<div style="color:var(--text-faint);font-size:12px;padding:6px 0;">No matching orders found.</div>`; return; }
@@ -4480,7 +4494,7 @@ function renderAddOrderResults(term){
     <div class="hot-row" data-add-order="${j.id}" style="cursor:pointer;padding:8px 10px;margin-bottom:6px;background:var(--panel-2);border-radius:8px;">
       <div style="flex:1;">
         <div class="job" style="font-size:12.5px;">${j.jobName} <span class="mono" style="color:var(--text-faint);font-size:10.5px;">${j.jobNumber}</span></div>
-        <div class="meta" style="font-size:11px;">${j.system||''} · Need Date ${needDateLabel(j.needDate)} · Qty ${j.qty} · ${fmt(j.weight)} lbs · ${j.status}</div>
+        <div class="meta" style="font-size:11px;">${j.system||''}${j.sketchNumber?' · Sketch #'+j.sketchNumber:''}${j.toNumber!=null?' · TO #'+j.toNumber:''} · Need Date ${needDateLabel(j.needDate)} · Qty ${j.qty} · ${fmt(j.weight)} lbs · ${j.status}</div>
       </div>
       <button type="button" class="btn-primary" style="font-size:11px;padding:4px 10px;">+ Add</button>
     </div>`).join('');
@@ -4504,7 +4518,7 @@ function renderLinkedJobsUI(){
     return `<div class="hot-row" data-open-linked-job="${id}" style="cursor:pointer;padding:8px 10px;margin-bottom:6px;background:var(--bg-2);border-radius:8px;">
       <div style="flex:1;">
         <div class="job" style="font-size:12.5px;">${j.jobName} <span class="mono" style="color:var(--text-faint);font-size:10.5px;">${j.jobNumber}</span> ${hasAttachment?'📎':''}</div>
-        <div class="meta" style="font-size:11px;">${j.system||''} · Qty ${j.qty} · ${fmt(j.weight)} lbs${hasAttachment?' · Tap to view sketch/PDF':''}</div>
+        <div class="meta" style="font-size:11px;">${j.system||''}${j.sketchNumber?' · Sketch #'+j.sketchNumber:''}${j.toNumber!=null?' · TO #'+j.toNumber:''} · Qty ${j.qty} · ${fmt(j.weight)} lbs${hasAttachment?' · Tap to view sketch/PDF':''}</div>
       </div>
       <button type="button" class="btn-ghost ll-unlink-job" data-unlink="${id}" style="font-size:10px;padding:3px 8px;">Remove</button>
     </div>`;
@@ -4523,9 +4537,11 @@ function renderLinkedJobsUI(){
 function openLoadListModal(existingId){
   editingLoadListId = existingId || null;
   const existing = existingId ? (state.loadLists||[]).find(l=>l.id===existingId) : null;
+  const canEditLL = !(state.role==='field' && existing);
   loadListLinkedJobIds = existing ? (existing.linkedJobIds||[]).slice() : [];
-  document.getElementById('loadlist-modal-title').textContent = existing ? 'Edit Load List' : 'New Load List';
+  document.getElementById('loadlist-modal-title').textContent = existing ? (canEditLL?'Edit Load List':'Load List (View Only)') : 'New Load List';
   document.getElementById('loadlist-modal-body').innerHTML = `
+    ${!canEditLL ? `<div class="card" style="padding:10px 14px;margin-bottom:14px;background:var(--panel-2);border-left:3px solid var(--steel-bright);"><span style="color:var(--steel-bright);font-weight:600;">👁 View only.</span> <span style="color:var(--text-dim);font-size:13px;">Once a load list is submitted, only a Manager or Executive can change it. Contact them if something needs to be added or corrected.</span></div>` : ''}
     <div class="form-grid">
       <div class="field"><label>Date</label><input id="ll-date" type="date" value="${existing?existing.date:todayISO()}"></div>
       <div class="field" style="grid-column:2/-1;">
@@ -4545,7 +4561,7 @@ function openLoadListModal(existingId){
         <button type="button" class="btn-ghost" id="ll-add-order-btn">➕ Add Order (any date)</button>
       </div>
       <div class="field" id="ll-add-order-panel" style="grid-column:1/-1;display:none;background:var(--bg-2);border-radius:8px;padding:10px;">
-        <input id="ll-add-order-search" placeholder="Search by job name, job number, TO #, or system…" style="width:100%;margin-bottom:8px;">
+        <input id="ll-add-order-search" placeholder="Search by job name, job number, TO #, sketch #, or system…" style="width:100%;margin-bottom:8px;">
         <div id="ll-add-order-results" style="max-height:220px;overflow-y:auto;"></div>
       </div>
       <div class="field" style="grid-column:1/-1;"><label>Project Address</label><input id="ll-projectAddress" value="${existing?existing.projectAddress||'':''}"></div>
@@ -4630,6 +4646,18 @@ function openLoadListModal(existingId){
   const llManageLink = document.getElementById('ll-manage-job-list-link');
   if(llManageLink) llManageLink.addEventListener('click', openJobMasterListModal);
   initLLSections(existing);
+  if(!canEditLL){
+    const body = document.getElementById('loadlist-modal-body');
+    body.querySelectorAll('input, select, textarea').forEach(el=> el.disabled = true);
+    ['ll-autofill-btn','ll-add-order-btn','ll-add-order-panel','ll-manage-job-list-link','loadlist-delete-btn'].forEach(id=>{
+      const el = document.getElementById(id); if(el) el.style.display = 'none';
+    });
+    const addSectionButtons = document.getElementById('ll-add-section-buttons'); if(addSectionButtons) addSectionButtons.style.display = 'none';
+    body.querySelectorAll('.ll-add-section, .ll-unlink-job').forEach(el=> el.style.display = 'none');
+    const saveBtn = document.getElementById('loadlist-save-btn'); if(saveBtn) saveBtn.style.display = 'none';
+  } else {
+    const saveBtn = document.getElementById('loadlist-save-btn'); if(saveBtn) saveBtn.style.display = '';
+  }
   openModal('loadlist-modal');
 }
 function appendUniqueLine(currentText, newLine){
@@ -5197,10 +5225,15 @@ function resetQcReportForm(){
   document.getElementById('qc-report-ref').value = '';
   document.getElementById('qc-report-desc').value = '';
   document.getElementById('qc-report-remake').checked = false;
+  document.getElementById('qc-report-remake-date').value = '';
+  document.getElementById('qc-report-remake-date-field').style.display = 'none';
   document.getElementById('qc-report-photo-preview').innerHTML = 'No photo attached.';
   document.getElementById('qc-report-camera').value = '';
   document.getElementById('qc-report-upload').value = '';
 }
+document.getElementById('qc-report-remake').addEventListener('change', function(){
+  document.getElementById('qc-report-remake-date-field').style.display = this.checked ? '' : 'none';
+});
 document.getElementById('new-order-btn').addEventListener('click', openAddModal);
 document.getElementById('new-material-btn-global').addEventListener('click', ()=> openMaterialModal());
 document.getElementById('new-loadlist-btn-global').addEventListener('click', ()=> openLoadListModal(null));
@@ -5255,20 +5288,19 @@ async function fileQcReport(job, opts){
   };
   job.qc = job.qc || [];
   job.qc.unshift(entry);
-  job.status = 'QC Hold';
   if(opts.photoDataUrl) await savePhoto('qc-'+qcId, opts.photoDataUrl);
   addHistory(job, `Quality issue reported by ${state.userName} (${opts.priority}${opts.remake?', remake requested':''}): "${opts.desc}"`);
 
   if(opts.remake){
     const remakeJob = {
       id: uid(), orderType:'Duct', jobName: `${job.jobName} (Remake)`, jobNumber: job.jobNumber + '-RM', division: opts.division || job.division, customer: job.customer,
-      system: job.system, area: job.area, trailer: job.trailer, dateSubmitted: todayISO(), shippingMethod: job.shippingMethod,
-      qty: job.qty, weight: 0, priority:'Urgent', labelColor:'', secondaryColor:'', drawingType: job.drawingType,
-      sketchNumber: opts.ref || job.sketchNumber, notes: `REMAKE — ${opts.issueType}: ${opts.desc}`, status:'Pending',
+      system: job.system, area: job.area, trailer: job.trailer, dateSubmitted: todayISO(), needDate: opts.needDate || job.needDate, shippingMethod: job.shippingMethod,
+      qty: job.qty, weight: 0, priority: opts.priority, labelColor:'', secondaryColor:'', drawingType: job.drawingType,
+      sketchNumber: opts.ref || job.sketchNumber, notes: `REMAKE — ${opts.issueType}: ${opts.desc}`, status:'QC Hold',
       hasPhoto:false, manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Remake job created automatically from a callback reported by ${state.userName} on ${job.jobName} (${job.jobNumber}).`}], qc:[]
     };
     state.jobs.unshift(remakeJob);
-    addHistory(job, `Remake job ${remakeJob.jobNumber} created automatically and added to the schedule as Urgent.`);
+    addHistory(job, `Remake job ${remakeJob.jobNumber} created automatically and added to the schedule (${opts.priority}). Original order left as ${job.status}.`);
   }
   saveState();
 }
@@ -5277,12 +5309,15 @@ document.getElementById('qc-report-submit').addEventListener('click', async ()=>
   const desc = document.getElementById('qc-report-desc').value.trim();
   const job = jobById(jobId);
   if(!job || !desc){ toast('Pick a job and describe the issue.'); return; }
+  const remake = document.getElementById('qc-report-remake').checked;
+  const needDate = val('qc-report-remake-date');
+  if(remake && !needDate){ toast('Set a date needed for the remake.'); return; }
   await fileQcReport(job, {
     ref: document.getElementById('qc-report-ref').value.trim(),
     issueType: document.getElementById('qc-report-type').value,
     priority: document.getElementById('qc-report-priority').value,
     division: document.getElementById('qc-report-division').value,
-    desc, photoDataUrl: qcReportPhotoDraft, remake: document.getElementById('qc-report-remake').checked
+    desc, photoDataUrl: qcReportPhotoDraft, remake, needDate
   });
   closeModal('qc-report-modal'); toast('Callback submitted.'); render();
 });
