@@ -2512,7 +2512,7 @@ function viewDashboard(){
       ${qcAlerts.length ? `
       <div class="card" style="padding:16px;">
         <div class="section-title"><span class="bar" style="background:var(--red)"></span>Quality Control Alerts</div>
-        ${qcAlerts.map(a=>`<div class="qc-alert"><div class="txt"><b>${a.job.jobName}</b> · ${a.job.jobNumber}${a.q.ref?' · Ref '+a.q.ref:''} — ${a.q.issueType?a.q.issueType+': ':''}${a.q.desc}${a.q.priority==='Urgent'?'<span class="urgent-badge">Urgent</span>':''}${a.q.remake?'<span class="remake-badge">Remake</span>':''}</div><span class="badge-open">Open</span></div>`).join('')}
+        ${qcAlerts.map(a=>`<div class="qc-alert" data-open-qc="${a.job.id}" style="cursor:pointer;"><div class="txt"><b>${a.job.jobName}</b> · ${a.job.jobNumber}${a.q.ref?' · Ref '+a.q.ref:''} — ${a.q.issueType?a.q.issueType+': ':''}${a.q.desc}${a.q.priority==='Urgent'?'<span class="urgent-badge">Urgent</span>':''}${a.q.remake?'<span class="remake-badge">Remake</span>':''}</div><span class="badge-open">Open</span></div>`).join('')}
       </div>` : ''}
       ${(overdueJobs.length || overdueLoadLists.length) ? `
       <div class="card" style="padding:16px;margin-top:${qcAlerts.length?'14px':'0'};">
@@ -3621,6 +3621,7 @@ function bindMainEvents(){
   const deliveredSearchField = document.getElementById('delivered-search-field');
   if(deliveredSearchField) deliveredSearchField.addEventListener('change', ()=>{ state.deliveredSearchField = deliveredSearchField.value; renderTableOnly(); });
   document.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',(e)=>{ e.stopPropagation(); openJob(el.dataset.open); }));
+  document.querySelectorAll('[data-open-qc]').forEach(el=>el.addEventListener('click',(e)=>{ e.stopPropagation(); openJobToQC(el.dataset.openQc); }));
   document.querySelectorAll('[data-thumb-open]').forEach(el=>el.addEventListener('click',(e)=>{ e.stopPropagation(); openThumbLightbox(el.dataset.thumbOpen); }));
   document.querySelectorAll('tr[data-open]').forEach(tr=>tr.addEventListener('click',()=>openJob(tr.dataset.open)));
   const newBtn = document.getElementById('new-job-btn'); if(newBtn) newBtn.addEventListener('click', openAddModal);
@@ -3844,6 +3845,11 @@ function renderHistoricalOnly(){
 /* ============================ JOB DETAIL MODAL ============================ */
 async function openJob(id){
   state.openJobId = id; state.jmTab='info';
+  await renderJobModal();
+  openModal('job-modal');
+}
+async function openJobToQC(id){
+  state.openJobId = id; state.jmTab='qc';
   await renderJobModal();
   openModal('job-modal');
 }
@@ -5298,13 +5304,16 @@ async function fileQcReport(job, opts){
 
   if(opts.remake){
     const originalPhotoKeys = (job.photoKeys && job.photoKeys.length) ? job.photoKeys.slice() : (job.hasPhoto ? [job.id] : []);
+    const remakeToNumber = suggestNextToNumber(job.jobNumber);
     const remakeJob = {
       id: uid(), orderType:'Duct', jobName: `${job.jobName} (Remake)`, jobNumber: job.jobNumber + '-RM', division: opts.division || job.division, customer: job.customer,
-      system: job.system, area: job.area, trailer: job.trailer, dateSubmitted: todayISO(), needDate: opts.needDate || job.needDate, shippingMethod: job.shippingMethod,
-      qty: job.qty, weight: 0, priority: opts.priority, labelColor:'', secondaryColor:'', drawingType: job.drawingType,
-      sketchNumber: opts.ref || job.sketchNumber, notes: `REMAKE — ${opts.issueType}: ${opts.desc}`, status:'QC Hold',
+      requesterEmail: job.requesterEmail, system: job.system, area: job.area, trailer: job.trailer, dateSubmitted: todayISO(), needDate: opts.needDate || job.needDate,
+      deliveryTime: job.deliveryTime, deliveryTimeSpecific: job.deliveryTimeSpecific, shippingMethod: job.shippingMethod,
+      qty: job.qty, weight: job.weight, priority: opts.priority, labelColor: job.labelColor, secondaryColor: job.secondaryColor, drawingType: job.drawingType,
+      sketchNumber: opts.ref || job.sketchNumber, toNumber: remakeToNumber!==null ? remakeToNumber : suggestNewFamilyStartNumber(),
+      notes: `REMAKE — ${opts.issueType}: ${opts.desc}${job.notes?`\n\nOriginal order notes: ${job.notes}`:''}`, status:'QC Hold',
       hasPhoto: originalPhotoKeys.length>0, photoKeys: originalPhotoKeys, pdfFiles: (job.pdfFiles||[]).slice(),
-      manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Remake job created automatically from a callback reported by ${state.userName} on ${job.jobName} (${job.jobNumber}).${originalPhotoKeys.length||(job.pdfFiles||[]).length?' Original sketch/PDF carried over for reference.':''}`}], qc:[]
+      manualOrder:nextManualOrder(), history:[{when:nowStr(), note:`Remake job created automatically from a callback reported by ${state.userName} on ${job.jobName} (${job.jobNumber}). All order details, notes, and the sketch/PDF were carried over for reference.`}], qc:[]
     };
     state.jobs.unshift(remakeJob);
     addHistory(job, `Remake job ${remakeJob.jobNumber} created automatically and added to the schedule (${opts.priority}). Original order left as ${job.status}.`);
