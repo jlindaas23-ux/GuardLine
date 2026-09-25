@@ -640,6 +640,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8;}
     <div class="modal-body">
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1;">
+          <label>Search for Your Order <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(by job name, job number, TO#, sketch #, or system)</span></label>
+          <input id="qc-report-job-search" placeholder="🔍 Start typing to find your order…">
+        </div>
+        <div class="field" style="grid-column:1/-1;">
           <label>Job Name</label>
           <select id="qc-report-job"></select>
         </div>
@@ -5231,6 +5235,7 @@ document.getElementById('add-save-btn').addEventListener('click', async ()=>{
 let qcReportPhotoDraft = null;
 function resetQcReportForm(){
   qcReportPhotoDraft = null;
+  document.getElementById('qc-report-job-search').value = '';
   document.getElementById('qc-report-division').innerHTML = divisionOptionsHTML('');
   document.getElementById('qc-report-type').innerHTML = ISSUE_TYPES.map(t=>`<option>${t}</option>`).join('');
   document.getElementById('qc-report-ref').value = '';
@@ -5273,13 +5278,23 @@ function updateMobileTabbar(){
   const openQc = state.jobs.some(j=>(j.qc||[]).some(q=>q.status==='Open'));
   const dot = document.getElementById('mtab-dot'); if(dot) dot.classList.toggle('show', openQc);
 }
-document.getElementById('report-issue-btn').addEventListener('click', ()=>{
+function renderQcReportJobOptions(term){
   const sel = document.getElementById('qc-report-job');
+  const s = (term||'').trim().toLowerCase();
   const sorted = [...state.jobs].sort((a,b)=> a.jobName.localeCompare(b.jobName));
-  sel.innerHTML = sorted.map(j=>`<option value="${j.id}">${j.jobName} — ${j.jobNumber}${j.system?' ('+j.system+')':''}</option>`).join('') || `<option value="">No jobs on the schedule yet</option>`;
+  const filtered = s ? sorted.filter(j=>{
+    const haystack = [j.jobName,j.jobNumber,j.toNumber,j.sketchNumber,j.system].filter(v=>v!=null).join(' ').toLowerCase();
+    return haystack.includes(s);
+  }) : sorted;
+  sel.innerHTML = filtered.map(j=>`<option value="${j.id}">${j.jobName} — ${j.jobNumber}${j.sketchNumber?' · Sketch #'+j.sketchNumber:''}${j.toNumber!=null?' · TO #'+j.toNumber:''}${j.system?' ('+j.system+')':''}</option>`).join('') || `<option value="">${s?'No matching orders found':'No jobs on the schedule yet'}</option>`;
+}
+document.getElementById('report-issue-btn').addEventListener('click', ()=>{
+  renderQcReportJobOptions('');
   resetQcReportForm();
   openModal('qc-report-modal');
+  document.getElementById('qc-report-job-search').focus();
 });
+document.getElementById('qc-report-job-search').addEventListener('input', (e)=> renderQcReportJobOptions(e.target.value));
 function wirePhotoInput(inputId, previewId, onCapture){
   document.getElementById(inputId).addEventListener('change', async (e)=>{
     const file = e.target.files[0]; if(!file) return;
