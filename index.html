@@ -110,6 +110,10 @@ nav.tabs button{
 }
 nav.tabs button.active{color:var(--text); background:var(--panel-2); border-bottom:2px solid var(--steel-bright);}
 nav.tabs button:hover:not(.active){color:var(--text);}
+.ll-tabs{display:flex;gap:6px;margin:4px 0 6px;flex-wrap:wrap;}
+.ll-tabs button{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:.04em;text-transform:uppercase;padding:8px 16px;border-radius:8px;border:1px solid var(--line,rgba(255,255,255,.15));background:transparent;color:var(--text-dim,var(--text-faint));cursor:pointer;}
+.ll-tabs button.active{background:var(--panel-2);color:var(--text);border-color:var(--steel-bright);box-shadow:inset 0 -2px 0 var(--steel-bright);}
+.ll-tabs .ll-count{display:inline-block;min-width:20px;margin-left:6px;padding:1px 6px;border-radius:10px;background:rgba(127,127,127,.18);font-size:11px;}
 .dash-subtabs{display:flex; flex-wrap:wrap; gap:4px; border-bottom:1px solid var(--border); margin-bottom:22px; padding-bottom:0;}
 .dash-subtabs button{
   background:none;border:none;color:var(--text-dim); font-family:'Oswald'; letter-spacing:.05em;
@@ -3261,7 +3265,7 @@ function viewMore(){
   <div class="more-group">
     <button class="more-item" data-view="completed"><span>Orders Ready</span><span class="more-count">${readyCount} &rsaquo;</span></button>
     <button class="more-item" data-view="delivered"><span>Completed &amp; Delivered</span><span class="more-count">${doneCount} &rsaquo;</span></button>
-    <button class="more-item" data-view="loadlists"><span>Load Lists</span><span class="more-count">${(state.loadLists||[]).filter(l=>l.status==='Open').length} &rsaquo;</span></button>
+    <button class="more-item" data-view="loadlists"><span>Load Lists</span><span class="more-count">${(state.loadLists||[]).filter(l=>l.status!=='Delivered').length} &rsaquo;</span></button>
     <button class="more-item" data-view="contacts"><span>Contacts</span><span class="more-count">&rsaquo;</span></button>
     ${canEdit ? `<button class="more-item" data-view="dashboard"><span>Executive Dashboard</span><span class="more-count">&rsaquo;</span></button>` : ''}
     <button class="more-item" data-view="trailer"><span>Trailer Dashboard</span><span class="more-count">&rsaquo;</span></button>
@@ -3310,13 +3314,31 @@ function tlcCompute(inputs){
     cartsAcrossWidth, cartsAlongLength, cartsStackedHigh, totalCartsPerSemi, cartCapacity, effectiveCapacity,
     overUnder, trailersRequired, capacityUtilization, distribution};
 }
+function loadListDeliveredLabel(l){
+  if(l.deliveredAt) return l.deliveredAt;
+  const h = (l.history||[]).find(e=> /Delivered/.test(e.note||''));
+  return h ? h.when : (l.date ? needDateLabel(l.date) : '');
+}
+function loadListDeliveredSortKey(l){
+  return l.deliveredISO || l.date || '';
+}
 function viewLoadLists(){
   const canEdit = state.role==='master'||state.role==='manager';
   const s = (state.loadListSearch||'').toLowerCase();
-  const lists = (state.loadLists||[]).filter(l=>{
+  const tab = state.loadListTab==='completed' ? 'completed' : 'needed';
+  const matches = l=>{
     if(!s) return true;
     return [l.projectName,l.projectNumber,l.fieldContact,l.parts,l.sheetShop,l.pipeShop,l.equipmentOrders,l.toolOrders,l.returns,l.comments].join(' ').toLowerCase().includes(s);
-  }).sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.createdAt||'').localeCompare(a.createdAt||''));
+  };
+  const all = (state.loadLists||[]);
+  const neededAll = all.filter(l=>l.status!=='Delivered');
+  const completedAll = all.filter(l=>l.status==='Delivered');
+  const tabsHtml = `<div class="ll-tabs">
+      <button data-loadlist-tab="needed" class="${tab==='needed'?'active':''}">Needed<span class="ll-count">${neededAll.length}</span></button>
+      <button data-loadlist-tab="completed" class="${tab==='completed'?'active':''}">Completed History<span class="ll-count">${completedAll.length}</span></button>
+    </div>`;
+  if(tab==='completed') return viewLoadListsCompleted(completedAll.filter(matches), tabsHtml, canEdit);
+  const lists = neededAll.filter(matches).sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.createdAt||'').localeCompare(a.createdAt||''));
   const itemSections = [['parts','Parts'],['sheetShop','Sheet Shop'],['pipeShop','Pipe Shop'],['equipmentOrders','Equipment'],['toolOrders','Tools'],['returns','Returns']];
   return `
   <div class="toolbar">
@@ -3326,6 +3348,7 @@ function viewLoadLists(){
       <button class="btn-primary" id="new-loadlist-btn-inline">+ New Load List</button>
     </div>
   </div>
+  ${tabsHtml}
   <div style="margin-bottom:26px;">
     ${lists.length ? (()=>{
       const groups = {};
@@ -3359,7 +3382,53 @@ function viewLoadLists(){
           }).join('')}
         </div>`;
       }).join('');
-    })() : `<div class="card empty" style="padding:20px;">No load lists yet. Click "+ New Load List" to request a delivery.</div>`}
+    })() : `<div class="card empty" style="padding:20px;">${s?'No needed load lists match your search.':(completedAll.length?'All caught up — every load list has been delivered. See Completed History for past deliveries.':'No load lists yet. Click "+ New Load List" to request a delivery.')}</div>`}
+  </div>`;
+}
+function viewLoadListsCompleted(lists, tabsHtml, canEdit){
+  const itemSections = [['parts','Parts'],['sheetShop','Sheet Shop'],['pipeShop','Pipe Shop'],['equipmentOrders','Equipment'],['toolOrders','Tools'],['returns','Returns']];
+  lists = lists.slice().sort((a,b)=> loadListDeliveredSortKey(b).localeCompare(loadListDeliveredSortKey(a)) || (b.createdAt||'').localeCompare(a.createdAt||''));
+  const groups = {}; const order = [];
+  lists.forEach(l=>{
+    const k = (loadListDeliveredSortKey(l)||'').slice(0,7) || 'Unknown';
+    if(!groups[k]){ groups[k]=[]; order.push(k); }
+    groups[k].push(l);
+  });
+  const monthLabel = k=> k==='Unknown' ? 'Date Unknown' : new Date(k+'-01T00:00:00').toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  return `
+  <div class="toolbar">
+    <div class="section-title" style="margin:0;"><span class="bar"></span>Load Lists <span style="color:var(--text-faint);font-size:10px;text-transform:none;">(completed history — delivered load lists, newest first)</span></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <input class="search-box" id="loadlist-search" placeholder="Search project, contact, items…" value="${state.loadListSearch||''}" style="min-width:220px;">
+      <button class="btn-primary" id="new-loadlist-btn-inline">+ New Load List</button>
+    </div>
+  </div>
+  ${tabsHtml}
+  <div style="margin-bottom:26px;">
+    ${lists.length ? order.map(k=>`
+      <div class="ll-date-header" style="display:flex;align-items:baseline;gap:10px;margin:18px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--green);">
+        <div style="font-family:'Oswald';font-size:16px;font-weight:600;color:var(--text);">${monthLabel(k)}</div>
+        <div style="font-size:12px;color:var(--text-faint);">${groups[k].length} delivered</div>
+      </div>
+      <div class="card hot-list">
+        ${groups[k].map(l=>{
+          const itemsPresent = itemSections.filter(([key])=>(l[key]||'').trim());
+          const linkedCount = (l.linkedJobIds||[]).length;
+          const deliv = loadListDeliveredLabel(l);
+          return `
+          <div class="hot-row" style="cursor:pointer;flex-direction:column;align-items:stretch;" data-edit-loadlist="${l.id}">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="flex:1;min-width:0;">
+                <div class="job">${l.projectName}${l.projectNumber?` <span class="mono" style="color:var(--text-faint);font-size:11px;">${l.projectNumber}</span>`:''}</div>
+                <div class="meta">✅ Delivered ${deliv||''}${l.date?' · Needed '+needDateLabel(l.date):''}${l.fieldContact?' · '+l.fieldContact:''}</div>
+                ${(itemsPresent.length || linkedCount) ? `<div style="margin-top:4px;font-size:11px;color:var(--text-faint);">${linkedCount?`🔗 ${linkedCount} linked order${linkedCount!==1?'s':''}`:''}${linkedCount&&itemsPresent.length?' · ':''}${itemsPresent.map(([,label])=>label).join(' · ')}</div>` : ''}
+              </div>
+              <span class="status ${LOADLIST_STATUS_CLASS[l.status]}">${l.status}</span>
+              ${canEdit ? `<button class="btn-ghost" data-reopen-loadlist="${l.id}" title="Move back to Needed">↺ Reopen</button>` : ''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`).join('') : `<div class="card empty" style="padding:20px;">${state.loadListSearch?'No delivered load lists match your search.':'No delivered load lists yet. When a load list is marked Delivered it moves here.'}</div>`}
   </div>`;
 }
 function tlcDefaultDraft(){
@@ -3648,8 +3717,21 @@ function bindMainEvents(){
     const next = LOADLIST_ADVANCE[l.status];
     if(!next) return;
     l.status = next;
+    if(next==='Delivered'){ l.deliveredAt = nowStr(); l.deliveredISO = todayISO(); }
     addHistory(l, `Status changed to "${next}" by ${state.userName}.`);
-    saveState(); toast(`Load list marked ${next}.`); render();
+    saveState(); toast(next==='Delivered' ? 'Load list delivered — moved to Completed History.' : `Load list marked ${next}.`); render();
+  }));
+  document.querySelectorAll('[data-loadlist-tab]').forEach(b=>b.addEventListener('click',()=>{
+    state.loadListTab = b.dataset.loadlistTab; renderLoadListsOnly();
+  }));
+  document.querySelectorAll('[data-reopen-loadlist]').forEach(b=>b.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    const l = (state.loadLists||[]).find(x=>x.id===b.dataset.reopenLoadlist);
+    if(!l) return;
+    if(!confirm(`Move "${l.projectName}" back to Needed?`)) return;
+    l.status = 'Loaded'; delete l.deliveredAt; delete l.deliveredISO;
+    addHistory(l, `Reopened (moved back to Needed) by ${state.userName}.`);
+    saveState(); toast('Load list moved back to Needed.'); render();
   }));
   const reportPrev = document.getElementById('report-week-prev');
   if(reportPrev) reportPrev.addEventListener('click', ()=>{ const d=new Date(state.reportWeek+'T00:00:00'); d.setDate(d.getDate()-7); state.reportWeek=mondayISO(d.toISOString().slice(0,10)); render(); });
@@ -4730,6 +4812,8 @@ document.getElementById('loadlist-save-btn').addEventListener('click', ()=>{
     requestedBy: val('ll-requestedBy'), approvedBy: val('ll-approvedBy'),
     linkedJobIds: loadListLinkedJobIds.slice(),
     status: existing ? existing.status : 'Open',
+    deliveredAt: existing ? (existing.deliveredAt||'') : '',
+    deliveredISO: existing ? (existing.deliveredISO||'') : '',
     createdBy: existing ? existing.createdBy : state.userName,
     createdAt: existing ? existing.createdAt : nowStr(),
     history: existing ? (existing.history||[]).slice() : []
