@@ -1387,7 +1387,13 @@ function suggestNextToNumber(jobNumber){
   const family = state.jobs.filter(j=> j.jobNumber && j.jobNumber.trim().toLowerCase()===key && j.toNumber!=null && j.toNumber!=='');
   if(!family.length) return null;
   const maxTo = Math.max(...family.map(j=>Number(j.toNumber)));
-  return maxTo + 1;
+  const next = maxTo + 1;
+  if(!isToNumberTaken(next, null)) return next;
+  // Next number belongs to another job — jump to the start of the next empty hundred block.
+  const used = state.jobs.filter(j=>j.toNumber!=null && j.toNumber!=='').map(j=>Number(j.toNumber));
+  let block = Math.floor(next/100)*100 + 100;
+  while(used.some(n=> n>=block && n<block+100)) block += 100;
+  return block;
 }
 function suggestNewFamilyStartNumber(){
   const allNumbers = state.jobs.filter(j=>j.toNumber!=null && j.toNumber!=='').map(j=>Number(j.toNumber));
@@ -5180,7 +5186,7 @@ function openAddModal(){
     const suggestion = suggestNextToNumber(jobNumInput.value);
     if(suggestion!==null){
       toInput.value = suggestion;
-      hint.textContent = `Auto-filled: next TO # for this job (previous TO #s already used).`;
+      hint.textContent = (Number(suggestion)%100===0) ? `Auto-filled: this job's next number was taken by another job, so it moved up to the next open hundred.` : `Auto-filled: next TO # for this job (previous TO #s already used).`;
     } else if(jobNumInput.value.trim()){
       toInput.value = suggestNewFamilyStartNumber();
       hint.textContent = `New job — auto-assigned a fresh starting TO #. Edit it if you want this job to start at a specific number.`;
