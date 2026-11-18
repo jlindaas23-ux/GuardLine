@@ -1204,12 +1204,12 @@ function updGaugeCheckRound(){
   }
 }
 const METALS={
-  galv:     {label:'Galvanized G90', gauges:[18,20,22,24,26],prices:{18:0.61,20:0.59,22:0.60,24:0.64,26:0.64},src:{18:1,20:1,22:1,24:1,26:1}},
-  ss:       {label:'Stainless Steel',gauges:[18,20,22,24,26],prices:{18:0.61},src:{18:1}},
-  alum:     {label:'Aluminum',       gauges:[18,20,22,24,26],prices:{},src:{}},
-  paintgrip:{label:'Galvanneal',      gauges:[18,20,22,24,26],prices:{},src:{}},
+  galv:     {label:'Galvanized G90', gauges:[16,18,20,22,24,26],prices:{18:0.61,20:0.59,22:0.60,24:0.64,26:0.64},src:{18:1,20:1,22:1,24:1,26:1}},
+  ss:       {label:'Stainless Steel',gauges:[16,18,20,22,24,26],prices:{18:0.61},src:{18:1}},
+  alum:     {label:'Aluminum',       gauges:[16,18,20,22,24,26],prices:{},src:{}},
+  paintgrip:{label:'Galvanneal',      gauges:[16,18,20,22,24,26],prices:{},src:{}},
   perf:     {label:'Perforated',     gauges:[22,24,26],      prices:{22:1.37},src:{22:1}},
-  black:    {label:'Black Iron',     gauges:[18,20,22,24,26],prices:{},src:{}},
+  black:    {label:'Black Iron',     gauges:[16,18,20,22,24,26],prices:{},src:{}},
 };
 const LINERS=[
   {key:'ups030',    label:'UPS #030 R-4.2 Flex'},
@@ -1647,7 +1647,7 @@ function fmt(n){return '$'+parseFloat(n).toLocaleString('en-US',{minimumFraction
 function ds(fw,fh,fl){const p=[];if(fw!=null)p.push(fw+'\u2033W');if(fh!=null)p.push(fh+'\u2033H');if(fl!=null)p.push(fl+'\u2033L');return p.length?p.join('\u00d7'):'\u2014';}
 
 function buildPriceTable(){
-  const g=[18,20,22,24,26];
+  const g=[16,18,20,22,24,26];
   let h='<thead><tr><th style="width:145px;">Metal</th>';
   g.forEach(x=>h+=`<th style="width:100px;">${x} ga</th>`);
   h+='</tr></thead><tbody>';
@@ -1676,7 +1676,7 @@ function buildLinerGrid(){
 function updG(mId,gId){
   const m=document.getElementById(mId).value;
   const s=document.getElementById(gId);
-  const g=METALS[m]?.gauges||[18,20,22,24,26];
+  const g=METALS[m]?.gauges||[16,18,20,22,24,26];
   s.innerHTML=g.map(x=>`<option value="${x}">${x} gauge</option>`).join('');
   if(g.includes(24))s.value=24;
 }
