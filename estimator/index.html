@@ -145,6 +145,12 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
 .rate-badge{display:inline-block;font-size:10px;font-weight:500;letter-spacing:.01em;margin-top:2px;padding:1px 6px;border-radius:999px;white-space:nowrap;}
 .rate-badge.rate-a{background:#e6f4ef;color:#0f6e56;}
 .rate-badge.rate-b{background:#eef1f4;color:#5b6672;}
+.price-warn{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.02em;margin-top:2px;margin-right:3px;padding:1px 6px;border-radius:999px;white-space:nowrap;cursor:help;}
+.price-warn.pw-none{background:#fdeaea;color:#a32d2d;border:1px solid rgba(163,45,45,.35);}
+.price-warn.pw-saved{background:#fff4e0;color:#8a5a00;border:1px solid rgba(224,165,48,.5);}
+.pwr{font-size:12px;border-radius:var(--r);padding:8px 12px;margin-top:6px;line-height:1.45;}
+.pwr-err{background:#fdeaea;color:#8a1f1f;border:1px solid rgba(163,45,45,.3);font-weight:500;}
+.pwr-warn{background:#fff4e0;color:#8a5a00;border:1px solid rgba(224,165,48,.5);}
 .dim{font-size:12px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .btn-rm{background:none;border:none;cursor:pointer;color:var(--tx3);padding:3px 6px;font-size:18px;line-height:1;border-radius:4px;font-family:var(--font);}
 .btn-rm:hover{color:var(--txd);background:var(--bgd);}
@@ -229,6 +235,14 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
 .trow{display:flex;justify-content:space-between;padding:10px 20px;font-size:13px;color:#1a1a18;border-bottom:1px solid #f0f0ee;}
 .trow:last-child{border-bottom:none;background:#0f6e56;padding:14px 20px;}
 .trow .tl{color:#666;}
+.rev-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:#eef1f4;color:#3d4954;}
+.st-pill{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;vertical-align:1px;}
+.st-Draft{background:#eef1f4;color:#5b6672;}.st-Sent{background:#e8f0fd;color:#1f4fa3;}.st-Won{background:#e6f4ef;color:#0f6e56;}.st-Lost{background:#fdeaea;color:#a32d2d;}
+.co-pill{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;background:#efe8fb;color:#5b2fa3;}
+.jf-chip{border:1px solid var(--bd);background:var(--bg);border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;}
+.jf-chip.on{background:var(--tx);color:var(--bg);border-color:var(--tx);}
+.co-sec .pli-p.pos{color:#0f6e56;}.co-sec .pli-p.neg{color:#a32d2d;}
+.trow.trow-sub{font-weight:600;background:#fafaf8;}
 .trow:last-child .tl{color:rgba(255,255,255,.8);font-size:15px;font-weight:600;}
 .trow:last-child span:last-child{color:#fff;font-size:20px;font-weight:700;font-family:'Georgia',serif;}
 /* Quote-only total */
@@ -379,6 +393,17 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
     <button class="btn btn-sm" onclick="newJob()">&#128203; New job</button>
     <span id="job-save-status" style="font-size:12px;color:var(--txs);"></span>
   </div>
+  <!-- QUOTE TRACKING: status + revision + change order -->
+  <div id="job-track-bar" style="display:flex;align-items:center;gap:8px;margin:-6px 0 14px;flex-wrap:wrap;font-size:12px;justify-content:flex-start;">
+    <span style="font-size:12px;color:var(--tx2);font-weight:600;background:var(--bg);padding:4px 8px;border-radius:var(--r);">Quote status</span>
+    <select id="job-status" onchange="setJobStatus(this.value)" style="width:auto;min-width:110px;flex:0 0 auto;display:inline-block;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);font-size:12px;">
+      <option value="Draft">Draft</option><option value="Sent">Sent</option><option value="Won">Won</option><option value="Lost">Lost</option>
+    </select>
+    <span id="job-rev-badge" class="rev-badge">Rev A</span>
+    <button class="btn btn-sm" onclick="newRevision()" title="Archive the current version and start the next revision letter">&#10133; New revision</button>
+    <button class="btn btn-sm" onclick="createChangeOrder()" title="Start a priced change order against this job">&#177; Change order</button>
+  </div>
+  <div id="co-banner" style="display:none;background:#eef3fb;border:1px solid rgba(40,80,160,.25);border-radius:var(--r);padding:10px 16px;margin-bottom:14px;font-size:13px;color:#1f3d73;"></div>
 
   <!-- DRAFT RESTORE BANNER -->
   <div id="draft-banner" style="display:none;background:var(--bgs);border:1px solid rgba(39,80,10,.2);border-radius:var(--r);padding:10px 16px;margin-bottom:14px;font-size:13px;color:var(--txs);">
@@ -903,6 +928,7 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
       <div class="met met-hi"><p class="met-l" id="s-tlbl">Total</p><p class="met-v" id="s-total">$0.00</p></div>
     </div>
     <p id="s-mode-indicator" style="text-align:center;font-size:12px;font-weight:600;margin:2px 0 0;"></p>
+    <div id="s-price-warn" style="display:none;margin-top:10px;"></div>
     <p id="s-scrap-indicator" style="text-align:center;font-size:12px;color:var(--tx3);margin:2px 0 0;display:none;"></p>
     <div id="s-markup-box" style="margin-top:10px;padding:10px 14px;background:var(--bg2);border-radius:var(--r);font-size:12px;color:var(--tx2);display:none;">
       <p style="font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em;font-size:11px;margin:0 0 6px;">How Total is calculated</p>
@@ -952,12 +978,12 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
           <p style="font-size:12px;font-weight:600;color:var(--tx2);margin:0 0 8px;">Markup</p>
           <div class="prow"><span>Overhead %</span><div class="pin"><input type="number" id="p-oh" value="15" min="0" oninput="recalc()"><span class="psub">%</span></div></div>
           <div class="prow"><span>Profit margin %</span><div class="pin"><input type="number" id="p-pm" value="10" min="0" oninput="recalc()"><span class="psub">%</span></div></div>
-          <div class="prow"><span>Sales tax %</span><div class="pin"><input type="number" id="p-tx" value="7" min="0" oninput="recalc()"><span class="psub">%</span></div></div>
+          <p style="font-size:11px;color:var(--tx3);margin:4px 0 0;">Sales tax is set once, below &mdash; it applies to both modes.</p>
         </div>
       </div>
       <div class="hr" style="margin:16px 0;"></div>
       <p style="font-size:12px;font-weight:600;margin:0 0 4px;">Metal pricing ($/lb by gauge)</p>
-      <p style="font-size:12px;color:var(--tx3);margin:0 0 10px;"><span class="src-tag">BCH</span> = inventory price &nbsp;<span class="est-tag">est</span> = enter your price</p>
+      <p style="font-size:12px;color:var(--tx3);margin:0 0 10px;"><span class="src-tag">BCH</span> = inventory price &nbsp;<span class="est-tag">est</span> = market estimate (Nov 2026) &mdash; replace with your actual price when you have it</p>
       <div style="overflow-x:auto;"><table class="ptable" id="price-table"></table></div>
     </div>
 
@@ -969,9 +995,9 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
         <p style="font-size:11px;color:var(--tx3);margin:4px 0 0;">MIG @ 20 ipm (black iron) &middot; TIG @ 8 ipm (stainless)</p>
       </div>
       <div>
-        <p style="font-size:12px;font-weight:600;color:var(--tx2);margin:0 0 8px;">Sales tax <span style="font-size:11px;font-weight:400;color:var(--tx3);">(Mode A — applied on top of charge-out rate)</span></p>
-        <div class="prow"><span>Sales tax %</span><div class="pin"><input type="number" id="p-tx-a" value="7" min="0" oninput="recalc()"><span class="psub">%</span></div></div>
-        <p style="font-size:11px;color:var(--tx3);margin:4px 0 0;">Florida fabricated duct is taxable &mdash; default 7%.</p>
+        <p style="font-size:12px;font-weight:600;color:var(--tx2);margin:0 0 8px;">Sales tax <span style="font-size:11px;font-weight:400;color:var(--tx3);">(both modes &mdash; added once, after markup)</span></p>
+        <div class="prow"><span>Sales tax %</span><div class="pin"><input type="number" id="p-tx" value="7" min="0" step="0.25" oninput="recalc()"><span class="psub">%</span></div></div>
+        <p style="font-size:11px;color:var(--tx3);margin:4px 0 0;">Florida fabricated duct is taxable &mdash; default 7%. Set to 0 for tax-exempt jobs. Shown as its own line on the summary and proposal.</p>
       </div>
     </div>
     <div class="hr"></div>
@@ -1071,10 +1097,10 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;" class="no-print">
     <div>
       <h2 style="margin:0 0 3px;font-size:18px;font-weight:500;">Proposal</h2>
-      <p style="margin:0;font-size:13px;color:var(--tx2);">All formats show only the total &mdash; no internal markup or margin shown</p>
+      <p style="margin:0;font-size:13px;color:var(--tx2);" id="prop-sub">No internal markup or margin is shown to the customer &mdash; sales tax is shown on its own line</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <div class="tog-row">
+      <div class="tog-row" id="prop-tog-row">
         <button class="tog active" id="tog-s" onclick="setPropView('simple')">Simple</button>
         <button class="tog" id="tog-i" onclick="setPropView('itemized')">Itemized</button>
         <button class="tog" id="tog-q" onclick="setPropView('quote')">Quote only</button>
@@ -1207,12 +1233,12 @@ function updGaugeCheckRound(){
   }
 }
 const METALS={
-  galv:     {label:'Galvanized G90', gauges:[10,12,14,16,18,20,22,24,26],prices:{18:0.61,20:0.59,22:0.60,24:0.64,26:0.64},src:{18:1,20:1,22:1,24:1,26:1}},
-  ss:       {label:'Stainless Steel',gauges:[10,12,14,16,18,20,22,24,26],prices:{18:0.61},src:{18:1}},
-  alum:     {label:'Aluminum',       gauges:[10,12,14,16,18,20,22,24,26],prices:{},src:{}},
-  paintgrip:{label:'Galvanneal',      gauges:[10,12,14,16,18,20,22,24,26],prices:{},src:{}},
-  perf:     {label:'Perforated',     gauges:[22,24,26],      prices:{22:1.37},src:{22:1}},
-  black:    {label:'Black Iron',     gauges:[10,12,14,16,18,20,22,24,26],prices:{},src:{}},
+  galv:     {label:'Galvanized G90', gauges:[10,12,14,16,18,20,22,24,26],prices:{10:0.78,12:0.78,14:0.78,16:0.78,18:0.61,20:0.59,22:0.60,24:0.64,26:0.64},src:{18:1,20:1,22:1,24:1,26:1}},
+  ss:       {label:'Stainless Steel',gauges:[10,12,14,16,18,20,22,24,26],prices:{10:1.80,12:1.80,14:1.80,16:1.80,18:0.61,20:1.80,22:1.80,24:1.80,26:1.80},src:{18:1}},
+  alum:     {label:'Aluminum',       gauges:[10,12,14,16,18,20,22,24,26],prices:{10:3.60,12:3.60,14:3.60,16:3.60,18:3.60,20:3.60,22:3.60,24:3.60,26:3.60},src:{}},
+  paintgrip:{label:'Galvanneal',      gauges:[10,12,14,16,18,20,22,24,26],prices:{10:0.82,12:0.82,14:0.82,16:0.82,18:0.82,20:0.82,22:0.82,24:0.82,26:0.82},src:{}},
+  perf:     {label:'Perforated',     gauges:[22,24,26],      prices:{22:1.37,24:1.42,26:1.47},src:{22:1}},
+  black:    {label:'Black Iron',     gauges:[10,12,14,16,18,20,22,24,26],prices:{10:0.75,12:0.75,14:0.75,16:0.75,18:0.80,20:0.80,22:0.80,24:0.80,26:0.80},src:{}},
 };
 const LINERS=[
   {key:'ups030',    label:'UPS #030 R-4.2 Flex'},
@@ -1236,6 +1262,9 @@ let items={rect:[],round:[],fit:[],acc:[],hw:[]};
 let nid=1;
 let editState={rect:null,round:null,fit:null};
 let currentJobName='';
+/* Quote tracking + change-order state for the job that's open. */
+function blankJobMeta(){return {status:'Draft',rev:'A',revisions:[],coOf:null,coNum:null,baseItems:null,baseName:null};}
+let jobMeta=blankJobMeta();
 
 function gp(m,g){const e=document.getElementById('pr-'+m+'-'+g);if(e){const v=parseFloat(e.value);if(v>0)return v;}return METALS[m]?.prices[g]||null;}
 function lp(k){const e=document.getElementById('lp-'+k);return e?parseFloat(e.value)||0:0;}
@@ -1591,10 +1620,11 @@ function updReinfPreview(){
   document.getElementById('r-reinf-cost').textContent=`+${fmt(totalCost)} (material + install)`;
   box.style.display='block';
 }
+/* One sales tax setting for both modes (was two separate fields — one for
+   Mode A, one for Mode B — which made it unclear which rate applied). */
 function TX(){
-  const co=CO();
-  if(co>0){return parseFloat(document.getElementById('p-tx-a')?.value)||0;}
-  return parseFloat(document.getElementById('p-tx')?.value)||0;
+  const v=parseFloat(document.getElementById('p-tx')?.value);
+  return isNaN(v)?0:v;
 }
 function rp(m,g,ov){
   if(ov&&parseFloat(ov)>0) return parseFloat(ov);
@@ -1608,7 +1638,7 @@ function rp(m,g,ov){
    back to Mode B pricing after Mode A looked like it was set. */
 const SETTINGS_KEY='bchEstimatorSettings_v1';
 function collectSettingsIds(){
-  const ids=['p-co','p-lr','p-lh','p-oh','p-pm','p-tx','p-wr','p-tx-a','p-scrap','p-emt-05','p-emt-075','p-emt-1','p-emt-125','p-emt-min','p-ext-price','p-ext-min'];
+  const ids=['p-co','p-lr','p-lh','p-oh','p-pm','p-tx','p-wr','p-scrap','p-emt-05','p-emt-075','p-emt-1','p-emt-125','p-emt-min','p-ext-price','p-ext-min'];
   document.querySelectorAll('#price-table input[id^="pr-"]').forEach(e=>ids.push(e.id));
   document.querySelectorAll('#liner-grid input[id^="lp-"]').forEach(e=>ids.push(e.id));
   return ids;
@@ -1628,6 +1658,10 @@ function loadSettings(){
     const raw=localStorage.getItem(SETTINGS_KEY);
     if(!raw) return;
     const data=JSON.parse(raw);
+    // One-time migration from the old two-field tax setup: if Mode A was in
+    // use, its tax rate (p-tx-a) was the one actually applied — carry it over.
+    if(data['p-tx-a']!=null&&data['p-tx-a']!==''&&parseFloat(data['p-co'])>0) data['p-tx']=data['p-tx-a'];
+    delete data['p-tx-a'];
     Object.entries(data).forEach(([id,val])=>{
       const el=document.getElementById(id);
       if(el && val!=='') el.value=val;
@@ -1854,8 +1888,18 @@ const DRAFT_KEY='bchEstimatorDraft_v1';
 function itemsHasContent(){
   return items.rect.length>0||items.round.length>0||items.fit.length>0||items.acc.length>0||items.hw.length>0;
 }
+function getJobInfo(){
+  const v=id=>(document.getElementById(id)?.value||'');
+  return {name:v('job-name'),num:v('job-num'),customer:v('job-customer'),company:v('job-company')};
+}
+function setJobInfo(info){
+  if(!info) return;
+  const set=(id,val)=>{const el=document.getElementById(id); if(el&&val!=null) el.value=val;};
+  set('job-name',info.name); set('job-num',info.num); set('job-customer',info.customer);
+  if(info.company) set('job-company',info.company);
+}
 function serializeJobData(){
-  return {items:JSON.parse(JSON.stringify(items)),nid,jobName:currentJobName};
+  return {items:JSON.parse(JSON.stringify(items)),nid,jobName:currentJobName,jobInfo:getJobInfo(),jobMeta:JSON.parse(JSON.stringify(jobMeta))};
 }
 function autosaveDraft(){
   try{
@@ -1876,6 +1920,9 @@ function loadDraftIfAny(){
     nid=data.nid||1;
     currentJobName=data.jobName||'';
     document.getElementById('job-name-input').value=currentJobName;
+    setJobInfo(data.jobInfo);
+    jobMeta=Object.assign(blankJobMeta(),data.jobMeta||{});
+    renderJobTrack();
     const when=data.savedAt?new Date(data.savedAt).toLocaleString():'earlier';
     const banner=document.getElementById('draft-banner');
     document.getElementById('draft-banner-text').innerHTML=`&#9203; Restored your unsaved work from ${when}${currentJobName?` (&ldquo;${currentJobName}&rdquo;)`:''}.`;
@@ -1908,7 +1955,12 @@ async function saveJob(){
   currentJobName=name;
   flashJobStatus('Saving\u2026');
   try{
-    const payload={name,savedAt:Date.now(),items:JSON.parse(JSON.stringify(items)),nid};
+    const t=calcTotals();
+    const payload={name,savedAt:Date.now(),items:JSON.parse(JSON.stringify(items)),nid,
+      jobInfo:getJobInfo(),status:jobMeta.status||'Draft',rev:jobMeta.rev||'A',
+      revisions:jobMeta.revisions||[],coOf:jobMeta.coOf||null,coNum:jobMeta.coNum||null,
+      baseItems:jobMeta.baseItems||null,baseName:jobMeta.baseName||null,
+      total:Math.round(t.total*100)/100,preTax:Math.round(t.preTax*100)/100};
     const existing=await jobsCollection.where('name','==',name).limit(1).get();
     if(!existing.empty){
       await jobsCollection.doc(existing.docs[0].id).set(payload);
@@ -1936,23 +1988,49 @@ async function openJobsModal(){
 function closeJobsModal(){
   document.getElementById('jobs-modal-overlay').style.display='none';
 }
+let jobsCache=[], jobsFilter='All';
 function renderJobsModalList(jobs){
+  if(jobs) jobsCache=jobs;
+  jobs=jobsCache;
   const el=document.getElementById('jobs-modal-list');
   if(!jobs.length){ el.innerHTML='<p style="color:var(--tx3);font-size:13px;">No saved jobs yet. Name a job above and hit Save.</p>'; return; }
-  el.innerHTML=jobs.map(j=>{
-    const count=(j.items.rect||[]).length+(j.items.round||[]).length+(j.items.fit||[]).length;
+  // Win-rate summary counts quotes only (change orders tracked separately)
+  const quotes=jobs.filter(j=>!j.coOf);
+  const cnt=st=>quotes.filter(j=>(j.status||'Draft')===st).length;
+  const won=cnt('Won'), lost=cnt('Lost');
+  const wonVal=quotes.filter(j=>j.status==='Won').reduce((s,j)=>s+(j.total||0),0);
+  const openVal=quotes.filter(j=>j.status==='Sent').reduce((s,j)=>s+(j.total||0),0);
+  const rate=(won+lost)>0?Math.round(won/(won+lost)*100)+'%':'—';
+  const summary=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;text-align:center;">
+    <div style="background:var(--bg2);border-radius:var(--r);padding:8px;"><div style="font-size:11px;color:var(--tx3);">Win rate</div><div style="font-size:18px;font-weight:700;">${rate}</div><div style="font-size:10px;color:var(--tx3);">${won} won &middot; ${lost} lost</div></div>
+    <div style="background:var(--bg2);border-radius:var(--r);padding:8px;"><div style="font-size:11px;color:var(--tx3);">Out for bid</div><div style="font-size:18px;font-weight:700;">${cnt('Sent')}</div><div style="font-size:10px;color:var(--tx3);">${fmt(openVal)}</div></div>
+    <div style="background:var(--bg2);border-radius:var(--r);padding:8px;"><div style="font-size:11px;color:var(--tx3);">Won value</div><div style="font-size:15px;font-weight:700;padding-top:3px;">${fmt(wonVal)}</div></div>
+    <div style="background:var(--bg2);border-radius:var(--r);padding:8px;"><div style="font-size:11px;color:var(--tx3);">Drafts</div><div style="font-size:18px;font-weight:700;">${cnt('Draft')}</div></div>
+  </div>`;
+  const filters=['All','Draft','Sent','Won','Lost','Change orders'];
+  const chips=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">${filters.map(f=>`<button class="jf-chip${jobsFilter===f?' on':''}" onclick="jobsFilter='${f}';renderJobsModalList()">${f}</button>`).join('')}</div>`;
+  const shown=jobs.filter(j=>jobsFilter==='All'?true:jobsFilter==='Change orders'?!!j.coOf:(!j.coOf&&(j.status||'Draft')===jobsFilter));
+  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const rows=shown.map(j=>{
+    const it=j.items||{};
+    const count=(it.rect||[]).length+(it.round||[]).length+(it.fit||[]).length;
     const when=new Date(j.savedAt).toLocaleString();
+    const st=j.status||'Draft';
+    const revs=(j.revisions||[]);
+    const revHist=revs.length?`<div style="font-size:11px;color:var(--tx3);margin-top:2px;">Earlier: ${revs.map(r=>`Rev ${esc(r.rev)} ${r.total!=null?fmt(r.total):''} (${new Date(r.savedAt).toLocaleDateString()})`).join(' &middot; ')}</div>`:'';
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bd2,#eee);">
       <div>
-        <div style="font-weight:600;font-size:13px;">${j.name}</div>
-        <div style="font-size:11px;color:var(--tx3);">${count} item${count===1?'':'s'} &middot; saved ${when}</div>
+        <div style="font-weight:600;font-size:13px;">${esc(j.name)}<span class="st-pill st-${esc(st)}">${esc(st)}</span>${j.coOf?`<span class="co-pill">CO #${esc(j.coNum)}</span>`:''}</div>
+        <div style="font-size:11px;color:var(--tx3);">Rev ${esc(j.rev||'A')} &middot; ${count} item${count===1?'':'s'}${j.total!=null?' &middot; '+fmt(j.total):''} &middot; saved ${when}</div>
+        ${revHist}
       </div>
       <div style="display:flex;gap:6px;">
         <button class="btn btn-sm btn-primary" onclick="loadJob('${j.id}')">Load</button>
         <button class="btn btn-sm btn-danger" onclick="deleteJob('${j.id}')">Delete</button>
       </div>
     </div>`;
-  }).join('');
+  }).join('')||'<p style="color:var(--tx3);font-size:13px;">Nothing in this filter.</p>';
+  el.innerHTML=summary+chips+rows;
 }
 async function loadJob(jobId){
   if(itemsHasContent()&&!confirm('Load this job? Your current job will be replaced (it\'s autosaved as your draft, so it isn\'t lost).')) return;
@@ -1965,6 +2043,10 @@ async function loadJob(jobId){
     nid=job.nid||1;
     currentJobName=job.name;
     document.getElementById('job-name-input').value=currentJobName;
+    setJobInfo(job.jobInfo);
+    jobMeta=Object.assign(blankJobMeta(),{status:job.status||'Draft',rev:job.rev||'A',revisions:job.revisions||[],
+      coOf:job.coOf||null,coNum:job.coNum||null,baseItems:job.baseItems||null,baseName:job.baseName||null});
+    renderJobTrack();
     closeJobsModal();
     renderAll();
     flashJobStatus('Loaded "'+job.name+'"');
@@ -1990,7 +2072,173 @@ function newJob(){
   nid=1;
   currentJobName='';
   document.getElementById('job-name-input').value='';
+  setJobInfo({name:'',num:'',customer:''});
+  jobMeta=blankJobMeta();
+  renderJobTrack();
   renderAll();
+}
+
+/* ── QUOTE TRACKING (status + revisions) ──
+   Each saved job carries a status (Draft / Sent / Won / Lost) and a revision
+   letter. "New revision" archives the job exactly as it stands (items, job
+   info, total) into its revision history and bumps the letter, so an old
+   number is never confused with the current one. The Jobs popup shows win
+   rate and dollars won / out for bid. */
+function nextRevLetter(r){
+  // A..Z then AA, AB...
+  const s=(r||'A').toUpperCase();
+  let arr=s.split(''), i=arr.length-1;
+  while(i>=0){ if(arr[i]!=='Z'){arr[i]=String.fromCharCode(arr[i].charCodeAt(0)+1);return arr.join('');} arr[i]='A'; i--; }
+  return 'A'+arr.join('');
+}
+function renderJobTrack(){
+  const sel=document.getElementById('job-status'); if(sel) sel.value=jobMeta.status||'Draft';
+  const rb=document.getElementById('job-rev-badge');
+  if(rb){ const n=(jobMeta.revisions||[]).length; rb.textContent='Rev '+(jobMeta.rev||'A')+(n?` (${n} earlier)`:''); }
+  const cb=document.getElementById('co-banner');
+  if(cb){
+    if(jobMeta.coOf){
+      const d=coDiffSafe();
+      cb.innerHTML=`<strong>Change order #${jobMeta.coNum}</strong> against &ldquo;${escHtml(jobMeta.baseName||jobMeta.coOf)}&rdquo;. Edit, add or remove lines as needed &mdash; the proposal will show only what changed`+
+        (d?` (currently ${d.added.length} added, ${d.removed.length} removed, ${d.changed.length} changed &middot; <strong>${d.amount.total>=0?'+':'&minus;'}${fmt(Math.abs(d.amount.total))}</strong>)`:'')+`.`;
+      cb.style.display='block';
+    } else cb.style.display='none';
+  }
+}
+function escHtml(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function findJobDocByName(name){
+  const snap=await jobsCollection.where('name','==',name).limit(1).get();
+  return snap.empty?null:snap.docs[0];
+}
+async function setJobStatus(v){
+  jobMeta.status=v;
+  autosaveDraft();
+  if(!currentJobName){ flashJobStatus('Status set — save the job to keep it'); return; }
+  try{
+    const doc=await findJobDocByName(currentJobName);
+    if(doc){ await jobsCollection.doc(doc.id).update({status:v}); flashJobStatus('✓ Marked '+v); }
+    else flashJobStatus('Status set — save the job to keep it');
+  }catch(e){ console.error('Status update failed:',e); flashJobStatus('⚠ Status not saved — check connection'); }
+}
+async function newRevision(){
+  if(!currentJobName||!itemsHasContent()){ alert('Save the job first, then start a new revision.'); return; }
+  const next=nextRevLetter(jobMeta.rev);
+  if(!confirm(`Archive Rev ${jobMeta.rev} exactly as it is now and start Rev ${next}?\n\nRev ${jobMeta.rev} stays in this job's history with its total. Status resets to Draft.`)) return;
+  const t=calcTotals();
+  jobMeta.revisions=(jobMeta.revisions||[]).concat([{rev:jobMeta.rev,savedAt:Date.now(),status:jobMeta.status,
+    total:Math.round(t.total*100)/100,jobInfo:getJobInfo(),items:JSON.parse(JSON.stringify(items))}]);
+  jobMeta.rev=next;
+  jobMeta.status='Draft';
+  renderJobTrack();
+  await saveJob();
+}
+
+/* ── CHANGE ORDERS ──
+   "Change order" copies the open job into a new saved job named
+   "<job> — CO #n" and keeps a frozen copy of the starting items as the
+   baseline. Edit the CO like any job; the proposal then shows only the lines
+   added, removed or changed versus that baseline, each priced at the sell
+   price under the current Settings, plus the previous contract amount and
+   the revised contract amount. A CO made from a CO chains (CO #2 is based
+   on CO #1's final scope). */
+const CO_PRICE_KEYS=new Set(['ppLb','lCost','weldCost','weldMins','emtMaterialCost','emtLaborCost','extMaterialCost','extLaborCost','ringMaterialCost','ringLaborCost','emtInfo','extInfo','ringInfo','priceWarn','priceWarnKey','linerWarn']);
+function coSig(x){const o={};Object.keys(x).sort().forEach(k=>{if(!CO_PRICE_KEYS.has(k))o[k]=x[k];});return JSON.stringify(o);}
+function emptySet(){return {rect:[],round:[],fit:[],acc:[],hw:[]};}
+function totalsFor(set){
+  const keep=items;
+  items=JSON.parse(JSON.stringify(Object.assign(emptySet(),set)));
+  try{ recomputeItemPricing(); return calcTotals(); }
+  finally{ items=keep; }
+}
+function coDiff(){
+  if(!jobMeta.coOf||!jobMeta.baseItems) return null;
+  const base=Object.assign(emptySet(),jobMeta.baseItems);
+  const added=[],removed=[],changed=[];
+  const addSet=emptySet(), remSet=emptySet();
+  ['rect','round','fit','acc','hw'].forEach(cat=>{
+    const bm=new Map((base[cat]||[]).map(x=>[x.id,x]));
+    const cm=new Map((items[cat]||[]).map(x=>[x.id,x]));
+    (items[cat]||[]).forEach(x=>{
+      const b=bm.get(x.id);
+      if(!b){ added.push({cat,x}); addSet[cat].push(x); }
+      else if(coSig(b)!==coSig(x)){ changed.push({cat,old:b,x}); addSet[cat].push(x); remSet[cat].push(b); }
+    });
+    (base[cat]||[]).forEach(b=>{ if(!cm.has(b.id)){ removed.push({cat,x:b}); remSet[cat].push(b); } });
+  });
+  const ta=totalsFor(addSet), tr=totalsFor(remSet), tb=totalsFor(base);
+  const amount={preTax:ta.preTax-tr.preTax,tax:ta.tax-tr.tax,total:ta.total-tr.total,txPct:ta.txPct};
+  const one=(cat,x)=>{const s=emptySet();s[cat]=[x];return totalsFor(s).preTax;};
+  added.forEach(e=>e.price=one(e.cat,e.x));
+  removed.forEach(e=>e.price=-one(e.cat,e.x));
+  changed.forEach(e=>e.price=one(e.cat,e.x)-one(e.cat,e.old));
+  return {added,removed,changed,amount,baseTotal:tb.total};
+}
+function coDiffSafe(){try{return coDiff();}catch(e){console.warn('CO diff failed:',e);return null;}}
+async function createChangeOrder(){
+  if(!currentJobName||!itemsHasContent()){ alert('Open (or save) the job you want to change first.'); return; }
+  if(!jobMeta.coOf&&jobMeta.status!=='Won'&&!confirm(`"${currentJobName}" isn't marked Won. Create a change order against it anyway?`)) return;
+  const parent=jobMeta.coOf||currentJobName;
+  let n=1;
+  try{
+    const snap=await jobsCollection.where('coOf','==',parent).get();
+    snap.docs.forEach(d=>{const c=d.data().coNum||0; if(c>=n) n=c+1;});
+  }catch(e){ console.warn('Could not count existing change orders:',e); if(jobMeta.coNum) n=jobMeta.coNum+1; }
+  const baseName=currentJobName;
+  if(!confirm(`Start Change Order #${n} for "${parent}"?\n\nThe current scope of "${baseName}" becomes the baseline. Then add, remove or edit lines — the change order proposal will show only the differences.`)) return;
+  autosaveDraft();
+  jobMeta=Object.assign(blankJobMeta(),{coOf:parent,coNum:n,baseName,baseItems:JSON.parse(JSON.stringify(items))});
+  currentJobName=`${parent} — CO #${n}`;
+  document.getElementById('job-name-input').value=currentJobName;
+  renderJobTrack();
+  await saveJob();
+  renderAll();
+}
+function coDescr(cat,x){
+  if(cat==='rect') return {m:x.desc,s:`${x.mLabel} &middot; ${x.g}ga &middot; ${x.w}″×${x.h}″×${x.len}' &middot; ${x.conn||''} &middot; qty ${x.qty}`};
+  if(cat==='round') return {m:x.desc,s:`${x.mLabel} &middot; ${x.g}ga &middot; ${x.dia}″ dia × ${x.len}' &middot; qty ${x.qty}`};
+  if(cat==='fit') return {m:x.desc,s:`${x.type} &middot; ${x.mLabel} &middot; ${x.g}ga &middot; qty ${x.qty}`};
+  return {m:x.name,s:`${x.desc||''} &middot; ${x.q} ${x.uom||''}`};
+}
+const CO_FIELD_LABELS={desc:'description',name:'item',mLabel:'metal',g:'gauge',w:'width',h:'height',len:'length',dia:'diameter',qty:'qty',q:'qty',conn:'connection',type:'type',fw1:'inlet W',fh1:'inlet H',fw2:'outlet W',fh2:'outlet H',fw3:'branch W',fh3:'branch H',fl:'length',linerKey:'liner',price:'unit price',pressClass:'pressure class',pressDir:'pressure',welded:'welded',notes:'notes',ov:'$/lb override'};
+function coChangeText(a,b){
+  const parts=[];
+  Object.keys(CO_FIELD_LABELS).forEach(k=>{
+    const va=a[k], vb=b[k];
+    if(JSON.stringify(va)!==JSON.stringify(vb)&&!(va==null&&vb==null)){
+      const show=v=>v==null||v===''?'none':(k==='linerKey'?ll(v):(k==='price'?fmt(v):v));
+      parts.push(`${CO_FIELD_LABELS[k]} ${escHtml(show(va))} → ${escHtml(show(vb))}`);
+    }
+  });
+  return parts.length?parts.join(' &middot; '):'details revised';
+}
+function renderChangeOrder(){
+  const d=coDiff();
+  if(!d) return '<div class="prop-sheet"><p>Change order baseline is missing.</p></div>';
+  const sign=v=>(v>=0?'+':'−')+fmt(Math.abs(v));
+  const pli=(main,sub,price)=>`<div class="pli"><div class="pli-d"><p class="pli-m">${main}</p>${sub?`<p class="pli-s">${sub}</p>`:''}</div><span class="pli-p ${price>=0?'pos':'neg'}">${sign(price)}</span></div>`;
+  const sec=(title,rows)=>rows.length?`<div class="psec co-sec"><p class="psec-hdr">${title}</p>${rows.join('')}</div>`:'';
+  const aRows=d.added.map(e=>{const c=coDescr(e.cat,e.x);return pli(escHtml(c.m),c.s,e.price);});
+  const rRows=d.removed.map(e=>{const c=coDescr(e.cat,e.x);return pli(escHtml(c.m),c.s,e.price);});
+  const cRows=d.changed.map(e=>{const c=coDescr(e.cat,e.x);return pli(escHtml(c.m),coChangeText(e.old,e.x),e.price);});
+  const none=(!aRows.length&&!rRows.length&&!cRows.length)?'<p style="color:#888;font-size:13px;margin:20px 0;">No changes from the baseline yet.</p>':'';
+  const a=d.amount;
+  const tr=(l,v,cls)=>`<div class="trow${cls?' '+cls:''}"><span class="tl">${l}</span><span>${v}</span></div>`;
+  const revised=d.baseTotal+a.total;
+  const jno=document.getElementById('job-num').value.trim();
+  return `<div class="prop-sheet">
+    ${propLetterhead('Change Order #'+jobMeta.coNum,(jno?jno+'-':'')+'CO'+jobMeta.coNum)}
+    <p style="font-size:13px;color:#555;margin:0 0 14px;">Change order to: <strong>${escHtml(jobMeta.coOf)}</strong>${jobMeta.baseName&&jobMeta.baseName!==jobMeta.coOf?` (following ${escHtml(jobMeta.baseName)})`:''}</p>
+    ${sec('Added',aRows)}${sec('Removed',rRows)}${sec('Changed',cRows)}${none}
+    <div class="tot-block">
+      ${tr('Change order amount (before tax)',sign(a.preTax),'trow-sub')}
+      ${tr(a.txPct>0?`Sales tax (${a.txPct}%)`:'Sales tax (exempt)',sign(a.tax))}
+      ${tr('Previous contract amount',fmt(d.baseTotal))}
+      ${tr('This change order',sign(a.total),'trow-sub')}
+      ${tr('Revised contract amount',fmt(revised))}
+    </div>
+    ${propSigBlock()}
+    <div class="foot-note">This change order modifies the scope and price of the contract referenced above. All other terms remain unchanged. Pricing is based on current material costs; sales tax is shown as a separate line. Work on the changed scope begins upon signed approval.</div>
+  </div>`;
 }
 
 /* ── ACCESS GATE ──
@@ -2821,7 +3069,7 @@ function renderRect(){
       <span class="iv">${lb(x.linerKey)}${wb(x.welded)}${rb(x.emtInfo)}${extB(x.extInfo)}
         <a href="#" onclick="toggleRectMat(${x.id},event)" style="font-size:10px;color:var(--txi);text-decoration:underline;margin-left:6px;white-space:nowrap;">${expanded?'Hide':'Materials'}</a>
       </span>
-      <span class="ip">${fmt(tot)}<br>${rateBadge(x)}</span>
+      <span class="ip">${fmt(tot)}<br>${rateBadge(x)}${warnB(x)}</span>
       <button class="btn-rm" onclick="event.stopPropagation();remove('rect',${x.id})" title="Remove + auto accessories">&times;</button>
     </div>${expanded?rectMaterialList(x):''}`;
   }).join('');
@@ -2840,7 +3088,7 @@ function renderRound(){
     <span class="iv">${x.g}ga</span><span class="iv">${x.dia}\u2033\u00d7${x.len}'</span>
     <span class="iv">${x.qty}pc</span><span class="iv">${x.tLbs.toFixed(1)}lb</span>
     <span class="iv">${lb(x.linerKey)}${wb(x.welded)}${ringB(x.ringInfo)}</span>
-    <span class="ip">${fmt(tot)}<br>${rateBadge(x)}</span>
+    <span class="ip">${fmt(tot)}<br>${rateBadge(x)}${warnB(x)}</span>
     <button class="btn-rm" onclick="event.stopPropagation();remove('round',${x.id})">&times;</button>
   </div>`;
   }).join('');
@@ -2868,7 +3116,7 @@ function renderFit(){
       <span class="iv">${x.tLbs.toFixed(1)}lb</span>
       <span class="iv">${lb(x.linerKey)}${wb(x.welded)}${rb(x.emtInfo)}${extB(x.extInfo)}${ringB(x.ringInfo)}</span>
       <span class="iv">${x.qty}pc</span>
-      <span class="ip">${fmt(x.tLbs*effRate(x)+(x.lCost||0)+(x.weldCost||0)+fReinfTotal)}<br>${rateBadge(x)}</span>
+      <span class="ip">${fmt(x.tLbs*effRate(x)+(x.lCost||0)+(x.weldCost||0)+fReinfTotal)}<br>${rateBadge(x)}${warnB(x)}</span>
       <button class="btn-rm" onclick="event.stopPropagation();remove('fit',${x.id})">&times;</button>
     </div>`;
   }).join('');
@@ -2883,7 +3131,7 @@ function renderAcc(){
     <span class="iv">${x.q} ${x.uom}</span>
     <span class="iv">${x.uom}</span>
     <span class="iv">${fmt(x.price)}</span>
-    <span class="ip">${fmt(x.price*x.q)}</span>
+    <span class="ip">${fmt(x.price*x.q)}${x.price>0?'':'<br><span class="price-warn pw-none">NO PRICE</span>'}</span>
     <button class="btn-rm" onclick="remove('acc',${x.id})">&times;</button>
   </div>`).join('');
 }
@@ -2896,7 +3144,7 @@ function renderHW(){
     <span class="iv">${x.q} ${x.uom}</span>
     <span class="iv">${x.len!=null?x.len+' ft':'\u2014'}</span>
     <span class="iv">${fmt(x.price)}</span>
-    <span class="ip">${fmt(x.price*x.q)}</span>
+    <span class="ip">${fmt(x.price*x.q)}${x.price>0?'':'<br><span class="price-warn pw-none">NO PRICE</span>'}</span>
     <button class="btn-rm" onclick="remove('hw',${x.id})">&times;</button>
   </div>`).join('');
 }
@@ -2932,10 +3180,12 @@ function calcTotals(){
   // margin% on top of it would double-count markup you already priced in.
   // Sales tax is different — it's a state-collected tax on the sale price,
   // not an internal margin decision, so it still applies in both modes.
-  const total=co>0
-    ? base*(1+TX()/100)
-    : base*(1+OH()/100)*(1+PM()/100)*(1+TX()/100);
-  return {dLbs,mat,fabLab,weldCost,emtMaterialCost,emtLaborCost,extMaterialCost,extLaborCost,ringMaterialCost,ringLaborCost,total,scrapCost};
+  const mk=co>0?1:(1+OH()/100)*(1+PM()/100);
+  const preTax=base*mk;
+  const txPct=TX();
+  const tax=preTax*txPct/100;
+  const total=preTax+tax;
+  return {dLbs,mat,fabLab,weldCost,emtMaterialCost,emtLaborCost,extMaterialCost,extLaborCost,ringMaterialCost,ringLaborCost,total,scrapCost,mk,preTax,tax,txPct};
 }
 
 function recalc(){
@@ -2947,7 +3197,7 @@ function recalc(){
   // Labor line: Mode A = weld + reinforcement install; Mode B = fab labor + weld + reinforcement install
   const labDisplay=co>0?(t.weldCost+t.emtLaborCost+t.extLaborCost+t.ringLaborCost):(t.fabLab+t.weldCost+t.emtLaborCost+t.extLaborCost+t.ringLaborCost);
   document.getElementById('s-lab').textContent=fmt(labDisplay);
-  document.getElementById('s-tlbl').textContent='Total';
+  document.getElementById('s-tlbl').textContent=t.txPct>0?`Total (incl. ${t.txPct}% tax)`:'Total (no sales tax)';
   document.getElementById('s-total').textContent=fmt(t.total);
   const mi=document.getElementById('s-mode-indicator');
   if(mi){
@@ -2988,6 +3238,7 @@ function recalc(){
       mRows.innerHTML=
         rowHtml('Subtotal (materials + labor at $'+co.toFixed(2)+'/lb)',subtotal)+
         `<div style="font-size:11px;color:var(--tx3);padding:2px 0;">Overhead &amp; profit margin skipped &mdash; your $/lb charge-out rate is already a loaded rate.</div>`+
+        rowHtml('Price before tax',subtotal,true)+
         rowHtml(`+ Sales tax (${txPct}%)`,afterTx-subtotal)+
         rowHtml('Total',afterTx,true);
     } else {
@@ -2999,12 +3250,63 @@ function recalc(){
         rowHtml('Subtotal (materials + labor)',subtotal)+
         rowHtml(`+ Overhead (${ohPct}%)`,afterOh-subtotal)+
         rowHtml(`+ Profit margin (${pmPct}%)`,afterPm-afterOh)+
+        rowHtml('Price before tax',afterPm,true)+
         rowHtml(`+ Sales tax (${txPct}%)`,afterTx-afterPm)+
         rowHtml('Total',afterTx,true);
     }
     mBox.style.display='block';
   }
+  renderPriceWarnings();
   updMode();
+}
+
+/* ── MISSING-PRICE FLAGS ──
+   A line with no $/lb for its metal/gauge (or a liner with no $/sqft, or an
+   accessory/hardware line at $0) used to drop silently into the total at $0
+   — or worse, keep whatever rate it was saved with on another device. These
+   flags put a red/amber badge on the line and a warning in the summary so
+   it gets caught before the proposal goes out. */
+function flagPrice(x,r,metalKey){
+  if(r){ x.ppLb=r; x.priceWarn=null; }
+  else if(x.ppLb>0){ x.priceWarn='saved'; }
+  else { x.ppLb=0; x.priceWarn='none'; }
+  x.priceWarnKey=(METALS[metalKey]?.label||metalKey)+' '+x.g+'ga';
+}
+function flagLiner(x){
+  x.linerWarn=!!(x.linerKey&&(x.lSqft||0)>0&&!lp(x.linerKey));
+}
+function warnB(x){
+  let h='';
+  if(x.priceWarn==='none') h+=`<span class="price-warn pw-none" title="No $/lb set for ${x.priceWarnKey} in Settings — this line is pricing at $0">NO PRICE</span>`;
+  else if(x.priceWarn==='saved') h+=`<span class="price-warn pw-saved" title="No $/lb set for ${x.priceWarnKey} in Settings on this device — using the $${(x.ppLb||0).toFixed(2)}/lb rate saved with the job">SAVED RATE</span>`;
+  if(x.linerWarn) h+=`<span class="price-warn pw-none" title="No $/sqft set for ${ll(x.linerKey)} in Settings — liner pricing at $0">LINER $0</span>`;
+  return h?'<br>'+h:'';
+}
+function priceIssues(){
+  const none={}, saved={}, liner={}, zero=[];
+  const add=(m,k)=>{m[k]=(m[k]||0)+1;};
+  [...items.rect,...items.round,...items.fit].forEach(x=>{
+    if(x.priceWarn==='none') add(none,x.priceWarnKey);
+    else if(x.priceWarn==='saved') add(saved,x.priceWarnKey);
+    if(x.linerWarn) add(liner,ll(x.linerKey));
+  });
+  items.acc.forEach(x=>{ if(!(x.price>0)) zero.push(x.name); });
+  items.hw.forEach(x=>{ if(!(x.price>0)) zero.push(x.name); });
+  const fmtMap=m=>Object.entries(m).map(([k,n])=>`${k} (${n} line${n>1?'s':''})`).join(', ');
+  const errors=[], warns=[];
+  if(Object.keys(none).length) errors.push(`No $/lb set for ${fmtMap(none)} &mdash; pricing at $0. Add it in Settings &rarr; Metal pricing, or enter a $/lb override on the line.`);
+  if(Object.keys(liner).length) errors.push(`No liner $/sqft set for ${fmtMap(liner)} &mdash; liner pricing at $0.`);
+  if(zero.length) errors.push(`$0 price on ${zero.length} accessory/hardware line${zero.length>1?'s':''}: ${zero.join(', ')}.`);
+  if(Object.keys(saved).length) warns.push(`No current Settings price for ${fmtMap(saved)} on this device &mdash; using the rate saved with the job.`);
+  return {errors,warns};
+}
+function renderPriceWarnings(){
+  const el=document.getElementById('s-price-warn');
+  if(!el) return;
+  const {errors,warns}=priceIssues();
+  if(!errors.length&&!warns.length){ el.style.display='none'; el.innerHTML=''; return; }
+  el.innerHTML=errors.map(e=>`<div class="pwr pwr-err">&#9888; ${e}</div>`).join('')+warns.map(w=>`<div class="pwr pwr-warn">&#9888; ${w}</div>`).join('');
+  el.style.display='block';
 }
 
 /* ── RECOMPUTE PRICING FROM CURRENT SETTINGS ──
@@ -3018,8 +3320,9 @@ function recalc(){
 function recomputeItemPricing(){
   items.rect.forEach(x=>{
     const base=x.base||x.metal;
-    x.ppLb=rp(base,x.g,x.ov)||x.ppLb;
+    flagPrice(x,rp(base,x.g,x.ov),base);
     if(x.linerKey) x.lCost=(x.lSqft||0)*lp(x.linerKey);
+    flagLiner(x);
     if(x.welded&&x.w&&x.h&&x.len){
       const wr=weldCostRect(x.w,x.h,x.len,x.qty,base);
       if(wr){ x.weldCost=wr.cost; x.weldMins=wr.mins; }
@@ -3043,8 +3346,9 @@ function recomputeItemPricing(){
     }
   });
   items.round.forEach(x=>{
-    x.ppLb=rp(x.metal,x.g,x.ov)||x.ppLb;
+    flagPrice(x,rp(x.metal,x.g,x.ov),x.metal);
     if(x.linerKey) x.lCost=(x.lSqft||0)*lp(x.linerKey);
+    flagLiner(x);
     if(x.welded&&x.dia&&x.len){
       const wr=weldCostRound(x.dia,x.len,x.qty,x.metal);
       if(wr){ x.weldCost=wr.cost; x.weldMins=wr.mins; }
@@ -3061,8 +3365,9 @@ function recomputeItemPricing(){
     }
   });
   items.fit.forEach(x=>{
-    x.ppLb=rp(x.metal,x.g,x.ov)||x.ppLb;
+    flagPrice(x,rp(x.metal,x.g,x.ov),x.metal);
     if(x.linerKey) x.lCost=(x.lSqft||0)*lp(x.linerKey);
+    flagLiner(x);
     if(x.welded){
       const wr=weldCostFit(x.fw1,x.fh1,x.fw2,x.fh2,x.qty,x.metal);
       if(wr){ x.weldCost=wr.cost; x.weldMins=wr.mins; }
@@ -3088,7 +3393,7 @@ function recomputeItemPricing(){
   });
 }
 
-function renderAll(){recomputeItemPricing();renderRect();renderRound();renderFit();renderAcc();renderHW();recalc();autosaveDraft();}
+function renderAll(){recomputeItemPricing();renderRect();renderRound();renderFit();renderAcc();renderHW();recalc();if(jobMeta.coOf)renderJobTrack();autosaveDraft();}
 
 function switchTab(t){
   const n=['rect','round','fit','access','hw'];
@@ -3109,9 +3414,11 @@ function toggleSettings(){
 /* ── PROPOSAL ── */
 let propView='simple';
 
-function propLetterhead(docType){
+function propLetterhead(docType,numOverride){
   const jn=document.getElementById('job-name').value.trim()||'(Project name)';
-  const jno=document.getElementById('job-num').value.trim()||'—';
+  const jnoRaw=document.getElementById('job-num').value.trim()||'—';
+  const showRev=!jobMeta.coOf&&(jobMeta.rev!=='A'||(jobMeta.revisions||[]).length);
+  const jno=numOverride||(jnoRaw+(showRev?' &middot; Rev '+jobMeta.rev:''));
   const dt=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
   return `
   <div class="prop-letterhead">
@@ -3144,23 +3451,47 @@ function propLetterhead(docType){
   </div>`;
 }
 
+/* Proposal totals. Every cost line is shown at SELL price (Mode B overhead +
+   profit folded in, never shown to the customer as its own line), so the
+   rows add up to the pre-tax subtotal exactly. Sales tax is always its own
+   line, then Total. */
 function propTotals(t,showBreakdown){
+  const mk=t.mk||1;
+  const tr=(l,v,cls)=>`<div class="trow${cls?' '+cls:''}"><span class="tl">${l}</span><span>${fmt(v)}</span></div>`;
+  const rows=[];
   if(showBreakdown){
-    const rows=[];
-    rows.push(`<div class="trow"><span class="tl">Duct &amp; materials</span><span>${fmt(t.mat-(t.emtMaterialCost||0)-(t.extMaterialCost||0)-(t.ringMaterialCost||0))}</span></div>`);
-    if(t.emtMaterialCost>0) rows.push(`<div class="trow"><span class="tl">EMT reinforcement (material)</span><span>${fmt(t.emtMaterialCost)}</span></div>`);
-    if(t.extMaterialCost>0) rows.push(`<div class="trow"><span class="tl">Exterior/joint reinforcement (material)</span><span>${fmt(t.extMaterialCost)}</span></div>`);
-    if(t.ringMaterialCost>0) rows.push(`<div class="trow"><span class="tl">Round duct stiffening rings (material)</span><span>${fmt(t.ringMaterialCost)}</span></div>`);
-    if(t.weldCost>0) rows.push(`<div class="trow"><span class="tl">Weld labor</span><span>${fmt(t.weldCost)}</span></div>`);
-    if(t.emtLaborCost>0) rows.push(`<div class="trow"><span class="tl">EMT reinforcement (install labor)</span><span>${fmt(t.emtLaborCost)}</span></div>`);
-    if(t.extLaborCost>0) rows.push(`<div class="trow"><span class="tl">Exterior/joint reinforcement (install labor)</span><span>${fmt(t.extLaborCost)}</span></div>`);
-    if(t.ringLaborCost>0) rows.push(`<div class="trow"><span class="tl">Round duct stiffening rings (install labor)</span><span>${fmt(t.ringLaborCost)}</span></div>`);
-    rows.push(`<div class="trow"><span class="tl">Total</span><span>${fmt(t.total)}</span></div>`);
-    return `<div class="tot-block">${rows.join('')}</div>`;
+    rows.push(tr('Duct &amp; materials',(t.mat-(t.emtMaterialCost||0)-(t.extMaterialCost||0)-(t.ringMaterialCost||0))*mk));
+    if(t.fabLab>0) rows.push(tr('Fabrication labor',t.fabLab*mk));
+    if(t.emtMaterialCost>0) rows.push(tr('EMT reinforcement (material)',t.emtMaterialCost*mk));
+    if(t.extMaterialCost>0) rows.push(tr('Exterior/joint reinforcement (material)',t.extMaterialCost*mk));
+    if(t.ringMaterialCost>0) rows.push(tr('Round duct stiffening rings (material)',t.ringMaterialCost*mk));
+    if(t.weldCost>0) rows.push(tr('Weld labor',t.weldCost*mk));
+    if(t.emtLaborCost>0) rows.push(tr('EMT reinforcement (install labor)',t.emtLaborCost*mk));
+    if(t.extLaborCost>0) rows.push(tr('Exterior/joint reinforcement (install labor)',t.extLaborCost*mk));
+    if(t.ringLaborCost>0) rows.push(tr('Round duct stiffening rings (install labor)',t.ringLaborCost*mk));
   }
-  return `<div class="tot-block">
-    <div class="trow"><span class="tl">Total</span><span>${fmt(t.total)}</span></div>
-  </div>`;
+  rows.push(tr('Subtotal',t.preTax,'trow-sub'));
+  rows.push(tr(t.txPct>0?`Sales tax (${t.txPct}%)`:'Sales tax (exempt)',t.tax));
+  rows.push(tr('Total',t.total,'trow-total'));
+  return `<div class="tot-block">${rows.join('')}</div>`;
+}
+
+/* Sell price of one duct/fitting line (all pieces), matching calcTotals():
+   metal at the effective $/lb + scrap, liner, weld, reinforcement, Mode B
+   fab labor by weight, all times the Mode B markup. Itemized proposal lines
+   use this so they add up to the proposal subtotal. */
+function lineSell(x){
+  const co=CO();
+  const rate=co>0?co:(x.ppLb||0);
+  const metal=x.tLbs*rate*(1+SCRAP()/100);
+  const reinf=(x.emtMaterialCost||0)+(x.emtLaborCost||0)+(x.extMaterialCost||0)+(x.extLaborCost||0)+(x.ringMaterialCost||0)+(x.ringLaborCost||0);
+  const fab=co>0?0:(x.tLbs/100)*LH()*LR();
+  const mk=co>0?1:(1+OH()/100)*(1+PM()/100);
+  return (metal+(x.lCost||0)+(x.weldCost||0)+reinf+fab)*mk;
+}
+function accSell(x){
+  const mk=CO()>0?1:(1+OH()/100)*(1+PM()/100);
+  return x.price*x.q*mk;
 }
 
 function propSigBlock(){
@@ -3178,7 +3509,7 @@ function propSigBlock(){
 
 function propFooter(){
   return `<div class="foot-note">
-    This proposal is valid for 30 days from the date above. All pricing is based on current material costs and is subject to change based on final shop drawings and field conditions. Pricing does not include sales tax unless otherwise noted. BCH Sheet Metal reserves the right to adjust this proposal if project scope, specifications, or material costs change materially prior to execution of a formal contract. Please contact us to discuss project specifics or to request a formal agreement.
+    This proposal is valid for 30 days from the date above. All pricing is based on current material costs and is subject to change based on final shop drawings and field conditions. Sales tax is shown as a separate line above. BCH Sheet Metal reserves the right to adjust this proposal if project scope, specifications, or material costs change materially prior to execution of a formal contract. Please contact us to discuss project specifics or to request a formal agreement.
   </div>`;
 }
 
@@ -3212,7 +3543,7 @@ function renderItemized(){
   const rRows=items.rect.flatMap(x=>{
     const emtEa=((x.emtMaterialCost||0)+(x.emtLaborCost||0))/x.qty;
     const extEa=((x.extMaterialCost||0)+(x.extLaborCost||0))/x.qty;
-    const priceEa=x.lbsEa*x.ppLb+((x.lCost||0)/x.qty)+((x.weldCost||0)/x.qty)+emtEa+extEa;
+    const priceEa=lineSell(x)/x.qty;
     const emtNote=x.emtInfo?` &middot; incl. ${x.emtInfo.emtSize} EMT reinforcement (${x.emtInfo.numLocations}pc, ~${x.emtInfo.spacingFt}' o.c.)`:'';
     const extNote=x.extInfo?` &middot; incl. ${x.extInfo.type} (${x.extInfo.numLocations} band(s))`:'';
     const sub=`${x.mLabel} &middot; ${x.g}ga &middot; ${x.w}\u2033\u00d7${x.h}\u2033\u00d7${x.len}' &middot; <span class="cbadge ${CC[x.conn]||'cb-raw'}">${x.conn}</span>${x.linerKey?' &middot; '+ll(x.linerKey):''}${x.notes?' &middot; '+x.notes:''}${emtNote}${extNote}`;
@@ -3220,14 +3551,14 @@ function renderItemized(){
   });
   const roRows=items.round.flatMap(x=>{
     const ringEa=((x.ringMaterialCost||0)+(x.ringLaborCost||0))/x.qty;
-    const priceEa=x.lbsEa*x.ppLb+((x.lCost||0)/x.qty)+((x.weldCost||0)/x.qty)+ringEa;
+    const priceEa=lineSell(x)/x.qty;
     const ringNote=x.ringInfo?` &middot; incl. stiffening ring (${x.ringInfo.numLocations} band(s))`:'';
     const sub=`${x.mLabel} &middot; ${x.g}ga &middot; ${x.dia}\u2033 dia \u00d7 ${x.len}'${x.linerKey?' &middot; '+ll(x.linerKey):''}${ringNote}`;
     return Array.from({length:x.qty},(_,i)=>pli(`${x.desc}${x.qty>1?' <span style="font-size:11px;color:#aaa;">pc '+(i+1)+' of '+x.qty+'</span>':''}`,sub,fmt(priceEa)));
   });
   const fRows=items.fit.flatMap(x=>{
     const fReinfEa=((x.emtMaterialCost||0)+(x.emtLaborCost||0)+(x.extMaterialCost||0)+(x.extLaborCost||0)+(x.ringMaterialCost||0)+(x.ringLaborCost||0))/x.qty;
-    const priceEa=x.lbsEa*x.ppLb+((x.lCost||0)/x.qty)+((x.weldCost||0)/x.qty)+fReinfEa;
+    const priceEa=lineSell(x)/x.qty;
     const s1=(x.fw1!=null&&x.fh1!=null)?x.fw1+'\u2033\u00d7'+x.fh1+'\u2033':(x.fw1!=null?x.fw1+'\u2033W':(x.fh1!=null?x.fh1+'\u2033H':''));
     const s2=(x.fw2!=null&&x.fh2!=null)?x.fw2+'\u2033\u00d7'+x.fh2+'\u2033':(x.fw2!=null?x.fw2+'\u2033W':(x.fh2!=null?x.fh2+'\u2033H':''));
     const lenLabel=(x.flType&&x.flType!=='Length')?x.flType:'L';
@@ -3236,8 +3567,8 @@ function renderItemized(){
     const sub=`${x.type} &middot; ${x.mLabel} &middot; ${x.g}ga${dimStr?' &middot; '+dimStr:''}${x.conn?' &middot; <span class="cbadge '+(CC[x.conn]||'cb-raw')+'">'+x.conn+'</span>':''}${x.linerKey?' &middot; '+ll(x.linerKey):''}${fReinfNote}`;
     return Array.from({length:x.qty},(_,i)=>pli(`${x.desc}${x.qty>1?' <span style="font-size:11px;color:#aaa;">pc '+(i+1)+' of '+x.qty+'</span>':''}`,sub,fmt(priceEa)));
   });
-  const aRows=items.acc.map(x=>pli(`${x.name}${x.isAuto?'<span class="auto-chip">auto</span>':''}`,`${x.desc||''} &middot; ${x.q}&nbsp;${x.uom}`,fmt(x.price*x.q)));
-  const hwRows=items.hw.map(x=>pli(x.name,`${x.desc||''} &middot; ${x.q}&nbsp;${x.uom}${x.len?' &middot; '+x.len+' ft':''}`,fmt(x.price*x.q)));
+  const aRows=items.acc.map(x=>pli(`${x.name}${x.isAuto?'<span class="auto-chip">auto</span>':''}`,`${x.desc||''} &middot; ${x.q}&nbsp;${x.uom}`,fmt(accSell(x))));
+  const hwRows=items.hw.map(x=>pli(x.name,`${x.desc||''} &middot; ${x.q}&nbsp;${x.uom}${x.len?' &middot; '+x.len+' ft':''}`,fmt(accSell(x))));
   return `<div class="prop-sheet">
     ${propLetterhead('Itemized Proposal')}
     ${sec('Rectangular Duct',rRows)}
@@ -3245,7 +3576,7 @@ function renderItemized(){
     ${sec('Fittings',fRows)}
     ${sec('Accessories &amp; Connection Hardware',aRows)}
     ${sec('Hardware',hwRows)}
-    ${propTotals(t,true)}
+    ${propTotals(t,false)}
     ${propSigBlock()}
     ${propFooter()}
   </div>`;
@@ -3267,7 +3598,8 @@ function renderQuote(){
     <div class="quote-total-wrap">
       <p class="quote-total-label">Total quoted price</p>
       <p class="quote-total-amount">${fmt(t.total)}</p>
-      <p class="quote-total-note">Includes all labor, material, and fabrication</p>
+      <p class="quote-total-note">Includes all labor, material, and fabrication${t.txPct>0?` &middot; plus ${t.txPct}% sales tax (${fmt(t.tax)})`:' &middot; no sales tax'}</p>
+      <p class="quote-total-note" style="margin-top:2px;">Price before tax: ${fmt(t.preTax)}</p>
     </div>
     <div class="quote-divider"></div>
     <div class="scope-box" style="margin-top:32px;">
@@ -3284,11 +3616,16 @@ function setPropView(v){
   document.getElementById('tog-s').classList.toggle('active',v==='simple');
   document.getElementById('tog-i').classList.toggle('active',v==='itemized');
   document.getElementById('tog-q').classList.toggle('active',v==='quote');
+  const isCO=!!jobMeta.coOf;
+  const tg=document.getElementById('prop-tog-row'); if(tg) tg.style.display=isCO?'none':'';
+  const ps=document.getElementById('prop-sub'); if(ps) ps.innerHTML=isCO?'Change order &mdash; shows only lines added, removed or changed vs. the baseline':'No internal markup or margin is shown to the customer &mdash; sales tax is shown on its own line';
   document.getElementById('prop-content').innerHTML=
-    v==='simple'?renderSimple():v==='itemized'?renderItemized():renderQuote();
+    isCO?renderChangeOrder():v==='simple'?renderSimple():v==='itemized'?renderItemized():renderQuote();
 }
 
 function showProposal(){
+  const {errors}=priceIssues();
+  if(errors.length&&!confirm('Some lines are pricing at $0:\n\n'+errors.map(e=>'\u2022 '+e.replace(/&mdash;/g,'\u2014').replace(/&rarr;/g,'\u2192')).join('\n')+'\n\nGenerate the proposal anyway?')) return;
   document.getElementById('app-hdr').style.display='none';
   document.getElementById('est-view').style.display='none';
   document.getElementById('sett-view').style.display='none';
@@ -3337,7 +3674,7 @@ async function downloadProposalPDF(){
     }
     const jobPart=(currentJobName||'Proposal').trim().replace(/[^a-z0-9]+/gi,'_').replace(/^_+|_+$/g,'')||'Proposal';
     const datePart=new Date().toISOString().slice(0,10);
-    pdf.save(`${jobPart}_${propView}_${datePart}.pdf`);
+    pdf.save(`${jobPart}_${jobMeta.coOf?'ChangeOrder':propView+(jobMeta.rev&&jobMeta.rev!=='A'?'_Rev'+jobMeta.rev:'')}_${datePart}.pdf`);
   }catch(e){
     console.error('PDF export failed:',e);
     alert('Could not generate the PDF. Check your connection (the PDF libraries load from a CDN) and try again.');
