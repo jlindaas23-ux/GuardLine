@@ -871,20 +871,27 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
       <!-- VOLUME DAMPER -->
       <div class="card" style="background:var(--bg2);margin-bottom:16px;padding:16px;">
         <p class="stitle" style="margin:0 0 10px;">Volume damper</p>
-        <div class="g3 mb">
-          <div class="field"><label>Width (in)</label><input type="number" id="vd-w" min="1" placeholder="24" oninput="updDamperPreview()"></div>
-          <div class="field"><label>Height (in)</label><input type="number" id="vd-h" min="1" placeholder="12" oninput="updDamperPreview()"></div>
-          <div class="field"><label>Qty</label><input type="number" id="vd-qty" min="1" placeholder="1" oninput="updDamperPreview()"></div>
-        </div>
         <div class="field mb">
-          <label>Handle type</label>
+          <label>Damper type</label>
           <div class="radio-group">
-            <label class="radio-opt selected"><input type="radio" name="vd-handle" value="flat" checked onchange="selDamperHandle(this);updDamperPreview()"> Flat handle</label>
-            <label class="radio-opt"><input type="radio" name="vd-handle" value="standoff" onchange="selDamperHandle(this);updDamperPreview()"> 2&Prime; standoff handle</label>
+            <label class="radio-opt selected"><input type="radio" name="vd-shape" value="rect" checked onchange="selDamperShape(this)"> Rectangular (opposed blade)</label>
+            <label class="radio-opt"><input type="radio" name="vd-shape" value="round" onchange="selDamperShape(this)"> Round (Rossi Continuous-Bar blade)</label>
           </div>
         </div>
+        <div class="g3 mb">
+          <div class="field vd-rect"><label>Width (in)</label><input type="number" id="vd-w" min="1" placeholder="24" oninput="updDamperPreview()"></div>
+          <div class="field vd-rect"><label>Height (in)</label><input type="number" id="vd-h" min="1" placeholder="12" oninput="updDamperPreview()"></div>
+          <div class="field vd-round" style="display:none"><label>Diameter</label><select id="vd-dia" onchange="updDamperPreview()"></select></div>
+          <div class="field vd-round" style="display:none"><label>Blade</label><select id="vd-bar" onchange="updDamperPreview()"><option value="bar">Blade + pre-cut aluminum bar</option><option value="nobar">Blade only (no bar)</option></select></div>
+          <div class="field"><label>Qty</label><input type="number" id="vd-qty" min="1" placeholder="1" oninput="updDamperPreview()"></div>
+        </div>
+        <div class="g3 mb">
+          <div class="field"><label>Regulator (handle)</label><select id="vd-reg" onchange="onDamperReg()"></select></div>
+          <div class="field"><label>Bushing</label><select id="vd-bush" onchange="updDamperPreview()"></select></div>
+          <div class="field"><label>Bushings per damper</label><input type="number" id="vd-nb" min="0" step="1" value="1" oninput="updDamperPreview()"></div>
+        </div>
         <div id="vd-preview" style="background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--tx2);margin-bottom:10px;">&#8212;</div>
-        <p style="font-size:11px;color:var(--tx3);margin:0 0 10px;">Price includes damper frame, opposed blades, and bearings. Handle is priced separately by type selected above.</p>
+        <p style="font-size:11px;color:var(--tx3);margin:0 0 10px;">Hardware priced from the Rossi price list in Settings. Rectangular = frame &amp; blades by sqft + regulator + bushings. Round = Rossi blade + regulator + bushings (the round duct body is priced as round duct). Bushing count fills in automatically &mdash; 1 for regulators with a built-in bushing (Twistlock Flat), otherwise 2 &mdash; and can be changed. Use the Long Snap-In bushing on lined duct.</p>
         <button class="btn" onclick="addDamper()">+ Add damper</button>
       </div>
 
@@ -903,6 +910,7 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
             <option value="ang3314galv|110.56|EA">3&times;3&times;&frac14; Angle Galv (ea) &mdash; $110.56</option>
             <option value="sheet16ga|65.93|EA">48"&times;120" 16ga Galv Sheet (ea) &mdash; $65.93</option>
             <option value="ss18ga|2.59|LB">48" 18ga Stainless Coil (per lb) &mdash; $2.59</option>
+            <optgroup label="Rossi damper hardware" id="hw-rossi-group"></optgroup>
           </select>
         </div>
         <div class="field"><label>Description / location</label><input type="text" id="hw-desc" placeholder="e.g. AHU-1 support frame"></div>
@@ -1052,17 +1060,17 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
     <!-- VOLUME DAMPER PRICING -->
     <div style="margin:20px 0;">
       <p style="font-size:12px;font-weight:600;color:var(--tx2);margin:0 0 8px;">Volume damper pricing</p>
-      <div class="s2col">
-        <div>
-          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:0 0 6px;">Damper ($/sqft)</p>
-          <div class="prow"><span>Frame, blades &amp; bearings</span><div class="pin"><span class="psub">$</span><input type="number" id="p-damper-sqft" value="9.50" min="0" step="0.25" oninput="updDamperPreview()"></div></div>
-        </div>
-        <div>
-          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:0 0 6px;">Handle (each)</p>
-          <div class="prow"><span>Flat handle</span><div class="pin"><span class="psub">$</span><input type="number" id="p-damper-handle-flat" value="22.00" min="0" step="0.50" oninput="updDamperPreview()"></div></div>
-          <div class="prow"><span>2&Prime; standoff handle</span><div class="pin"><span class="psub">$</span><input type="number" id="p-damper-handle-standoff" value="28.00" min="0" step="0.50" oninput="updDamperPreview()"></div></div>
-        </div>
+      <div class="prow" style="max-width:420px;"><span>Rectangular frame &amp; blades ($/sqft)</span><div class="pin"><span class="psub">$</span><input type="number" id="p-damper-sqft" value="9.50" min="0" step="0.25" oninput="onDamperPriceChange()"></div></div>
+      <p style="font-size:11px;color:var(--tx3);margin:4px 0 14px;">Regulators and bushings are no longer in this rate &mdash; they're priced from the Rossi list below.</p>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px;">
+        <p style="font-size:12px;font-weight:600;color:var(--tx2);margin:0;">Rossi damper hardware <span style="font-weight:400;color:var(--tx3);">(price list effective 11-14-24)</span></p>
+        <span style="font-size:12px;color:var(--tx2);">Fill prices from:</span>
+        <select id="p-rossi-tier" onchange="applyRossiTier(this.value)" style="width:auto;display:inline-block;padding:4px 8px;font-size:12px;border:1px solid var(--bd);border-radius:var(--r);">
+          <option value="box">Full box price</option><option value="k1000">1,000 unit price</option><option value="retail">Retail price</option>
+        </select>
       </div>
+      <div id="rossi-table"></div>
+      <p style="font-size:11px;color:var(--tx3);margin:6px 0 0;">Defaults are the full-box prices. Edit any price to match what BCH actually pays; changes update damper lines already on the estimate.</p>
     </div>
     <div class="hr"></div>
 
@@ -1638,9 +1646,10 @@ function rp(m,g,ov){
    back to Mode B pricing after Mode A looked like it was set. */
 const SETTINGS_KEY='bchEstimatorSettings_v1';
 function collectSettingsIds(){
-  const ids=['p-co','p-lr','p-lh','p-oh','p-pm','p-tx','p-wr','p-scrap','p-emt-05','p-emt-075','p-emt-1','p-emt-125','p-emt-min','p-ext-price','p-ext-min'];
+  const ids=['p-co','p-lr','p-lh','p-oh','p-pm','p-tx','p-wr','p-scrap','p-damper-sqft','p-rossi-tier','p-emt-05','p-emt-075','p-emt-1','p-emt-125','p-emt-min','p-ext-price','p-ext-min'];
   document.querySelectorAll('#price-table input[id^="pr-"]').forEach(e=>ids.push(e.id));
   document.querySelectorAll('#liner-grid input[id^="lp-"]').forEach(e=>ids.push(e.id));
+  document.querySelectorAll('#rossi-table input[id^="rh-"]').forEach(e=>ids.push(e.id));
   return ids;
 }
 function saveSettings(){
@@ -2937,46 +2946,139 @@ function addAcc(){
   renderAll();
 }
 
-/* ── VOLUME DAMPER ──
-   Priced by sqft (frame, opposed blades, and bearings all included in that
-   rate — bearings are a structural part of the damper, not an optional
-   add-on) plus a separate per-unit handle charge, since handle style is a
-   genuine choice that changes cost. */
-function selDamperHandle(r){
-  document.querySelectorAll('input[name="vd-handle"]').forEach(x=>x.parentElement.classList.remove('selected'));
-  r.parentElement.classList.add('selected');
+/* ── ROSSI DAMPER HARDWARE ──
+   From the Rossi Hardware price list (effective 11-14-24). Three price tiers
+   per item: 1,000-unit, full box, retail. Settings shows one editable price
+   per item (defaults to full box); the tier dropdown refills them. */
+const ROSSI=[
+  {c:'h-102',   cat:'reg', n:'Twistlock Flat\u2122 regulator',            d:'Hand-twist locking, built-in bushing', k1000:1.82,box:2.04,retail:2.43,per:200,builtin:true},
+  {c:'h-150',   cat:'reg', n:'Twistlock\u2122 1.5\u2033 regulator',        d:'Hand-twist locking, 1.5\u2033 standoff', k1000:1.92,box:2.12,retail:2.55,per:200},
+  {c:'h-200',   cat:'reg', n:'Twistlock\u2122 2\u2033 regulator',          d:'Hand-twist locking, 2\u2033 standoff',   k1000:1.99,box:2.23,retail:2.65,per:200},
+  {c:'h-200ss', cat:'reg', n:'Twistlock\u2122 2\u2033 regulator \u2014 stainless', d:'2\u2033 standoff, stainless steel', k1000:3.91,box:3.91,retail:3.91,per:200},
+  {c:'h-200a',  cat:'reg', n:'Twistlock\u2122 2\u2033 regulator \u2014 aluminum',  d:'2\u2033 standoff, aluminum',        k1000:3.69,box:3.69,retail:3.69,per:200},
+  {c:'h-elock', cat:'reg', n:'Everlock\u2122 1.5\u2033 regulator',         d:'Positive locking, 1.5\u2033 standoff',   k1000:2.02,box:2.23,retail:2.68,per:200},
+  {c:'h-elock2',cat:'reg', n:'Everlock\u2122 2\u2033 regulator',           d:'Positive locking, 2\u2033 standoff',     k1000:2.09,box:2.35,retail:2.78,per:200},
+  {c:'h-mlock', cat:'reg', n:'Megalock\u2122 regulator',                   d:'Positive locking, \u00bd\u2033 or \u215c\u2033 square bar', k1000:3.80,box:4.13,retail:5.02,per:125},
+  {c:'h-mlockR',cat:'reg', n:'Megalock Round\u2122 regulator',             d:'Positive locking, \u00bd\u2033 round rod', k1000:4.72,box:5.18,retail:6.27,per:100},
+  {c:'b-snap3/8',cat:'bush',n:'Snap-In Bushing\u2122 \u215c\u2033',        d:'For \u215c\u2033 bar',                   k1000:0.32,box:0.35,retail:0.47,per:500},
+  {c:'b-long',  cat:'bush',n:'Long Snap-In Bushing\u2122 \u215c\u2033',    d:'For \u215c\u2033 bar, lined duct',       k1000:0.42,box:0.45,retail:0.59,per:300},
+  {c:'b-snap1/2',cat:'bush',n:'Big Snap-In Bushing\u2122 \u00bd\u2033',    d:'For \u00bd\u2033 bar, larger blades',    k1000:0.32,box:0.35,retail:0.47,per:500},
+  {c:'b-300',   cat:'bush',n:'Clip-On Bushing\u2122 (open end)',           d:'\u215c\u2033 bar, e-clip + washer',      k1000:0.48,box:0.52,retail:0.63,per:400},
+  {c:'b-330',   cat:'bush',n:'Clip-On Bushing\u2122 (closed end)',         d:'\u215c\u2033 bar, e-clip + washer',      k1000:0.48,box:0.52,retail:0.63,per:300},
+  {c:'u-ch38',  cat:'misc',n:'U-Channel \u215c\u2033',                     d:'Attaches \u215c\u2033 square bar to blade', k1000:0.34,box:0.38,retail:0.42,per:500},
+  {c:'u-ch12',  cat:'misc',n:'U-Channel \u00bd\u2033',                     d:'Attaches \u00bd\u2033 square bar to blade', k1000:0.40,box:0.44,retail:0.48,per:500},
+  {c:'bar38',   cat:'misc',n:'\u215c\u2033 aluminum square bar, 4\u2032',  d:'4 ft length',                            k1000:7.32,box:7.32,retail:7.32,per:null},
+];
+// Round Continuous-Bar blades: [dia, blade only k1000/box/retail, blade+bar k1000/box/retail, per box]
+[[4,1.35,1.47,1.62,2.61,2.79,3.01,100],[5,1.47,1.60,1.76,2.80,3.00,3.23,100],[6,1.84,2.00,2.20,3.29,3.40,3.67,100],
+ [7,2.18,2.37,2.61,3.70,3.97,4.29,100],[8,2.52,2.73,3.00,4.11,4.35,4.70,100],[9,3.03,3.29,3.62,4.74,5.03,5.45,100],
+ [10,3.55,3.86,4.25,5.31,5.71,6.19,50],[12,4.56,4.96,5.46,6.57,7.07,7.68,50],[14,5.99,6.51,7.16,8.19,8.83,9.60,40],
+ [16,8.14,8.84,9.72,10.49,11.31,12.31,25]].forEach(([dia,a1,a2,a3,b1,b2,b3,per])=>{
+  const dd=String(dia).padStart(2,'0');
+  ROSSI.push({c:`rd-${dd}`,cat:'blade',dia,n:`Round ${dia}\u2033 blade (no bar)`,d:'Continuous-Bar Blade\u2122, built-in channel',k1000:a1,box:a2,retail:a3,per});
+  ROSSI.push({c:`rd-${dd}/bar`,cat:'blade',dia,bar:true,n:`Round ${dia}\u2033 blade + bar`,d:'Continuous-Bar Blade\u2122 with pre-cut aluminum bar',k1000:b1,box:b2,retail:b3,per});
+});
+const rossiId=c=>'rh-'+c.replace(/[^a-z0-9]/gi,'_');
+const rossiItem=c=>ROSSI.find(r=>r.c===c);
+function rossiPrice(c){
+  const r=rossiItem(c); if(!r) return 0;
+  const v=parseFloat(document.getElementById(rossiId(c))?.value);
+  return isNaN(v)?r.box:v;
 }
-function calcDamperPrice(w,h,handleType){
-  const sqft=(w*h)/144;
-  const sqftPrice=parseFloat(document.getElementById('p-damper-sqft')?.value)||0;
-  const handlePrice=handleType==='standoff'
-    ?(parseFloat(document.getElementById('p-damper-handle-standoff')?.value)||0)
-    :(parseFloat(document.getElementById('p-damper-handle-flat')?.value)||0);
-  const baseCost=sqft*sqftPrice;
-  const unitPrice=baseCost+handlePrice;
-  return {sqft,baseCost,handlePrice,unitPrice};
+function buildRossiTable(){
+  const el=document.getElementById('rossi-table'); if(!el) return;
+  const groups=[['reg','Regulators'],['bush','Bushings'],['misc','U-channel & bar'],['blade','Round damper blades']];
+  el.innerHTML=groups.map(([cat,title])=>`<p style="font-size:11px;font-weight:600;color:var(--tx3);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em;">${title}</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:2px 18px;">${ROSSI.filter(r=>r.cat===cat).map(r=>
+      `<div class="prow"><span title="${r.d}">${r.n} <span style="color:var(--tx3);font-size:10px;">${r.c}${r.per?' &middot; '+r.per+'/box':''}</span></span><div class="pin"><span class="psub">$</span><input type="number" id="${rossiId(r.c)}" value="${r.box.toFixed(2)}" min="0" step="0.01" oninput="onDamperPriceChange()"></div></div>`).join('')}</div>`).join('');
+}
+function applyRossiTier(tier){
+  const lbl={box:'full box',k1000:'1,000 unit',retail:'retail'}[tier]||tier;
+  if(!confirm(`Replace all Rossi hardware prices with the ${lbl} prices from the list? Any prices you typed in will be overwritten.`)){ return; }
+  ROSSI.forEach(r=>{const e=document.getElementById(rossiId(r.c)); if(e) e.value=(r[tier]??r.box).toFixed(2);});
+  onDamperPriceChange();
+}
+function onDamperPriceChange(){
+  if(typeof saveSettings==='function') saveSettings();
+  buildDamperSelects(true);
+  updDamperPreview();
+  renderAll();
+}
+function buildDamperSelects(keep){
+  const opt=r=>`<option value="${r.c}">${r.n} \u2014 ${fmt(rossiPrice(r.c))}</option>`;
+  const fill=(id,html,def)=>{const e=document.getElementById(id); if(!e) return; const cur=e.value; e.innerHTML=html; e.value=keep&&cur?cur:def; if(!e.value) e.value=def;};
+  fill('vd-reg',ROSSI.filter(r=>r.cat==='reg').map(opt).join(''),'h-102');
+  fill('vd-bush','<option value="">None</option>'+ROSSI.filter(r=>r.cat==='bush').map(opt).join(''),'b-snap3/8');
+  const dias=[...new Set(ROSSI.filter(r=>r.cat==='blade').map(r=>r.dia))];
+  fill('vd-dia',dias.map(d=>`<option value="${d}">${d}\u2033</option>`).join(''),'8');
+  const g=document.getElementById('hw-rossi-group');
+  if(g) g.innerHTML=ROSSI.map(r=>`<option value="rossi:${r.c}||EA">${r.n} &mdash; ${fmt(rossiPrice(r.c))}${r.c==='bar38'?' / 4\u2032 bar':' / ea'}</option>`).join('');
+}
+
+/* ── VOLUME DAMPER ──
+   Rectangular: frame & opposed blades by sqft (Settings) + Rossi regulator
+   + Rossi bushings. Round: Rossi Continuous-Bar blade (with or without bar)
+   + regulator + bushings; the round duct body itself is priced as round
+   duct. The damper line remembers its parts, so changing a Rossi price or
+   the sqft rate in Settings re-prices damper lines already on the job. */
+function selDamperShape(r){
+  document.querySelectorAll('input[name="vd-shape"]').forEach(x=>x.parentElement.classList.remove('selected'));
+  r.parentElement.classList.add('selected');
+  const round=r.value==='round';
+  document.querySelectorAll('.vd-rect').forEach(e=>e.style.display=round?'none':'');
+  document.querySelectorAll('.vd-round').forEach(e=>e.style.display=round?'':'none');
+  updDamperPreview();
+}
+function onDamperReg(){
+  const r=rossiItem(document.getElementById('vd-reg').value);
+  document.getElementById('vd-nb').value=r&&r.builtin?1:2;
+  updDamperPreview();
+}
+function readDamperForm(){
+  const shape=document.querySelector('input[name="vd-shape"]:checked')?.value||'rect';
+  return {shape,
+    w:parseFloat(document.getElementById('vd-w').value)||0,
+    h:parseFloat(document.getElementById('vd-h').value)||0,
+    dia:parseInt(document.getElementById('vd-dia').value)||0,
+    bar:document.getElementById('vd-bar').value!=='nobar',
+    reg:document.getElementById('vd-reg').value,
+    bush:document.getElementById('vd-bush').value,
+    nb:Math.max(0,parseInt(document.getElementById('vd-nb').value)||0)};
+}
+function calcDamperPrice(d){
+  const regP=rossiPrice(d.reg);
+  const bushP=d.bush?rossiPrice(d.bush)*d.nb:0;
+  let sqft=0,baseCost=0,bladeCode=null;
+  if(d.shape==='round'){
+    bladeCode=`rd-${String(d.dia).padStart(2,'0')}${d.bar?'/bar':''}`;
+    baseCost=rossiPrice(bladeCode);
+  } else {
+    sqft=(d.w*d.h)/144;
+    baseCost=sqft*(parseFloat(document.getElementById('p-damper-sqft')?.value)||0);
+  }
+  return {sqft,baseCost,regP,bushP,bladeCode,unitPrice:baseCost+regP+bushP};
+}
+function damperDesc(d){
+  const reg=rossiItem(d.reg), bush=rossiItem(d.bush);
+  const size=d.shape==='round'?`${d.dia}\u2033 round \u2014 Rossi blade${d.bar?' + bar':' (no bar)'}`:`${d.w}\u2033\u00d7${d.h}\u2033 \u2014 opposed blade`;
+  return `${size} \u2014 ${reg?reg.n.replace(' regulator',''):'no regulator'}${bush&&d.nb?` \u2014 ${d.nb}\u00d7 ${bush.n}`:''}`;
 }
 function updDamperPreview(){
   const prev=document.getElementById('vd-preview');
-  if(!prev) return;
-  const w=parseFloat(document.getElementById('vd-w').value)||0;
-  const h=parseFloat(document.getElementById('vd-h').value)||0;
+  if(!prev||!document.getElementById('vd-reg')) return;
+  const d=readDamperForm();
   const qty=parseFloat(document.getElementById('vd-qty').value)||1;
-  const handleType=document.querySelector('input[name="vd-handle"]:checked')?.value||'flat';
-  if(!w||!h){ prev.textContent='\u2014'; return; }
-  const {sqft,baseCost,handlePrice,unitPrice}=calcDamperPrice(w,h,handleType);
-  const handleLabel=handleType==='standoff'?'2\u2033 standoff handle':'flat handle';
-  prev.innerHTML=`${w}\u2033&times;${h}\u2033 (${sqft.toFixed(2)} sqft) &middot; ${fmt(baseCost)} damper + ${fmt(handlePrice)} ${handleLabel} = <strong>${fmt(unitPrice)}/ea</strong>${qty>1?` &middot; ${fmt(unitPrice*qty)} total for ${qty}`:''}`;
+  if(d.shape==='rect'&&(!d.w||!d.h)){ prev.textContent='\u2014'; return; }
+  const c=calcDamperPrice(d);
+  const base=d.shape==='round'?`${fmt(c.baseCost)} blade`:`${d.w}\u2033&times;${d.h}\u2033 (${c.sqft.toFixed(2)} sqft) ${fmt(c.baseCost)} frame &amp; blades`;
+  prev.innerHTML=`${base} + ${fmt(c.regP)} regulator + ${fmt(c.bushP)} bushings (${d.nb}) = <strong>${fmt(c.unitPrice)}/ea</strong>${qty>1?` &middot; ${fmt(c.unitPrice*qty)} total for ${qty}`:''}`;
 }
 function addDamper(){
-  const w=parseFloat(document.getElementById('vd-w').value)||0;
-  const h=parseFloat(document.getElementById('vd-h').value)||0;
+  const d=readDamperForm();
   const qty=parseFloat(document.getElementById('vd-qty').value)||1;
-  const handleType=document.querySelector('input[name="vd-handle"]:checked')?.value||'flat';
-  if(!w||!h){alert('Enter damper width and height.');return;}
-  const {unitPrice}=calcDamperPrice(w,h,handleType);
-  const handleLabel=handleType==='standoff'?'2\u2033 standoff handle':'flat handle';
-  items.hw.push({id:nid++,name:'Volume Damper',desc:`${w}\u2033\u00d7${h}\u2033 \u2014 opposed blade, bearings incl. \u2014 ${handleLabel}`,uom:'EA',q:qty,len:null,price:unitPrice});
+  if(d.shape==='rect'&&(!d.w||!d.h)){alert('Enter damper width and height.');return;}
+  const {unitPrice}=calcDamperPrice(d);
+  items.hw.push({id:nid++,name:d.shape==='round'?'Volume Damper (round)':'Volume Damper',desc:damperDesc(d),uom:'EA',q:qty,len:null,price:unitPrice,damper:d});
   ['vd-w','vd-h'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('vd-qty').value='';
   document.getElementById('vd-preview').textContent='\u2014';
@@ -2991,9 +3093,11 @@ function addHW(){
   const q=parseFloat(document.getElementById('hw-qty').value);
   const len=parseFloat(document.getElementById('hw-len').value)||null;
   const ov=document.getElementById('hw-uprice').value;
-  const price=(ov&&parseFloat(ov)>0)?parseFloat(ov):parseFloat(defP);
+  const rossiCode=raw.startsWith('rossi:')?raw.slice(6).split('|')[0]:null;
+  const ovOn=!!(ov&&parseFloat(ov)>0);
+  const price=ovOn?parseFloat(ov):(rossiCode?rossiPrice(rossiCode):parseFloat(defP));
   if(!q){alert('Enter qty.');return;}
-  items.hw.push({id:nid++,name,desc,uom,q,len,price});
+  items.hw.push(Object.assign({id:nid++,name,desc,uom:rossiCode==='bar38'?'BAR':uom,q,len,price},rossiCode&&!ovOn?{rossi:rossiCode}:{}));
   ['hw-desc','hw-qty','hw-len','hw-uprice'].forEach(i=>document.getElementById(i).value='');
   renderAll();
 }
@@ -3266,6 +3370,12 @@ function recalc(){
    — or worse, keep whatever rate it was saved with on another device. These
    flags put a red/amber badge on the line and a warning in the summary so
    it gets caught before the proposal goes out. */
+function refreshHwPricing(){
+  items.hw.forEach(x=>{
+    if(x.damper){ x.price=calcDamperPrice(x.damper).unitPrice; x.desc=damperDesc(x.damper); }
+    else if(x.rossi){ x.price=rossiPrice(x.rossi); }
+  });
+}
 function flagPrice(x,r,metalKey){
   if(r){ x.ppLb=r; x.priceWarn=null; }
   else if(x.ppLb>0){ x.priceWarn='saved'; }
@@ -3318,6 +3428,7 @@ function renderPriceWarnings(){
    pricing from whatever is currently in Settings, respecting any per-item
    $/lb override the user explicitly entered. */
 function recomputeItemPricing(){
+  refreshHwPricing();
   items.rect.forEach(x=>{
     const base=x.base||x.metal;
     flagPrice(x,rp(base,x.g,x.ov),base);
@@ -4589,7 +4700,9 @@ function parseFabShop(text,fname){
 /* ── BOOT ── */
 buildPriceTable();
 buildLinerGrid();
+buildRossiTable();
 loadSettings();
+buildDamperSelects();
 loadDraftIfAny();
 migrateLegacyJobsIfAny();
 ['ro-metal','f-metal'].forEach(m=>updG(m,m==='ro-metal'?'ro-gauge':'f-gauge'));
