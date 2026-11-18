@@ -1058,6 +1058,9 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
         <tr><td>20 ga</td><td>1.656</td></tr>
         <tr><td>18 ga</td><td>2.156</td></tr>
         <tr><td>16 ga</td><td>2.656</td></tr>
+        <tr><td>14 ga</td><td>3.281</td></tr>
+        <tr><td>12 ga</td><td>4.531</td></tr>
+        <tr><td>10 ga</td><td>5.781</td></tr>
       </tbody>
     </table>
   </div>
@@ -1126,7 +1129,7 @@ const jobsDb = jobsApp.firestore();
 const jobsCollection = jobsDb.collection('jobs');
 </script>
 <script>
-const GLBS={16:2.656,18:2.156,20:1.656,22:1.406,24:1.156,26:0.906};
+const GLBS={10:5.781,12:4.531,14:3.281,16:2.656,18:2.156,20:1.656,22:1.406,24:1.156,26:0.906};
 /* GLBS is the standard galvanized-steel (MSG + G90 coating) weight-per-sqft
    table — verified against a published galvanized sheet metal weight chart
    (exact match at every gauge). But it was previously applied to EVERY metal
@@ -1204,12 +1207,12 @@ function updGaugeCheckRound(){
   }
 }
 const METALS={
-  galv:     {label:'Galvanized G90', gauges:[16,18,20,22,24,26],prices:{18:0.61,20:0.59,22:0.60,24:0.64,26:0.64},src:{18:1,20:1,22:1,24:1,26:1}},
-  ss:       {label:'Stainless Steel',gauges:[16,18,20,22,24,26],prices:{18:0.61},src:{18:1}},
-  alum:     {label:'Aluminum',       gauges:[16,18,20,22,24,26],prices:{},src:{}},
-  paintgrip:{label:'Galvanneal',      gauges:[16,18,20,22,24,26],prices:{},src:{}},
+  galv:     {label:'Galvanized G90', gauges:[10,12,14,16,18,20,22,24,26],prices:{18:0.61,20:0.59,22:0.60,24:0.64,26:0.64},src:{18:1,20:1,22:1,24:1,26:1}},
+  ss:       {label:'Stainless Steel',gauges:[10,12,14,16,18,20,22,24,26],prices:{18:0.61},src:{18:1}},
+  alum:     {label:'Aluminum',       gauges:[10,12,14,16,18,20,22,24,26],prices:{},src:{}},
+  paintgrip:{label:'Galvanneal',      gauges:[10,12,14,16,18,20,22,24,26],prices:{},src:{}},
   perf:     {label:'Perforated',     gauges:[22,24,26],      prices:{22:1.37},src:{22:1}},
-  black:    {label:'Black Iron',     gauges:[16,18,20,22,24,26],prices:{},src:{}},
+  black:    {label:'Black Iron',     gauges:[10,12,14,16,18,20,22,24,26],prices:{},src:{}},
 };
 const LINERS=[
   {key:'ups030',    label:'UPS #030 R-4.2 Flex'},
@@ -1647,7 +1650,7 @@ function fmt(n){return '$'+parseFloat(n).toLocaleString('en-US',{minimumFraction
 function ds(fw,fh,fl){const p=[];if(fw!=null)p.push(fw+'\u2033W');if(fh!=null)p.push(fh+'\u2033H');if(fl!=null)p.push(fl+'\u2033L');return p.length?p.join('\u00d7'):'\u2014';}
 
 function buildPriceTable(){
-  const g=[16,18,20,22,24,26];
+  const g=[10,12,14,16,18,20,22,24,26];
   let h='<thead><tr><th style="width:145px;">Metal</th>';
   g.forEach(x=>h+=`<th style="width:100px;">${x} ga</th>`);
   h+='</tr></thead><tbody>';
@@ -1676,7 +1679,7 @@ function buildLinerGrid(){
 function updG(mId,gId){
   const m=document.getElementById(mId).value;
   const s=document.getElementById(gId);
-  const g=METALS[m]?.gauges||[16,18,20,22,24,26];
+  const g=METALS[m]?.gauges||[10,12,14,16,18,20,22,24,26];
   s.innerHTML=g.map(x=>`<option value="${x}">${x} gauge</option>`).join('');
   if(g.includes(24))s.value=24;
 }
@@ -3452,7 +3455,7 @@ function parseCAMductCSV(text,fname){
     const nums=mat.match(/\d+/g)||[];
     for(let i=nums.length-1;i>=0;i--){
       const g=parseInt(nums[i]);
-      if([16,18,20,22,24,26].includes(g)){gauge=g;break;}
+      if([10,12,14,16,18,20,22,24,26].includes(g)){gauge=g;break;}
     }
     return {metal,gauge};
   }
@@ -4113,7 +4116,7 @@ function parseFabShop(text,fname){
   // Gauge string → number
   function parseGauge(g){
     const n=parseInt(parseFloat(g||'24'));
-    return [16,18,20,22,24,26].includes(n)?n:24;
+    return [10,12,14,16,18,20,22,24,26].includes(n)?n:24;
   }
 
   // Liner name → our liner key
