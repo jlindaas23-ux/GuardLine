@@ -1420,6 +1420,12 @@ function smMinGauge(table,D,Lft){
   }
   return best;
 }
+// Table 2-47 — unreinforced duct with flat joints (S&D): min gauge by dimension row max and pressure
+const SM_T47=[[8,{0.5:26,1:26,2:26,3:24,4:24,6:24,10:22}],[10,{0.5:26,1:26,2:26,3:24,4:22,6:22,10:20}],[12,{0.5:26,1:26,2:26,3:24,4:22,6:20,10:18}],
+ [14,{0.5:26,1:26,2:24,3:22,4:20,6:20,10:18}],[16,{0.5:26,1:26,2:24,3:22,4:20,6:18,10:16}],[18,{0.5:26,1:24,2:22,3:20,4:18,6:18,10:16}],
+ [20,{0.5:24,1:24,2:20,3:18,4:18,6:16}],[22,{0.5:22,1:22,2:18,3:18,4:18,6:16}],[24,{0.5:22,1:22,2:18,3:18,4:18,6:16}],
+ [26,{0.5:20,1:20,2:18,3:18,4:16}],[28,{0.5:18,1:18,2:18,3:18,4:16}],[30,{0.5:18,1:18,2:18,3:18,4:16}],[36,{0.5:18,1:18,2:16,3:16}],[42,{0.5:16,1:16}],[48,{0.5:16,1:16}]];
+function smT47Gauge(D,p){const r=SM_T47.find(x=>D<=x[0]);return r?(r[1][p]||null):null;}
 const SM_OVER120={0.5:{ga:18,cls:'I',rs:2.5,tie:5},1:{ga:18,cls:'I',rs:2.5,tie:5},2:{ga:18,cls:'I',rs:2.5,tie:5},3:{ga:18,cls:'I',rs:2.5,tie:5},
   4:{ga:18,cls:'J',rs:2.5,tie:5},6:{ga:18,cls:'K',rs:2,tie:5},10:{ga:16,cls:'L',rs:2,tie:4}};  // Table 2-49
 /* Main entry. opts: {gauge, conn, tieType:'emt'|'rod', useTieAlt, useMPT, angleLbPrice, rodPrice(size)->$/ft, emtPrice(size)->$/ft, tieMin, angleMin, laborRate} */
@@ -1471,6 +1477,15 @@ function smacnaReinforce(w,h,pressureVal,direction,lenFt,opts){
     res.ties.forEach(t=>{ if(!t.ok) res.warnings.push(`Tie load ${t.load} lb at ${t.spanD}″ exceeds the largest listed size &mdash; needs an engineered tie.`); });
     if(H&&H<=120) evalSide('H',H,smSide(table,H,g,lenFt));
     return finish();
+  }
+  // ── Flat-joint (S&D / raw) limits, Table 2-47 ──
+  if(conn==='S&D'||conn==='Raw'){
+    if(conn==='S&D'&&p>2) res.warnings.push(`Plain and hemmed S slips are limited to 2\u2033 w.g. (Table 2-47). Use TDC or Ductmate at ${p}\u2033 w.g.`);
+    const g47=smT47Gauge(W,p);
+    if(g47==null) res.notes.push(`Table 2-47 doesn't list unreinforced flat joints for ${W}\u2033 at ${p}\u2033 w.g. &mdash; reinforcement is required.`);
+    else if(g>g47) res.notes.push(`Option: ${g47} ga with flat S&amp;D joints needs no reinforcement at all (Table 2-47). At ${g} ga SMACNA requires the reinforcement priced below.`);
+    const minSD=g>=22?24:g===20?22:g===18?20:18;
+    if(conn==='S&D') res.notes.push(`Slips and drives: ${minSD} ga minimum for ${g} ga duct (Table 2-47).`);
   }
   // ── Regular tables 2-1..2-7 ──
   const wSide=smSide(table,W,g,lenFt);
@@ -2584,8 +2599,11 @@ function calcAuto(conn,w,h,len,qty){
   if(conn==='TDC'){
     out.push({name:'TDC EZ Corners',q:8*qty,uom:'EA',price:P_TDCC,note:`8 corners \u00d7 ${qty} pc`});
   }else if(conn==='S&D'){
-    if(w&&len) out.push({name:'Slip \u201cFlat S\u201d',q:parseFloat((w/12*2*len*qty).toFixed(2)),uom:'FT',price:P_SLIP,note:`width sides: ${w}\u2033 \u00f712 \u00d7 2 \u00d7 ${len}' \u00d7 ${qty}pc`});
-    if(h&&len) out.push({name:'Drive',q:parseFloat((h/12*2*len*qty).toFixed(2)),uom:'FT',price:P_DRIVE,note:`height sides: ${h}\u2033 \u00f712 \u00d7 2 \u00d7 ${len}' \u00d7 ${qty}pc`});
+    // One joint per piece (each S&D joint is shared by two pieces): 2 slips the
+    // width of the duct, 2 drives the height + 2" (1" turned over each end).
+    // Was multiplying by the piece length, which priced 5x too much on a 5' piece.
+    if(w) out.push({name:'Slip \u201cFlat S\u201d',q:parseFloat((w/12*2*qty).toFixed(2)),uom:'FT',price:P_SLIP,note:`2 slips \u00d7 ${w}\u2033 width \u00d7 1 joint/pc \u00d7 ${qty}pc`});
+    if(h) out.push({name:'Drive',q:parseFloat(((h+2)/12*2*qty).toFixed(2)),uom:'FT',price:P_DRIVE,note:`2 drives \u00d7 (${h}\u2033 height + 2\u2033 turnover) \u00d7 1 joint/pc \u00d7 ${qty}pc`});
   }else if(conn==='Ductmate'){
     if(w&&h){
       const perim=2*(w+h)/12;
