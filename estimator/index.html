@@ -459,7 +459,7 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
             <option value="dualwall">&#9646;&#9646; Dual Wall</option>
           </select>
         </div>
-        <div class="field"><label>Gauge</label><select id="r-gauge" onchange="updGaugeCheckRect()"></select></div>
+        <div class="field"><label>Gauge</label><select id="r-gauge" onchange="updGaugeCheckRect();updReinfPreview()"></select></div>
       </div>
       <div class="g2 mb">
         <div class="field">
@@ -756,7 +756,7 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;" class="mb">
-        <div class="field"><label>Gauge</label><select id="f-gauge" onchange="updFitWt();updGaugeCheckFit()"></select></div>
+        <div class="field"><label>Gauge</label><select id="f-gauge" onchange="updFitWt();updGaugeCheckFit();updFitReinfPreview()"></select></div>
         <div class="field"><label>Qty (pcs)</label><input type="number" id="f-qty" min="1" placeholder="1" oninput="updFitWt();updVanePreview()"></div>
         <div class="field"><label>$/lb override</label><input type="number" id="f-pprice" step="0.01" min="0" placeholder="auto"></div>
         <div style="background:var(--bg2);border-radius:var(--r);padding:8px 12px;display:flex;flex-direction:column;justify-content:center;">
@@ -1018,42 +1018,46 @@ input:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--bdi);border-col
     </div>
     <div class="hr"></div>
 
-    <!-- EMT REINFORCEMENT PRICING — rectangular duct, both modes -->
+    <!-- SMACNA REINFORCEMENT — rectangular duct and fittings, both modes -->
     <div style="margin:20px 0;">
-      <p style="font-size:12px;font-weight:600;color:var(--tx2);margin:0 0 8px;">EMT reinforcement pricing <span style="font-size:11px;font-weight:400;color:var(--tx3);">(rectangular duct, both modes)</span></p>
+      <p style="font-size:12px;font-weight:600;color:var(--tx2);margin:0 0 4px;">Duct reinforcement &mdash; SMACNA <span style="font-size:11px;font-weight:400;color:var(--tx3);">(rectangular duct &amp; fittings, both modes)</span></p>
+      <p style="font-size:11px;color:var(--tx3);margin:0 0 10px;">Follows SMACNA HVAC Duct Construction Standards, 4th ed.: Tables 2-1 to 2-7 (gauge, class, spacing), 2-29 (angles), 2-32 (TDC/T-25 joint ratings), 2-34 to 2-38 (tie rod loads &amp; sizes), 2-41 (midpanel tie rods), 2-48 (drive slip), 2-49 / Fig. 2-14 (over 120&Prime;). The piece length is the joint spacing. For each side the estimator prices every spacing SMACNA allows for the selected gauge and uses the cheapest one.</p>
       <div class="s2col">
         <div>
-          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:0 0 6px;">Material ($/ft)</p>
+          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:0 0 6px;">Options</p>
+          <div class="prow"><span>Tie rod material</span><div class="pin"><select id="p-tie-type" onchange="renderAll()" style="width:auto;padding:4px 6px;font-size:12px;"><option value="emt">EMT conduit</option><option value="rod">Threaded rod</option></select></div></div>
+          <div class="prow"><span>Use tie-rod downsizing (e.g. H-18G &rarr; G + tie rod)</span><div class="pin"><select id="p-use-tiealt" onchange="renderAll()" style="width:auto;padding:4px 6px;font-size:12px;"><option value="no">No</option><option value="yes">When cheaper</option></select></div></div>
+          <div class="prow"><span>Allow midpanel tie rods (MPT) in place of an intermediate angle</span><div class="pin"><select id="p-use-mpt" onchange="renderAll()" style="width:auto;padding:4px 6px;font-size:12px;"><option value="no">No</option><option value="yes">When cheaper</option></select></div></div>
+          <p style="font-size:11px;color:var(--tx3);margin:6px 0 0;">Tie rods are always added where SMACNA requires them ("t" entries, duct over 120&Prime;, TDC joints that need joint tie rods, end ties on (+) pressure over 3&Prime; w.g.).</p>
+          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:12px 0 6px;">Angle reinforcement</p>
+          <div class="prow"><span>Angle iron ($/lb)</span><div class="pin"><span class="psub">$</span><input type="number" id="p-ang-lb" value="1.81" min="0" step="0.01" oninput="renderAll()"></div></div>
+          <div class="prow"><span>Install minutes per angle frame location</span><div class="pin"><input type="number" id="p-ext-min" value="20" min="0" step="0.5" oninput="renderAll()"><span style="font-size:11px;color:var(--tx3);margin-left:4px;">min</span></div></div>
+          <div class="prow"><span>Round duct stiffening ring ($/ft)</span><div class="pin"><span class="psub">$</span><input type="number" id="p-ext-price" value="3.50" min="0" step="0.05" oninput="renderAll()"></div></div>
+          <p style="font-size:11px;color:var(--tx3);margin:4px 0 0;">Angle size and weight per class come from Table 2-29. The $1.81/lb default is your old R-angle price ($3.50/ft for 2.5&times;1.5 10 ga, about 1.93 lb/ft).</p>
+        </div>
+        <div>
+          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:0 0 6px;">EMT ($/ft)</p>
           <div class="prow"><span>1/2&Prime; EMT</span><div class="pin"><span class="psub">$</span><input type="number" id="p-emt-05" value="0.85" min="0" step="0.05" oninput="renderAll()"></div></div>
           <div class="prow"><span>3/4&Prime; EMT</span><div class="pin"><span class="psub">$</span><input type="number" id="p-emt-075" value="1.20" min="0" step="0.05" oninput="renderAll()"></div></div>
           <div class="prow"><span>1&Prime; EMT</span><div class="pin"><span class="psub">$</span><input type="number" id="p-emt-1" value="1.90" min="0" step="0.05" oninput="renderAll()"></div></div>
           <div class="prow"><span>1-1/4&Prime; EMT</span><div class="pin"><span class="psub">$</span><input type="number" id="p-emt-125" value="2.80" min="0" step="0.05" oninput="renderAll()"></div></div>
-        </div>
-        <div>
-          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:0 0 6px;">Install labor</p>
-          <div class="prow"><span>Minutes per piece</span><div class="pin"><input type="number" id="p-emt-min" value="8" min="0" step="0.5" oninput="renderAll()"><span style="font-size:11px;color:var(--tx3);margin-left:4px;">min</span></div></div>
-          <p style="font-size:11px;color:var(--tx3);margin:4px 0 0;">Charged at the weld labor rate above. Cut, fit, and fasten one reinforcement piece.</p>
-        </div>
-      </div>
-      <p style="font-size:11px;color:var(--tx3);margin:8px 0 0;">Rectangular duct and rectangular fittings use the <strong>BCH reinforcement schedule</strong> (2&Prime;&ndash;10&Prime; w.g., positive and negative, widths up to 300&Prime;) for required gauge, EMT tie rod count, and EMT size &mdash; marked <strong>[BCH schedule]</strong> in the reinforcement box. 1/2&Prime; and 1&Prime; w.g. use the 2&Prime; w.g. table. Round duct, round fittings, and anything outside the schedule fall back to an estimate, marked <strong>[estimate]</strong>.</p>
-    </div>
-    <div class="hr"></div>
-
-    <!-- EXTERIOR / JOINT REINFORCEMENT PRICING — rectangular duct, both modes -->
-    <div style="margin:20px 0;">
-      <p style="font-size:12px;font-weight:600;color:var(--tx2);margin:0 0 8px;">Exterior / joint reinforcement pricing <span style="font-size:11px;font-weight:400;color:var(--tx3);">(rectangular duct, both modes)</span></p>
-      <div class="s2col">
-        <div>
-          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:0 0 6px;">Material ($/ft)</p>
-          <div class="prow"><span>R Angle 2.5&times;1.5, 10ga Galv</span><div class="pin"><span class="psub">$</span><input type="number" id="p-ext-price" value="3.50" min="0" step="0.05" oninput="renderAll()"></div></div>
-        </div>
-        <div>
-          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:0 0 6px;">Install labor</p>
-          <div class="prow"><span>Minutes per band</span><div class="pin"><input type="number" id="p-ext-min" value="20" min="0" step="0.5" oninput="renderAll()"><span style="font-size:11px;color:var(--tx3);margin-left:4px;">min</span></div></div>
-          <p style="font-size:11px;color:var(--tx3);margin:4px 0 0;">Wraps the full duct perimeter per band &mdash; more fab time than a straight EMT tie, hence the longer default.</p>
+          <div class="prow"><span>1-1/2&Prime; EMT <span class="est-tag">est</span></span><div class="pin"><span class="psub">$</span><input type="number" id="p-emt-15" value="3.40" min="0" step="0.05" oninput="renderAll()"></div></div>
+          <div class="prow"><span>2&Prime; EMT <span class="est-tag">est</span></span><div class="pin"><span class="psub">$</span><input type="number" id="p-emt-2" value="4.40" min="0" step="0.05" oninput="renderAll()"></div></div>
+          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:12px 0 6px;">Threaded rod ($/ft)</p>
+          <div class="prow"><span>1/4&Prime; <span class="est-tag">est</span></span><div class="pin"><span class="psub">$</span><input type="number" id="p-rod-14" value="0.12" min="0" step="0.01" oninput="renderAll()"></div></div>
+          <div class="prow"><span>5/16&Prime; <span class="est-tag">est</span></span><div class="pin"><span class="psub">$</span><input type="number" id="p-rod-516" value="0.16" min="0" step="0.01" oninput="renderAll()"></div></div>
+          <div class="prow"><span>3/8&Prime;</span><div class="pin"><span class="psub">$</span><input type="number" id="p-rod-38" value="0.20" min="0" step="0.01" oninput="renderAll()"></div></div>
+          <div class="prow"><span>7/16&Prime; <span class="est-tag">est</span></span><div class="pin"><span class="psub">$</span><input type="number" id="p-rod-716" value="0.28" min="0" step="0.01" oninput="renderAll()"></div></div>
+          <div class="prow"><span>1/2&Prime; <span class="est-tag">est</span></span><div class="pin"><span class="psub">$</span><input type="number" id="p-rod-12" value="0.35" min="0" step="0.01" oninput="renderAll()"></div></div>
+          <div class="prow"><span>5/8&Prime; <span class="est-tag">est</span></span><div class="pin"><span class="psub">$</span><input type="number" id="p-rod-58" value="0.60" min="0" step="0.01" oninput="renderAll()"></div></div>
+          <div class="prow"><span>3/4&Prime; <span class="est-tag">est</span></span><div class="pin"><span class="psub">$</span><input type="number" id="p-rod-34" value="0.90" min="0" step="0.01" oninput="renderAll()"></div></div>
+          <div class="prow"><span>7/8&Prime; <span class="est-tag">est</span></span><div class="pin"><span class="psub">$</span><input type="number" id="p-rod-78" value="1.30" min="0" step="0.01" oninput="renderAll()"></div></div>
+          <div class="prow"><span>1&Prime; <span class="est-tag">est</span></span><div class="pin"><span class="psub">$</span><input type="number" id="p-rod-1" value="1.70" min="0" step="0.01" oninput="renderAll()"></div></div>
+          <p style="font-size:11px;font-weight:600;color:var(--tx3);margin:12px 0 6px;">Install labor</p>
+          <div class="prow"><span>Minutes per tie rod</span><div class="pin"><input type="number" id="p-emt-min" value="8" min="0" step="0.5" oninput="renderAll()"><span style="font-size:11px;color:var(--tx3);margin-left:4px;">min</span></div></div>
+          <p style="font-size:11px;color:var(--tx3);margin:4px 0 0;">Labor is charged at the weld labor rate. 3/8&Prime; rod is from your inventory ($1.98 per 10&prime; stick); prices tagged est are placeholders.</p>
         </div>
       </div>
-      <p style="font-size:11px;color:var(--tx3);margin:8px 0 0;">The angle type and count come from the BCH schedule where it applies (e.g. R 2.875&times;1.5 or R 3.25&times;1.5). This one $/ft price is used for whichever angle the schedule calls for, and for round-duct stiffening rings.</p>
     </div>
     <div class="hr"></div>
 
@@ -1205,26 +1209,11 @@ function updGaugeCheckRect(){
   // Only meaningful for standard sheet metal duct — skip for dual wall/perf where the
   // liner/skin construction changes the rules, and skip until dims + gauge are entered.
   if(!maxSide||!g||metal==='dualwall'){ warn.style.display='none'; return; }
-  const real=len?rschedLookup(press,dir,maxSide,len*12):null;
-  if(real){
-    const clampNote=real.clamped?` (using the longest charted section length, ${real.bracket}\u2033, since this run is longer than that)`:'';
-    if(g>real.gauge){
-      warn.innerHTML=`&#9888; ${maxSide}&Prime; wide &times; ${len}' long at ${dir.toLowerCase()} ${press}&Prime; w.g. calls for ${real.gauge}ga or heavier (BCH reinforcement schedule${clampNote}). ${g}ga is lighter than that.`;
-      warn.style.display='block';
-    } else {
-      warn.style.display='none';
-    }
-    return;
-  }
-  // Outside the real schedule's charted range (duct wider than 300") —
-  // fall back to the generic SMACNA minimum-gauge table.
-  const minGa=smacnaMinGa(SMACNA_MIN_GA_RECT,maxSide);
-  if(g>minGa){
-    warn.innerHTML=`&#9888; ${maxSide}&Prime; is the longest side &mdash; SMACNA calls for ${minGa}ga or heavier on low-pressure unreinforced duct this size. ${g}ga is lighter than that.`;
-    warn.style.display='block';
-  } else {
-    warn.style.display='none';
-  }
+  if(!len||!w||!h){ warn.style.display='none'; return; }
+  const r=smacnaReinforce(w,h,press,dir,len,smacnaOpts(g,getConn()));
+  const gw=r.warnings.filter(x=>/too light|not designed|needs \d+ ga minimum/i.test(x));
+  if(gw.length){ warn.innerHTML='&#9888; '+gw.join('<br>&#9888; '); warn.style.display='block'; }
+  else warn.style.display='none';
 }
 function updGaugeCheckRound(){
   const warn=document.getElementById('ro-gauge-warn');
@@ -1284,192 +1273,375 @@ function WR(){return parseFloat(document.getElementById('p-wr')?.value)||95;}
 function OH(){return parseFloat(document.getElementById('p-oh')?.value)||0;}
 function PM(){return parseFloat(document.getElementById('p-pm')?.value)||0;}
 function SCRAP(){return parseFloat(document.getElementById('p-scrap')?.value)||0;}
-function EMT_PRICE(size){
-  const id=size==='1/2'?'p-emt-05':(size==='3/4'?'p-emt-075':(size==='1'?'p-emt-1':'p-emt-125'));
-  return parseFloat(document.getElementById(id)?.value)||0;
-}
 function EMT_INSTALL_MIN(){return parseFloat(document.getElementById('p-emt-min')?.value)||0;}
 function EXT_PRICE(){return parseFloat(document.getElementById('p-ext-price')?.value)||0;}
 function EXT_INSTALL_MIN(){return parseFloat(document.getElementById('p-ext-min')?.value)||0;}
 
-/* ── REAL EMT SIZE TABLE (from BCH's own NAMI reinforcement/TieRods data) ──
-   Unlike the reinforcement trigger/spacing logic elsewhere in this file
-   (still an estimating approximation), this EMT-size-by-span table is taken
-   directly from BCH's own TieRods reference sheet — not approximated. Which
-   EMT size to use depends on BOTH the panel span AND the pressure class:
-   at 4"/6"/10" w.g., a given span calls for a heavier EMT size sooner than
-   the same span would at 1/2"-3" w.g. */
-const EMT_SIZE_TABLE={
-  low:[{max:42,size:'1/2'},{max:62,size:'3/4'},{max:74,size:'1'},{max:96,size:'1-1/4'}],   // up to 3" w.g.
-  high:[{max:36,size:'1/2'},{max:48,size:'3/4'},{max:74,size:'1'},{max:96,size:'1-1/4'}],  // 4", 6", 10" w.g.
+/* ══ SMACNA RECTANGULAR DUCT REINFORCEMENT ENGINE ══
+   Source: SMACNA HVAC Duct Construction Standards, Metal & Flexible, 4th ed.
+   Tables used (data transcribed from BCH's licensed copy):
+     2-1..2-7  Rectangular duct reinforcement (1/2, 1, 2, 3, 4, 6, 10 in. wg)
+     2-29      Intermediate reinforcement (angle sizes by class)
+     2-32      Transverse joint ratings — T-25a/T-25b (TDC/TDF) by duct gauge
+     2-34      Tie rod design load (75% x 5.2 psf/in.wg x W x RS) — computed
+     2-35      Tie rod size, (+) pressure (allowable load per rod dia.)
+     2-36      Tie rod size, (-) pressure (allowable load by rod length)
+     2-38      EMT conduit size, (-) pressure (allowable load by length)
+     S1.19.4   EMT allowable load, (+) pressure (900/1340/1980 lb)
+     2-41      Midpanel tie rod (MPT) schedule
+     2-46      MPT design load (5.2 psf/in.wg x W x RS) — computed
+     2-48      T-1 flat drive accepted as reinforcement
+     2-49 / Fig 2-14 / S1.28  Duct over 120 in. wide
+   Rules applied (Section 2.1.1 reading guide, S1.13, S1.14, S1.19, S1.23):
+   - The greater duct dimension sets the gauge for all four sides; each side
+     is then checked on its own row for reinforcement.
+   - Reinforcement spacing (RS) = joint spacing / n, where n-1 intermediates
+     are added per section. Fewest intermediates that the duct gauge allows.
+     The class is read from the column for the actual spacing.
+   - Joints must be rated for the class at that spacing. TDC/TDF (T-25) is
+     rated by gauge per Table 2-32; if short, joint tie rods (JTR, "(R)") are
+     added where 2-32 allows, otherwise a backup angle. Flat joints (S-slip,
+     drive, raw) need a backup angle unless Table 2-48 accepts the drive.
+   - "t" entries and duct over 120 in. require tie rods; "H-18G" downsizing
+     and midpanel tie rods are optional (Settings).
+   - Ties are spaced evenly across the width at not over 60 in. (48 in. at
+     10 in. wg over 120 in.); a tie's length is the duct dimension it spans. */
+const SM_RT={"1":[[0,10,26,{}],[11,12,26,{}],[13,14,26,{}],[15,16,26,{}],[17,18,26,{}],[19,20,24,{"10":"B-26","8":"B-26","6":"B-26","5":"B-26","4":"B-26","3":"B-26","2.5":"A-26","2":"A-26"}],[21,22,22,{"10":"B-26","8":"B-26","6":"B-26","5":"B-26","4":"B-26","3":"B-26","2.5":"B-26","2":"A-26"}],[23,24,22,{"10":"C-26","8":"C-26","6":"C-26","5":"B-26","4":"B-26","3":"B-26","2.5":"B-26","2":"B-26"}],[25,26,20,{"10":"C-26","8":"C-26","6":"C-26","5":"C-26","4":"B-26","3":"B-26","2.5":"B-26","2":"B-26"}],[27,28,18,{"10":"C-24","8":"C-26","6":"C-26","5":"C-26","4":"C-26","3":"B-26","2.5":"B-26","2":"B-26"}],[29,30,18,{"10":"C-24","8":"C-26","6":"C-26","5":"C-26","4":"C-26","3":"B-26","2.5":"B-26","2":"B-26"}],[31,36,18,{"10":"D-22","8":"D-24","6":"C-26","5":"C-26","4":"C-26","3":"C-26","2.5":"C-26","2":"B-26"}],[37,42,16,{"10":"E-20","8":"E-24","6":"D-24","5":"D-26","4":"C-26","3":"C-26","2.5":"C-26","2":"C-26"}],[43,48,16,{"10":"E-20","8":"E-22","6":"E-24","5":"E-26","4":"D-26","3":"D-26","2.5":"C-26","2":"C-26"}],[49,54,null,{"10":"F-18","8":"F-20","6":"E-22","5":"E-26","4":"E-26","3":"E-26","2.5":"D-26","2":"C-26"}],[55,60,null,{"10":"G-18","8":"F-20","6":"F-22","5":"E-24","4":"E-24","3":"E-26","2.5":"E-26","2":"D-26"}],[61,72,null,{"10":"H-16","8":"H-18","6":"F-20","5":"F-22","4":"F-24","3":"E-24","2.5":"E-24","2":"E-24"}],[73,84,null,{"8":"I-16G","6":"H-18G","5":"H-22G","4":"G-24","3":"F-24","2.5":"F-24","2":"F-24"}],[85,96,null,{"8":"I-16G","6":"I-18G","5":"H-20G","4":"H-22G","3":"G-22","2.5":"F-22","2":"F-22"}],[97,108,null,{"6":"I-16G","5":"I-18G","4":"I-18G","3":"H-18G","2.5":"H-18G","2":"G-18"}],[109,120,null,{"5":"I-16G","4":"I-16G","3":"I-18G","2.5":"H-18G","2":"H-18G"}]],"2":[[0,10,26,{}],[11,12,26,{}],[13,14,26,{}],[15,16,26,{}],[17,18,24,{"8":"B-26","6":"B-26","5":"B-26","4":"B-26","3":"B-26","2.5":"B-26","2":"B-26"}],[19,20,24,{"8":"C-26","6":"C-26","5":"C-26","4":"C-26","3":"B-26","2.5":"B-26","2":"B-26"}],[21,22,22,{"10":"C-24","8":"C-24","6":"C-26","5":"C-26","4":"C-26","3":"B-26","2.5":"B-26","2":"B-26"}],[23,24,22,{"10":"C-24","8":"C-24","6":"C-26","5":"C-26","4":"C-26","3":"C-26","2.5":"B-26","2":"B-26"}],[25,26,20,{"10":"D-22","8":"D-24","6":"C-26","5":"C-26","4":"C-26","3":"C-26","2.5":"C-26","2":"B-26"}],[27,28,18,{"10":"D-22","8":"D-24","6":"D-26","5":"C-26","4":"C-26","3":"C-26","2.5":"C-26","2":"C-26"}],[29,30,18,{"10":"E-22","8":"D-24","6":"D-26","5":"D-26","4":"C-26","3":"C-26","2.5":"C-26","2":"C-26"}],[31,36,18,{"10":"E-20","8":"E-22","6":"E-24","5":"D-24","4":"D-26","3":"C-26","2.5":"C-26","2":"C-26"}],[37,42,16,{"10":"F-18","8":"F-20","6":"E-22","5":"E-24","4":"E-26","3":"D-26","2.5":"D-26","2":"C-26"}],[43,48,16,{"10":"G-18","8":"G-18","6":"F-20","5":"F-22","4":"E-24","3":"E-26","2.5":"E-26","2":"D-26"}],[49,54,null,{"10":"H-18","8":"H-18","6":"G-20","5":"F-22","4":"F-24","3":"E-24","2.5":"E-24","2":"E-24"}],[55,60,null,{"10":"I-16","8":"H-18","6":"G-20","5":"G-22","4":"F-24","3":"F-24","2.5":"E-24","2":"E-24"}],[61,72,null,{"8":"I-16G","6":"H-18G","5":"H-18G","4":"H-22G","3":"F-24","2.5":"F-24","2":"F-24"}],[73,84,null,{"6":"I-18G","5":"I-18G","4":"I-20G","3":"H-22G","2.5":"H-22G","2":"G-22"}],[85,96,null,{"6":"J-16H","5":"I-18H","4":"I-18H","3":"I-20G","2.5":"H-20G","2":"H-22G"}],[97,108,null,{"5":"J-16H","4":"I-18H","3":"I-18G","2.5":"I-18G","2":"I-18G"}],[109,120,null,{"4":"J-16H","3":"I-18H","2.5":"I-18H","2":"I-18G"}]],"3":[[0,10,26,{}],[11,12,26,{}],[13,14,24,{"8":"B-26","6":"B-26","5":"B-26","4":"B-26","3":"B-26","2.5":"B-26","2":"B-26"}],[15,16,24,{"8":"C-26","6":"C-26","5":"C-26","4":"C-26","3":"C-26","2.5":"B-26","2":"B-26"}],[17,18,22,{"8":"C-26","6":"C-26","5":"C-26","4":"C-26","3":"C-26","2.5":"C-26","2":"B-26"}],[19,20,20,{"10":"C-22","8":"C-24","6":"C-26","5":"C-26","4":"C-26","3":"C-26","2.5":"C-26","2":"C-26"}],[21,22,18,{"10":"D-22","8":"D-24","6":"D-26","5":"D-26","4":"C-26","3":"C-26","2.5":"C-26","2":"C-26"}],[23,24,18,{"10":"E-22","8":"E-24","6":"D-26","5":"D-26","4":"D-26","3":"C-26","2.5":"C-26","2":"C-26"}],[25,26,18,{"10":"E-22","8":"E-22","6":"E-24","5":"D-26","4":"D-26","3":"C-26","2.5":"C-26","2":"C-26"}],[27,28,18,{"10":"F-20","8":"E-20","6":"E-22","5":"E-24","4":"D-26","3":"D-26","2.5":"C-26","2":"C-26"}],[29,30,18,{"10":"F-20","8":"F-20","6":"E-22","5":"E-24","4":"E-26","3":"D-26","2.5":"D-26","2":"C-26"}],[31,36,16,{"10":"G-18","8":"G-20","6":"F-22","5":"F-24","4":"E-24","3":"E-26","2.5":"D-26","2":"D-26"}],[37,42,null,{"10":"H-16","8":"H-18","6":"G-20","5":"G-22","4":"F-24","3":"E-24","2.5":"E-26","2":"E-26"}],[43,48,null,{"8":"I-18","6":"H-20","5":"H-22","4":"G-22","3":"F-24","2.5":"F-24","2":"E-24"}],[49,54,null,{"8":"I-16G","6":"I-18G","5":"H-20G","4":"H-20G","3":"G-24","2.5":"F-24","2":"F-24"}],[55,60,null,{"6":"I-18G","5":"I-20G","4":"H-20G","3":"G-22","2.5":"G-24","2":"F-24"}],[61,72,null,{"6":"J-16H","5":"J-18H","4":"I-20G","3":"H-22G","2.5":"H-22G","2":"H-24"}],[73,84,null,{"5":"J-16H","4":"I-20G","3":"I-20G","2.5":"I-22G","2":"I-22G"}],[85,96,null,{"4":"J-18H","3":"I-18H","2.5":"I-20H","2":"I-22H"}],[97,108,null,{"4":"K-16I","3":"K-18H","2.5":"J-18H","2":"I-18H"}],[109,120,null,{"3":"K-16I","2.5":"K-18I","2":"J-18I"}]],"4":[[0,10,24,{"6":"B-26","5":"B-26","4":"B-26","3":"B-26","2.5":"B-26","2":"B-26"}],[11,12,24,{"6":"B-26","5":"B-26","4":"B-26","3":"B-26","2.5":"B-26","2":"B-26"}],[13,14,22,{"6":"C-24","5":"C-24","4":"C-26","3":"C-26","2.5":"B-26","2":"B-26"}],[15,16,22,{"6":"C-24","5":"C-24","4":"C-26","3":"C-26","2.5":"C-26","2":"C-26"}],[17,18,20,{"8":"D-24","6":"D-24","5":"C-24","4":"C-26","3":"C-26","2.5":"C-26","2":"C-26"}],[19,20,18,{"8":"D-22","6":"D-22","5":"D-24","4":"D-24","3":"C-26","2.5":"C-26","2":"C-26"}],[21,22,18,{"8":"E-22","6":"E-22","5":"D-24","4":"D-24","3":"D-26","2.5":"C-26","2":"C-26"}],[23,24,18,{"8":"E-20","6":"E-22","5":"E-24","4":"E-24","3":"D-26","2.5":"D-26","2":"C-26"}],[25,26,18,{"8":"F-20","6":"E-22","5":"E-24","4":"E-24","3":"D-26","2.5":"D-26","2":"C-26"}],[27,28,18,{"8":"F-20","6":"F-20","5":"F-22","4":"E-24","3":"E-26","2.5":"D-26","2":"D-26"}],[29,30,18,{"8":"G-20","6":"F-20","5":"F-22","4":"E-24","3":"E-26","2.5":"E-26","2":"D-26"}],[31,36,16,{"10":"H-18G","8":"H-18G","6":"H-18G","5":"G-20","4":"F-22","3":"F-24","2.5":"E-26","2":"E-26"}],[37,42,null,{"8":"I-16G","6":"H-18G","5":"H-20G","4":"G-22","3":"F-24","2.5":"F-24","2":"E-26"}],[43,48,null,{"8":"J-16H","6":"I-18G","5":"I-18G","4":"H-20","3":"G-22","2.5":"G-24","2":"F-24"}],[49,54,null,{"6":"J-16H","5":"I-18G","4":"I-18G","3":"H-22G","2.5":"G-24","2":"G-24"}],[55,60,null,{"6":"J-16H","5":"I-18G","4":"I-18G","3":"H-20G","2.5":"H-22G","2":"G-24"}],[61,72,null,{"5":"J-16I","4":"J-18H","3":"I-20G","2.5":"I-22G","2":"I-24G"}],[73,84,null,{"5":"L-16I","4":"K-16H","3":"J-18H","2.5":"I-20H","2":"I-22G"}],[85,96,null,{"4":"L-16I","3":"K-18I","2.5":"J-18I","2":"I-20H"}],[97,108,null,{"3":"L-16I","2.5":"L-18I","2":"K-18I"}],[109,120,null,{"3":"L-16I","2.5":"L-18I","2":"K-18I"}]],"5":[[0,8,24,{"6":"B-26","5":"B-26","4":"B-26","3":"B-26","2.5":"B-26","2":"B-26"}],[9,10,22,{"6":"B-24","5":"B-26","4":"B-26","3":"B-26","2.5":"B-26","2":"B-26"}],[11,12,22,{"8":"B-24","6":"C-24","5":"C-26","4":"C-26","3":"C-26","2.5":"B-26","2":"B-26"}],[13,14,20,{"8":"C-22","6":"C-22","5":"C-24","4":"C-26","3":"C-26","2.5":"C-26","2":"C-26"}],[15,16,20,{"8":"D-22","6":"D-22","5":"C-24","4":"C-26","3":"C-26","2.5":"C-26","2":"C-26"}],[17,18,18,{"8":"D-22","6":"D-22","5":"D-24","4":"D-26","3":"C-26","2.5":"C-26","2":"C-26"}],[19,20,18,{"8":"E-20","6":"E-22","5":"E-24","4":"D-24","3":"D-26","2.5":"C-26","2":"C-26"}],[21,22,18,{"8":"E-20","6":"E-20","5":"E-24","4":"E-24","3":"D-26","2.5":"D-26","2":"C-26"}],[23,24,18,{"8":"F-20","6":"F-20","5":"E-22","4":"E-24","3":"E-26","2.5":"D-26","2":"D-26"}],[25,26,16,{"10":"G-18","8":"G-18","6":"F-20","5":"F-22","4":"E-24","3":"E-26","2.5":"E-26","2":"D-26"}],[27,28,16,{"10":"H-18G","8":"G-18","6":"G-20","5":"F-22","4":"F-24","3":"E-26","2.5":"E-26","2":"D-26"}],[29,30,16,{"10":"H-18G","8":"H-18G","6":"G-18","5":"G-22","4":"F-24","3":"E-26","2.5":"E-26","2":"E-26"}],[31,36,null,{"10":"J-16H","8":"I-16G","6":"H-18G","5":"H-20","4":"G-22","3":"F-24","2.5":"F-26","2":"E-26"}],[37,42,null,{"8":"J-16H","6":"I-16G","5":"I-18G","4":"H-20G","3":"G-22","2.5":"G-24","2":"F-26"}],[43,48,null,{"6":"J-16H","5":"I-18G","4":"I-18G","3":"H-22G","2.5":"H-24G","2":"G-24"}],[49,54,null,{"6":"J-16H","5":"I-18H","4":"I-18G","3":"I-20G","2.5":"H-22G","2":"H-24G"}],[55,60,null,{"5":"J-16I","4":"I-18H","3":"I-20G","2.5":"I-22G","2":"H-24G"}],[61,72,null,{"4":"K-16H","3":"J-18H","2.5":"I-20H","2":"I-22G"}],[73,84,null,{"3":"K-16I","2.5":"J-18I","2":"I-20H"}],[85,96,null,{"3":"L-16I","2.5":"K-18I","2":"J-20I"}],[97,108,null,{"3":"L-16I","2.5":"L-18I","2":"L-18I"}],[109,120,null,{"3":"L-16I","2.5":"L-18J","2":"L-18J"}]],"6":[[0,8,24,{"5":"C-26","4":"C-26","3":"B-26","2.5":"B-26","2":"B-26"}],[9,10,22,{"6":"B-24","5":"C-24","4":"C-24","3":"B-26","2.5":"B-26","2":"B-26"}],[11,12,20,{"8":"C-22","6":"C-22","5":"C-24","4":"C-24","3":"C-26","2.5":"C-26","2":"C-26"}],[13,14,20,{"8":"C-22","6":"D-20","5":"D-22","4":"C-24","3":"C-26","2.5":"C-26","2":"C-26"}],[15,16,18,{"8":"D-20","6":"D-20","5":"D-22","4":"D-24","3":"D-26","2.5":"C-26","2":"C-26"}],[17,18,18,{"8":"E-20","6":"E-20","5":"E-22","4":"E-24","3":"D-26","2.5":"D-26","2":"C-26"}],[19,20,16,{"10":"F-18","8":"F-20","6":"F-20","5":"E-22","4":"E-24","3":"D-24","2.5":"D-26","2":"D-26"}],[21,22,16,{"10":"F-18","8":"F-18","6":"F-20","5":"F-22","4":"F-24","3":"E-24","2.5":"E-26","2":"D-26"}],[23,24,16,{"10":"G-18","8":"G-18","6":"G-20","5":"F-22","4":"F-22","3":"E-24","2.5":"E-26","2":"E-26"}],[25,26,null,{"10":"H-16G","8":"H-16G","6":"G-18","5":"G-20","4":"F-22","3":"F-24","2.5":"E-24","2":"E-24"}],[27,28,null,{"8":"H-16G","6":"H-18G","5":"H-20G","4":"G-22","3":"F-24","2.5":"F-24","2":"E-24"}],[29,30,null,{"8":"I-16G","6":"H-18G","5":"H-18G","4":"G-22","3":"F-24","2.5":"F-24","2":"E-24"}],[31,36,null,{"6":"I-16H","5":"I-18H","4":"H-20G","3":"H-22G","2.5":"G-24","2":"F-24"}],[37,42,null,{"6":"J-16H","5":"I-16H","4":"I-18G","3":"H-20G","2.5":"H-22G","2":"G-22"}],[43,48,null,{"5":"J-16H","4":"I-18H","3":"I-20H","2.5":"I-22G","2":"I-22G"}],[49,54,null,{"4":"J-16H","3":"I-18H","2.5":"I-20G","2":"I-22G"}],[55,60,null,{"4":"J-16H","3":"J-18H","2.5":"I-20H","2":"I-22G"}],[61,72,null,{"3":"K-16I","2.5":"J-18I","2":"J-20H"}],[73,84,null,{"3":"L-16J","2.5":"L-18J","2":"K-18I"}],[85,96,null,{"3":"It-16","2.5":"It-16","2":"L-18J"}],[97,108,null,{"3":"Jt-16","2.5":"Jt-16","2":"L-18J"}],[109,120,null,{"3":"Kt-16","2.5":"Kt-16","2":"Kt-18"}]],"7":[[0,8,22,{"5":"C-24","4":"C-26","3":"C-26","2.5":"C-26","2":"C-26"}],[9,10,20,{"5":"C-22","4":"C-24","3":"C-26","2.5":"C-26","2":"C-26"}],[11,12,18,{"8":"C-20","6":"D-20","5":"D-22","4":"D-24","3":"C-26","2.5":"C-26","2":"C-26"}],[13,14,18,{"8":"D-20","6":"E-20","5":"E-20","4":"D-22","3":"D-24","2.5":"D-26","2":"C-26"}],[15,16,16,{"10":"E-18","8":"E-18","6":"E-18","5":"E-20","4":"E-20","3":"E-24","2.5":"D-24","2":"D-26"}],[17,18,16,{"10":"F-18","8":"F-18","6":"F-18","5":"F-20","4":"F-20","3":"E-24","2.5":"E-24","2":"D-26"}],[19,20,null,{"10":"G-16","8":"G-18","6":"G-18","5":"G-18","4":"F-20","3":"F-22","2.5":"E-24","2":"E-24"}],[21,22,null,{"10":"H-16G","8":"H-18G","6":"H-18G","5":"G-18","4":"G-20","3":"F-22","2.5":"F-24","2":"E-24"}],[23,24,null,{"10":"I-16G","8":"I-18G","6":"H-18G","5":"H-18G","4":"H-20G","3":"G-22","2.5":"F-24","2":"F-24"}],[25,26,null,{"8":"J-16G","6":"I-16G","5":"H-18G","4":"H-20G","3":"G-22","2.5":"F-24","2":"F-24"}],[27,28,null,{"6":"I-16G","5":"I-18G","4":"H-18G","3":"H-22G","2.5":"G-24","2":"F-24"}],[29,30,null,{"6":"J-16G","5":"I-18G","4":"I-18G","3":"H-22G","2.5":"H-24G","2":"G-24"}],[31,36,null,{"5":"J-16H","4":"I-18H","3":"I-20G","2.5":"H-22G","2":"H-24G"}],[37,42,null,{"5":"J-16I","4":"J-18I","3":"I-18G","2.5":"I-20H","2":"I-22G"}],[43,48,null,{"4":"J-16I","3":"J-18I","2.5":"I-18H","2":"I-22H"}],[49,54,null,{"4":"L-16I","3":"K-18I","2.5":"J-18H","2":"I-20H"}],[55,60,null,{"3":"L-16I","2.5":"K-18I","2":"J-20I"}],[61,72,null,{"3":"L-16I","2.5":"L-18I","2":"L-18I"}],[73,84,null,{"2.5":"L-16J","2":"L-18J"}],[85,96,null,{"2":"Lt-16"}],[97,108,null,{"2":"Lt-16"}],[109,120,null,{"2":"Lt-16"}]]};
+const SM_SPACINGS=[10,8,6,5,4,3,2.5,2];
+const SM_TABLE_FOR_P={0.5:'1',1:'2',2:'3',3:'4',4:'5',6:'6',10:'7'};
+const SM_CLASSES='ABCDEFGHIJKL';
+const smClassIdx=c=>SM_CLASSES.indexOf(c);
+// Table 2-29 — angle selected for each class (lighter of the listed angles; weight lb/ft)
+const SM_ANGLE={A:{d:'1×16ga angle (Class C)',lb:0.40},B:{d:'1×16ga angle (Class C)',lb:0.40},C:{d:'1×16ga angle',lb:0.40},
+  D:{d:'1×1/8 angle',lb:0.80},E:{d:'1-1/4×12ga angle',lb:0.90},F:{d:'1-1/4×1/8 angle',lb:1.02},G:{d:'1-1/2×1/8 angle',lb:1.23},
+  H:{d:'2×1/8 angle',lb:1.65},I:{d:'2-1/2×1/8 angle',lb:2.10},J:{d:'2×1/4 angle',lb:3.20},K:{d:'2-1/2×3/16 angle',lb:3.10},L:{d:'2-1/2×1/4 angle',lb:4.10}};
+// Table 2-32 — T-25a/T-25b flanged joint rating by duct gauge (no rods / with joint tie rods)
+function smT25Rating(g,withRods){
+  const gg=Math.min(g,26);
+  if(!withRods) return gg>=26?'D':gg>=24?'E':gg>=22?'F':gg>=20?'G':'H';
+  return gg>=26?'D':gg>=24?'E':gg>=22?'G':gg>=20?'I':'L';
+}
+// Table 2-48 — T-1 flat drive accepted as reinforcement (Class A-C): [maxW in, maxRS ft (Infinity = N.R.)]
+const SM_T1={26:{0.5:[[20,10],[18,Infinity]],1:[[20,8],[14,10],[12,Infinity]],2:[[18,5]],3:[[12,5],[10,6]]},
+  24:{0.5:[[20,Infinity]],1:[[20,8],[14,Infinity]],2:[[18,8],[12,Infinity]],3:[[18,5],[10,Infinity]],4:[[16,5],[8,Infinity]]},
+  22:{0.5:[[20,Infinity]],1:[[20,10],[18,Infinity]],2:[[18,10],[14,Infinity]],3:[[18,5],[12,Infinity]],4:[[12,6],[8,Infinity]]},
+  20:{0.5:[[20,Infinity]],1:[[20,Infinity]],2:[[18,Infinity]],3:[[18,6],[14,Infinity]],4:[[12,Infinity]]}};
+function smT1Accepts(g,p,D,rsFt){
+  const gk=g>=26?26:g>=24?24:g>=22?22:20;
+  const rows=(SM_T1[gk]||{})[p]; if(!rows) return false;
+  return rows.some(([w,rs])=>D<=w&&rsFt<=rs);
+}
+// Table 2-41 — MPT: max width for one rod (o) / two rods (t), by pressure, RS column, gauge
+const SM_MPT={
+  0.5:{3:{22:{o:96},24:{o:84},26:{o:60}},2.5:{22:{o:96},24:{o:84},26:{o:60}},2:{22:{o:96},24:{o:84},26:{o:60}}},
+  1:{3:{18:{o:96},20:{o:84,t:96},22:{o:72,t:84},24:{o:60,t:72},26:{o:48}},2.5:{18:{o:96},20:{o:84,t:96},22:{o:72,t:84},24:{o:60,t:72},26:{o:48}},2:{18:{o:96},20:{o:84,t:96},22:{o:72,t:96},24:{o:72},26:{o:48}}},
+  2:{3:{18:{o:84,t:96},20:{o:60,t:84},22:{o:48,t:72},24:{o:42,t:54},26:{o:36}},2.5:{18:{o:84,t:96},20:{o:72,t:96},22:{o:60,t:84},24:{o:54,t:60},26:{o:42}},2:{18:{o:96},20:{o:72,t:96},22:{o:60,t:96},24:{o:60,t:72},26:{o:42}}},
+  3:{3:{18:{o:72,t:84},20:{o:54,t:72},22:{o:48,t:54},24:{o:42},26:{o:30}},2.5:{18:{o:72,t:96},20:{o:60,t:84},22:{o:54,t:72},24:{o:42,t:54},26:{o:36}},2:{18:{o:84,t:96},20:{o:72,t:96},22:{o:60,t:84},24:{o:54,t:72},26:{o:42}}},
+  4:{3:{16:{t:84},18:{o:60,t:72},20:{o:54,t:60},22:{o:48},24:{o:36},26:{o:30}},2.5:{18:{o:72,t:96},20:{o:60,t:72},22:{o:48,t:60},24:{o:48},26:{o:36}},2:{18:{o:84,t:96},20:{o:60,t:96},22:{o:60,t:72},24:{o:48,t:60},26:{o:42}}},
+  6:{3:{16:{t:72},18:{o:54,t:60},20:{o:42,t:60},22:{o:36}},2.5:{16:{t:96},18:{o:72,t:84},20:{o:54,t:60},22:{o:48},24:{o:36}},2:{18:{o:72,t:96},20:{o:60,t:72},22:{o:48,t:60},24:{o:36}}},
 };
-function emtSizeFor(pressureVal,maxSide){
-  const p=parseFloat(pressureVal)||0;
-  const table=p<=3?EMT_SIZE_TABLE.low:EMT_SIZE_TABLE.high;
-  for(const row of table){ if(maxSide<=row.max) return row.size; }
-  return table[table.length-1].size;
+function smMptRods(p,rsFt,g,D){
+  const t=SM_MPT[p]; if(!t) return 0;
+  const col=rsFt<=2?2:rsFt<=2.5?2.5:rsFt<=3?3:null; if(!col) return 0;
+  const byG=t[col];
+  // Heavier gauges than listed use the nearest listed lighter-or-equal-thickness entry
+  const order=[10,12,14,16,18,20,22,24,26];
+  for(const gg of order.filter(x=>x>=g)){
+    const c=byG[gg]; if(!c) continue;
+    if(c.o&&D<=c.o) return 1;
+    if(c.t&&D<=c.t) return 2;
+    return 0;
+  }
+  return 0;
 }
-function emtSizeLabel(size){return size+'\u2033';}
-
-/* ── DUCT REINFORCEMENT (rectangular duct) ──
-   This is an ESTIMATING APPROXIMATION of when SMACNA-style reinforcement is
-   needed and what it costs — not a reproduction of any specific reinforcement
-   chart/table. Covers two categories, matching how real charts split it:
-     - EMT intermediate reinforcement: straight tie bars across mid-panel,
-       spaced along the duct's length.
-     - Exterior/joint reinforcement (angle iron): wraps the full duct
-       perimeter at joints on larger duct and/or higher pressure classes,
-       heavier-duty and spaced wider than EMT.
-   Both tighten for negative pressure (collapse governs sooner than burst).
-   Verify against the actual SMACNA manual / house reinforcement chart before
-   it goes to the shop floor — the trigger sizes and spacing here are my own
-   estimate, not lifted from a specific chart. */
-/* ── REAL DUCT REINFORCEMENT SCHEDULE ──
-   This replaces the estimating-approximation reinforcement logic below (for
-   rectangular duct, within its covered range) with BCH's own real
-   reinforcement schedule data. Structure: RSCHED[sheetKey][lengthBracket] =
-   array of [sizeLE, gauge, jointCount, midPanel, internalType, cType,
-   externalType] rows, sorted ascending by sizeLE (the duct WIDTH, in inches,
-   up to which that spec applies). lengthBracket (24/30/36/48/60) is the
-   duct piece's own fabricated LENGTH — rounded up to the nearest available
-   bracket — since a longer unsupported section needs correspondingly more
-   reinforcement for the same width. sheetKey is 'P'+pressure or
-   'N'+pressure (e.g. 'P2', 'N4'). Covers pressure classes 2/3/4/6/10" w.g.;
-   1/2" and 1" w.g. map to the 2" w.g. table (conservative — real spec at
-   those lighter classes would need equal or less reinforcement, never more).
-   Covers duct widths up to 300"; a piece longer than 60" still uses the 60"
-   bracket (the longest the chart has, flagged as "clamped"). Outside the
-   width range there's no chart data, so the estimating approximation below
-   is used instead with a note that it's outside the charted range. */
-const RSCHED={"P2":{"60":[[26,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[54,22,0,1,"1/2\" EMT","Internal","N/A"],[60,22,1,1,"1/2\" EMT","Internal","N/A"],[72,20,1,1,"1/2\" EMT","Internal","N/A"],[96,20,1,2,"1/2\" EMT","Internal","N/A"],[108,18,1," R Angle","N/A","Internal","R 2.875x1.5 10ga Galv"],[120,18,1," R Angle","N/A","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,3,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"48":[[28,26,0,0,"N/A","N/A","N/A"],[36,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[48,20,0,0,"N/A","N/A","N/A"],[60,20,1,0,"1/2\" EMT","Internal","N/A"],[72,20,1,1,"1/2\" EMT","Internal","N/A"],[96,20,1,2,"1/2\" EMT","Internal","N/A"],[108,18,1," R Angle","N/A","Internal","R 2.875x1.5 10ga Galv"],[120,18,1," R Angle","N/A","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,3,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"36":[[30,26,0,0,"N/A","N/A","N/A"],[42,24,0,0,"N/A","N/A","N/A"],[48,22,0,0,"N/A","N/A","N/A"],[60,20,0,0,"N/A","N/A","N/A"],[72,18,0,1,"1/2\" EMT","Internal","N/A"],[84,18,1,1,"1/2\" EMT","Internal","N/A"],[96,18,1," R Angle","N/A","Internal","R 2.875x1.5 10ga Galv"],[108,18,1," R Angle","N/A","Internal","R 2.875x1.5 10ga Galv"],[120,18,1,1,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,2,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,3,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"30":[[36,26,0,0,"N/A","N/A","N/A"],[42,24,0,0,"N/A","N/A","N/A"],[54,22,0,0,"N/A","N/A","N/A"],[60,20,0,0,"N/A","N/A","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]],"24":[[36,26,0,0,"N/A","N/A","N/A"],[48,24,0,0,"N/A","N/A","N/A"],[60,22,0,0,"N/A","N/A","N/A"],[72,18,0,0,"N/A","N/A","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]]},"P3":{"60":[[12,26,0,0,"N/A","N/A","N/A"],[26,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[36,20,0,0,"N/A","N/A","N/A"],[42,20,0,1,"1/2\" EMT","Internal","N/A"],[54,22,1,1,"1/2\" EMT","Internal","N/A"],[60,20,1,1,"1/2\" EMT","Internal","N/A"],[84,20,1,2,"1/2\" EMT","Internal","N/A"],[96,18,1,2,"1/2\" EMT","Internal","N/A"],[120,18,1," R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,3,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"48":[[18,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[48,22,0,1,"1/2\" EMT","Internal","N/A"],[60,22,1,1,"1/2\" EMT","Internal","N/A"],[72,20,1,1,"1/2\" EMT","Internal","N/A"],[96,20,1,2,"1/2\" EMT","Internal","N/A"],[120,18,1," R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,3,3,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,4,4,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"36":[[26,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[54,22,0,0,"N/A","N/A","N/A"],[72,20,1,0,"1/2\" EMT","Internal","N/A"],[84,18,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]],"30":[[28,26,0,0,"N/A","N/A","N/A"],[36,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[54,20,0,0,"N/A","N/A","N/A"],[60,18,0,0,"N/A","N/A","N/A"],[84,18,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]],"24":[[36,26,0,0,"N/A","N/A","N/A"],[42,24,0,0,"N/A","N/A","N/A"],[48,2,0,0,"N/A","N/A","N/A"],[60,22,1,0,"1/2\" EMT","Internal","N/A"],[84,20,1,0,"1/2\" EMT","Internal","N/A"],[96,18,0,0,"N/A","N/A","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]]},"P4":{"60":[[12,26,0,0,"N/A","N/A","N/A"],[22,24,0,0,"N/A","N/A","N/A"],[28,22,0,0,"N/A","N/A","N/A"],[30,20,0,0,"N/A","N/A","N/A"],[36,22,0,1,"1/2\" EMT","Internal","N/A"],[42,20,0,1,"1/2\" EMT","Internal","N/A"],[54,18,0,1,"1/2\" EMT","Internal","N/A"],[60,20,1,1,"1/2\" EMT","Internal","N/A"],[72,20,1,2,"1/2\" EMT","Internal","N/A"],[96,18,1,2,"1/2\" EMT","Internal","N/A"],[120,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"48":[[18,26,0,0,"N/A","N/A","N/A"],[24,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[36,24,0,1,"1/2\" EMT","Internal","N/A"],[42,22,0,1,"1/2\" EMT","Internal","N/A"],[60,18,1,1,"1/2\" EMT","Internal","N/A"],[72,20,1,1,"1/2\" EMT","Internal","N/A"],[84,18,1,1,"1/2\" EMT","Internal","N/A"],[96,18,1,2,"1/2\" EMT","Internal","N/A"],[120,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"36":[[24,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[48,22,0,0,"N/A","N/A","N/A"],[60,20,1,0,"1/2\" EMT","Internal","N/A"],[72,18,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[150,18,1,4,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"]],"30":[[24,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[54,22,0,0,"N/A","N/A","N/A"],[72,20,0,0,"N/A","N/A","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[150,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]],"24":[[28,26,0,0,"N/A","N/A","N/A"],[36,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[72,22,1,0,"1/2\" EMT","Internal","N/A"],[84,20,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,18,2,0,"1/2\" EMT","Internal","N/A"],[240,18,3,0,"1/2\" EMT","Internal","N/A"],[300,18,4,0,"1/2\" EMT","Internal","N/A"]]},"P6":{"60":[[8,26,0,0,"N/A","N/A","N/A"],[12,24,0,0,"N/A","N/A","N/A"],[24,22,0,0,"N/A","N/A","N/A"],[26,20,0,0,"N/A","N/A","N/A"],[30,22,0,1,"1/2\" EMT","Internal","N/A"],[36,20,0,1,"1/2\" EMT","Internal","N/A"],[42,18,0,1,"1/2\" EMT","Internal","N/A"],[60,20,1,1,"1/2\" EMT","Internal","N/A"],[72,18,1,1,"1/2\" EMT","Internal","N/A"],[96,18,1,2,"1/2\" EMT","Internal","N/A"],[108,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,18,1,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,2,5,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[210,16,2,6,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,16,3,7,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[270,16,3,8,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,16,4,9,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"48":[[8,26,0,0,"N/A","N/A","N/A"],[20,24,0,0,"N/A","N/A","N/A"],[26,22,0,0,"N/A","N/A","N/A"],[36,24,0,1,"1/2\" EMT","Internal","N/A"],[42,22,1,1,"1/2\" EMT","Internal","N/A"],[60,20,1,1,"1/2\" EMT","Internal","N/A"],[72,18,1,1,"1/2\" EMT","Internal","N/A"],[96,18,1,2,"1/2\" EMT","Internal","N/A"],[108,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,18,1,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,2,5,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[210,16,2,6,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,16,3,7,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[270,16,3,8,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,16,4,9,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"36":[[18,26,0,0,"N/A","N/A","N/A"],[24,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[54,20,1,0,"1/2\" EMT","Internal","N/A"],[84,18,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,2,5,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[210,16,2,6,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,16,3,7,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[270,16,3,8,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,16,4,9,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"30":[[20,26,0,0,"N/A","N/A","N/A"],[26,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[36,20,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[48,18,1,0,"1/2\" EMT","Internal","N/A"],[60,18,1,0,"1/2\" EMT","Internal","N/A"],[84,18,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,16,2,0,"1/2\" EMT","Internal","N/A"],[240,16,3,0,"1/2\" EMT","Internal","N/A"],[300,16,4,0,"1/2\" EMT","Internal","N/A"]],"24":[[22,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[60,20,1,0,"1/2\" EMT","Internal","N/A"],[84,18,1,0,"1/2\" EMT","Internal","N/A"],[120,18,1,0,"1/2\" EMT","Internal","N/A"],[180,16,2,0,"1/2\" EMT","Internal","N/A"],[240,16,3,0,"1/2\" EMT","Internal","N/A"],[300,16,4,0,"1/2\" EMT","Internal","N/A"]]},"P10":{"60":[[8,24,0,0,"N/A","N/A","N/A"],[12,22,0,0,"N/A","N/A","N/A"],[18,20,0,0,"N/A","N/A","N/A"],[30,18,1,0,"1/2\" EMT","Internal","N/A"],[36,18,0,"R Angle","N/A","External","R 2.875x1.5 10ga Galv"],[42,20,1,"R Angle","1/2\" EMT","External","R 2.875x1.5 10ga Galv"],[84,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[96,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[120,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[84,18,1,"R Angle","1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[96,16,1,1,"1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[108,16,1,1,"1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,1,"1/2\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"]],"48":[[12,24,0,0,"N/A","N/A","N/A"],[14,22,0,0,"N/A","N/A","N/A"],[22,20,0,0,"N/A","N/A","N/A"],[28,18,0,0,"N/A","N/A","N/A"],[42,18,1,0,"1/2\" EMT","Internal","N/A"],[54,20,1,"R Angle","1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[84,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[96,16,2,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[108,16,2,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,3,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"36":[[14,26,0,0,"N/A","N/A","N/A"],[18,24,0,0,"N/A","N/A","N/A"],[22,22,0,0,"N/A","N/A","N/A"],[26,20,0,0,"N/A","N/A","N/A"],[30,18,0,0,"N/A","N/A","N/A"],[42,20,1,"R Angle","1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[54,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[72,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,18,1,"R Angle","1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[96,16,2,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[108,16,2,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,3,1,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"30":[[16,26,0,0,"N/A","N/A","N/A"],[20,24,0,0,"N/A","N/A","N/A"],[26,22,0,0,"N/A","N/A","N/A"],[28,20,0,0,"N/A","N/A","N/A"],[36,18,0,0,"N/A","N/A","N/A"],[48,20,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[72,18,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,16,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,16,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,16,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,16,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,16,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[96,16,2,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[108,16,2,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,3,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"24":[[18,26,0,0,"N/A","N/A","N/A"],[22,24,0,0,"N/A","N/A","N/A"],[28,22,0,0,"N/A","N/A","N/A"],[30,20,0,0,"N/A","N/A","N/A"],[36,18,0,0,"N/A","N/A","N/A"],[54,20,1,0,"1/2\" EMT","Both","R 2.875x1.5 10ga Galv"],[84,18,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,0,"1/2\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]]},"N2":{"60":[[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[48,18,0,0,"N/A","N/A","N/A"],[54,22,0,1,"3/4\" EMT","Internal","N/A"],[60,22,1,1,"3/4\" EMT","Internal","N/A"],[72,20,1,1,"1\" EMT","Internal","N/A"],[96,20,1,2,"1 1/4\" EMT","Internal","N/A"],[108,18,1,"R Angle","1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[120,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,3,3,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,4,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"48":[[28,26,0,0,"N/A","N/A","N/A"],[36,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[48,20,0,0,"N/A","N/A","N/A"],[60,20,1,0,"3/4\" EMT","Internal","N/A"],[72,20,1,1,"1\" EMT","Internal","N/A"],[96,20,1,2,"1 1/4\" EMT","Internal","N/A"],[108,18,1,"R Angle","1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[120,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,3,3,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,4,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"36":[[30,26,0,0,"N/A","N/A","N/A"],[42,24,0,0,"N/A","N/A","N/A"],[48,22,0,0,"N/A","N/A","N/A"],[60,20,0,0,"N/A","N/A","N/A"],[72,18,0,1,"1\" EMT","Internal","N/A"],[84,18,1,1,"1 1/4\" EMT","Internal","N/A"],[96,18,1,"R Angle","1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[108,18,1,"R Angle","1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[120,18,1,1,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,3,3,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,4,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"30":[[36,26,0,0,"N/A","N/A","N/A"],[42,24,0,0,"N/A","N/A","N/A"],[54,22,0,0,"N/A","N/A","N/A"],[60,20,0,0,"N/A","N/A","N/A"],[72,18,1,0,"1\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[180,18,2,0,"1 1/4\" EMT","Internal","N/A"],[240,18,3,0,"1 1/4\" EMT","Internal","N/A"],[300,18,4,0,"1 1/4\" EMT","Internal","N/A"]],"24":[[36,26,0,0,"N/A","N/A","N/A"],[48,24,0,0,"N/A","N/A","N/A"],[60,22,0,0,"N/A","N/A","N/A"],[72,18,0,0,"N/A","N/A","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[180,18,2,0,"1 1/4\" EMT","Internal","N/A"],[240,18,3,0,"1 1/4\" EMT","Internal","N/A"],[300,18,4,0,"1 1/4\" EMT","Internal","N/A"]]},"N3":{"60":[[12,26,0,0,"N/A","N/A","N/A"],[26,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[36,20,0,0,"N/A","N/A","N/A"],[42,20,0,1,"1/2\" EMT","Internal","N/A"],[54,22,1,1,"3/4\" EMT","Internal","N/A"],[60,20,1,1,"3/4\" EMT","Internal","N/A"],[84,20,1,2,"1 1/4\" EMT","Internal","N/A"],[96,18,1,2,"1 1/4\" EMT","Internal","N/A"],[120,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,3,3,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,4,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"48":[[18,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[48,22,0,1,"3/4\" EMT","Internal","N/A"],[60,22,1,1,"3/4\" EMT","Internal","N/A"],[72,20,1,1,"1\" EMT","Internal","N/A"],[96,20,1,2,"1 1/4\" EMT","Internal","N/A"],[108,18,1,2,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,18,2,2,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,18,3,3,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,18,4,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"36":[[26,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[54,22,0,0,"3/4\" EMT","N/A","N/A"],[72,20,1,0,"3/4\" EMT","Internal","N/A"],[84,18,1,0," 1 1/4\" EMT","Internal","N/A"],[120,18,1,0," 1 1/4\" EMT","Internal","N/A"],[180,18,2,0," 1 1/4\" EMT","Internal","N/A"],[240,18,3,0," 1 1/4\" EMT","Internal","N/A"],[300,18,4,0," 1 1/4\" EMT","Internal","N/A"]],"30":[[28,26,0,0,"N/A","N/A","N/A"],[36,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[54,20,0,0,"N/A","N/A","N/A"],[60,18,0,0,"N/A","N/A","N/A"],[84,18,1,0," 1 1/4\" EMT","Internal","N/A"],[120,18,1,0," 1 1/4\" EMT","Internal","N/A"],[180,18,2,0," 1 1/4\" EMT","Internal","N/A"],[240,18,3,0," 1 1/4\" EMT","Internal","N/A"],[300,18,4,0," 1 1/4\" EMT","Internal","N/A"]],"24":[[36,26,0,0,"N/A","N/A","N/A"],[42,24,0,0,"N/A","N/A","N/A"],[48,2,0,0,"N/A","N/A","N/A"],[60,22,1,0,"3/4\" EMT","Internal","N/A"],[84,20,1,0," 1 1/4\" EMT","Internal","N/A"],[96,18,1,0," 1 1/4\" EMT","Internal","N/A"],[120,18,1,0," 1 1/4\" EMT","Internal","N/A"],[180,18,2,0," 1 1/4\" EMT","Internal","N/A"],[240,18,3,0," 1 1/4\" EMT","Internal","N/A"],[300,18,4,0," 1 1/4\" EMT","Internal","N/A"]]},"N4":{"60":[[12,26,0,0,"N/A","N/A","N/A"],[22,24,0,0,"N/A","N/A","N/A"],[28,22,0,0,"N/A","N/A","N/A"],[30,20,0,0,"N/A","N/A","N/A"],[36,22,0,1,"1/2\" EMT","Internal","N/A"],[42,20,1,1,"1/2\" EMT","Internal","N/A"],[54,18,1,1,"3/4\" EMT","Internal","N/A"],[60,20,1,1,"3/4\" EMT","Internal","N/A"],[72,20,1,2,"1\" EMT","Internal","N/A"],[96,18,1,2,"1 1/4\" EMT","Internal","N/A"],[120,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"48":[[18,26,0,0,"N/A","N/A","N/A"],[24,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[36,24,0,1,"1/2\" EMT","Internal","N/A"],[42,22,0,1,"1/2\" EMT","Internal","N/A"],[60,18,1,1,"3/4\" EMT","Internal","N/A"],[72,20,1,1,"1\" EMT","Internal","N/A"],[84,18,1,1,"1 1/4\" EMT","Internal","N/A"],[96,18,1,2,"1 1/4\" EMT","Internal","N/A"],[120,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"36":[[24,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[48,22,1,0,"3/4\" EMT","Internal","N/A"],[60,20,0,0,"3/4\" EMT","Internal","N/A"],[72,18,1,0,"1\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[150,18,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"30":[[24,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[54,22,1,0,"3/4\" EMT","Internal","N/A"],[72,20,1,0,"1\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[150,18,2,0,"1 1/4\" EMT","Internal","N/A"],[240,18,3,0,"1 1/4\" EMT","Internal","N/A"],[300,18,4,0,"1 1/4\" EMT","Internal","N/A"]],"24":[[28,26,0,0,"N/A","N/A","N/A"],[36,24,0,0,"N/A","N/A","N/A"],[42,22,0,0,"N/A","N/A","N/A"],[72,22,1,0,"1\" EMT","Internal","N/A"],[84,20,1,0,"1 1/4\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[180,18,2,0,"1 1/4\" EMT","Internal","N/A"],[240,18,3,0,"1 1/4\" EMT","Internal","N/A"],[300,18,4,0,"1 1/4\" EMT","Internal","N/A"]]},"N6":{"60":[[8,26,0,0,"N/A","N/A","N/A"],[12,24,0,0,"N/A","N/A","N/A"],[24,22,0,0,"N/A","N/A","N/A"],[26,20,0,0,"N/A","N/A","N/A"],[30,22,0,1,"1/2\" EMT","Internal","N/A"],[36,20,0,1,"1/2\" EMT","Internal","N/A"],[42,18,0,1,"1/2\" EMT","Internal","N/A"],[60,20,1,1,"3/4\" EMT","Internal","N/A"],[72,18,1,1,"1\" EMT","Internal","N/A"],[96,18,1,2,"1 1/4\" EMT","Internal","N/A"],[108,18,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,18,1,1,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,18,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"48":[[8,26,0,0,"N/A","N/A","N/A"],[20,24,0,0,"N/A","N/A","N/A"],[26,22,0,0,"N/A","N/A","N/A"],[36,24,0,1,"1/2\" EMT","Internal","N/A"],[42,22,1,1,"1/2\" EMT","Internal","N/A"],[60,20,1,1,"3/4\" EMT","Internal","N/A"],[72,18,1,1,"1\" EMT","Internal","N/A"],[96,18,1,2,"1 1/4\" EMT","Internal","N/A"],[108,18,1,"R Angle","1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[120,18,1,1,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[150,18,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"36":[[18,26,0,0,"N/A","N/A","N/A"],[24,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[54,20,1,0,"3/4\" EMT","Internal","N/A"],[84,18,1,0,"1 1/4\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[150,18,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,18,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,18,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,18,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,18,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,18,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"30":[[20,26,0,0,"N/A","N/A","N/A"],[26,24,0,0,"N/A","N/A","N/A"],[30,22,0,0,"N/A","N/A","N/A"],[36,20,0,0,"N/A","N/A","N/A"],[42,20,0,0,"N/A","N/A","N/A"],[48,20,1,0,"3/4\" EMT","Internal","N/A"],[60,20,1,0,"3/4\" EMT","Internal","N/A"],[84,18,1,0,"1 1/4\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[180,18,2,0,"1 1/4\" EMT","Internal","N/A"],[240,18,3,0,"1 1/4\" EMT","Internal","N/A"],[300,18,4,0,"1 1/4\" EMT","Internal","N/A"]],"24":[[22,26,0,0,"N/A","N/A","N/A"],[30,24,0,0,"N/A","N/A","N/A"],[36,22,0,0,"N/A","N/A","N/A"],[60,20,1,0,"3/4\" EMT","Internal","N/A"],[84,18,1,0,"1 1/4\" EMT","Internal","N/A"],[120,18,1,0,"1 1/4\" EMT","Internal","N/A"],[180,18,2,0,"1 1/4\" EMT","Internal","N/A"],[240,18,3,0,"1 1/4\" EMT","Internal","N/A"],[300,18,4,0,"1 1/4\" EMT","Internal","N/A"]]},"N10":{"60":[[8,24,0,0,"N/A","N/A","N/A"],[12,22,0,0,"N/A","N/A","N/A"],[18,20,0,0,"N/A","N/A","N/A"],[26,18,1,0,"1/2\" EMT","Internal","Internal"],[30,18,1,0,"1/2\" EMT","Internal","Internal"],[36,18,0,"R Angle","N/A","External","R 2.875x1.5 10ga Galv"],[42,20,1,"R Angle","N/A","External","R 2.875x1.5 10ga Galv"],[54,18,1,"R Angle","3/4\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[84,18,1,"R Angle","1\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,1,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,16,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,16,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,16,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,16,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,16,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,16,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"48":[[12,24,0,0,"N/A","N/A","N/A"],[14,22,0,0,"N/A","N/A","N/A"],[22,20,0,0,"N/A","N/A","N/A"],[28,18,0,0,"N/A","N/A","N/A"],[42,18,1,0,"1/2\" EMT","Internal","Internal"],[54,20,1,"R Angle","3/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[84,18,1,1,"1\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,1,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,null,2,"1/2\" EMT","Both","L 2 1/2x1/4 Galv"],[240,16,null,3,"1/2\" EMT","Both","L 2 1/2x1/4 Galv"],[300,16,null,4,"1/2\" EMT","Both","L 2 1/2x1/4 Galv"],[150,16,1,4,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[180,16,2,5,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[210,16,2,6,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[240,16,3,7,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[270,16,3,8,"1 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"],[300,16,4,9,"5 1/4\" EMT","Both","R 2.875x1.5 10ga Galv"]],"36":[[14,26,0,0,"N/A","N/A","N/A"],[18,24,0,0,"N/A","N/A","N/A"],[22,22,0,0,"N/A","N/A","N/A"],[26,20,0,0,"N/A","N/A","N/A"],[30,18,0,0,"N/A","N/A","N/A"],[22,22,0,0,"N/A","N/A","N/A"],[26,20,0,0,"N/A","N/A","N/A"],[30,18,0,0,"N/A","N/A","N/A"],[42,20,1,"R Angle","1/2\" EMT","Internal","R 2.875x1.5 10ga Galv"],[54,18,1,"R Angle","3/4\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[72,16,1,"R Angle","1\" EMT","Internal","R 3.25 x 1.5 10 GA(2) Galv"],[84,18,1,1,"1\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,1,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,16,1,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,2,5,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[210,16,2,6,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,16,3,7,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[270,16,3,8,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,16,4,9,"5 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"30":[[16,26,0,0,"N/A","N/A","N/A"],[20,24,0,0,"N/A","N/A","N/A"],[26,22,0,0,"N/A","N/A","N/A"],[28,20,0,0,"N/A","N/A","N/A"],[36,18,0,0,"N/A","N/A","N/A"],[48,20,1,"R Angle","1/2\" EMT","N/A","R 3.25 x 1.5 10 GA(2) Galv"],[72,18,1,"R Angle","1\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,16,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,1,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,16,1,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,2,5,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[210,16,2,6,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,16,3,7,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[270,16,3,8,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,16,4,9,"5 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]],"24":[[18,26,0,0,"N/A","N/A","N/A"],[22,24,0,0,"N/A","N/A","N/A"],[28,22,0,0,"N/A","N/A","N/A"],[30,20,1,0,"N/A","N/A","N/A"],[36,18,2,0,"N/A","N/A","N/A"],[54,20,1,"R Angle","3/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[84,18,1,"R Angle","1\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[120,16,1,"R Angle","1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[150,16,1,4,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[180,16,2,5,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[210,16,2,6,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[240,16,3,7,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[270,16,3,8,"1 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"],[300,16,4,9,"5 1/4\" EMT","Both","R 3.25 x 1.5 10 GA(2) Galv"]]}};
-function rschedLookup(pressureVal,direction,width,lengthIn){
-  const p=parseFloat(pressureVal)||0;
-  const pKey=p<=2?2:(p<=3?3:(p<=4?4:(p<=6?6:10)));
-  const sheetKey=(direction==='Negative'?'N':'P')+pKey;
-  const sheet=RSCHED[sheetKey];
-  if(!sheet) return null;
-  // Bracket = the duct piece's own LENGTH (the fabricated section length
-  // before it needs a transverse joint) — round UP to the nearest available
-  // bracket. A run longer than 60" (the largest bracket) still uses the 60"
-  // bracket's data — the longest reinforcement interval the chart covers —
-  // flagged as "clamped" so the UI can note it's an extrapolation.
-  const lenBrackets=[24,30,36,48,60];
-  let bracket=lenBrackets.find(b=>lengthIn<=b);
-  let clamped=false;
-  if(!bracket){ bracket=60; clamped=true; }
-  const rows=sheet[String(bracket)];
-  if(!rows||!rows.length) return null;
-  // Row = the duct's WIDTH (the "Size <=" column), up to 300".
-  const row=rows.find(r=>width<=r[0]);
-  if(!row) return null; // wider than 300" — outside charted range
-  const [sizeLE,gauge,jointCount,midPanel,internal,cType,external]=row;
-  return {bracket,clamped,sizeLE,gauge,jointCount,midPanel,internal,cType,external};
+// Tie rod / EMT sizing
+const SM_ROD_POS=[['1/4',480],['5/16',780],['3/8',1170],['7/16',1600],['1/2',2130],['5/8',3380]];   // Table 2-35 note
+const SM_ROD_NEG=[['5/16',[125,0,0,0,0,0]],['3/8',[232,0,0,0,0,0]],['1/2',[824,330,0,0,0,0]],['5/8',[2143,902,541,0,0,0]],['3/4',[0,2004,1002,0,0,0]],['7/8',[0,0,1845,1384,1107,0]],['1',[0,0,0,2420,1815,1452]]]; // Table 2-36 by L: 12,13-18,19-24,25-30,31-36,37-42
+const SM_EMT_POS=[['1/2',900],['3/4',1340],['1',1980]];   // S1.19.4
+const SM_EMT_NEG=[['1/2',[[30,792],[32,704],[34,616],[36,528],[40,458],[42,414],[44,370],[46,325]]],
+  ['3/4',[[40,1206],[42,1072],[46,938],[48,804],[52,697],[54,630],[58,563],[62,496]]],
+  ['1',[[48,1782],[52,1584],[54,1386],[58,1188],[62,1030],[66,930],[70,831],[74,732]]],
+  ['1-1/4',[[66,2655],[72,2360],[76,2065],[82,1770],[86,1534],[92,1386],[96,1239],[102,1091]]],
+  ['1-1/2',[[76,3078],[82,2736],[88,2394],[94,2052],[100,1778],[106,1607],[112,1436],[118,1265]]],
+  ['2',[[106,3480],[112,3045],[120,2610],[128,2262],[136,2044],[142,1827],[150,1609]]]];  // Table 2-38
+function smSizeTie(type,dir,loadLb,lenIn){
+  if(type==='rod'){
+    if(dir!=='Negative'){
+      for(const [d,cap] of SM_ROD_POS){ if(cap>=loadLb&&!(lenIn>36&&(d==='1/4'||d==='5/16'))) return {size:d,ok:true}; }
+      return {size:'5/8',ok:false};
+    }
+    const bi=lenIn<=12?0:lenIn<=18?1:lenIn<=24?2:lenIn<=30?3:lenIn<=36?4:lenIn<=42?5:-1;
+    if(bi>=0) for(const [d,caps] of SM_ROD_NEG){ if(caps[bi]>=loadLb) return {size:d,ok:true}; }
+    // longer than Table 2-36 covers: fall back to EMT
+    return Object.assign(smSizeTie('emt',dir,loadLb,lenIn),{fellBack:true});
+  }
+  if(dir!=='Negative'){
+    for(const [d,cap] of SM_EMT_POS){ if(cap>=loadLb) return {size:d,ok:true}; }
+    return {size:'1',ok:false};
+  }
+  for(const [d,rows] of SM_EMT_NEG){
+    const row=rows.find(([L])=>lenIn<=L);
+    if(row&&row[1]>=loadLb) return {size:d,ok:true};
+  }
+  return {size:'2',ok:false};
 }
-/* Two defensive fixes for data-entry issues found in BCH's own source file
-   (flagged, not silently "corrected" — worth checking against the original):
-   - A handful of rows show internal size "5 1/4\" EMT" (N4/N6/N10, at the
-     longest/heaviest row in each). No such EMT size exists; every other row
-     in the same position across sheets calls for "1 1/4\" EMT", so that's
-     almost certainly a typo (probably "1 1/4" mis-keyed as "5 1/4") and is
-     treated as 1-1/4" here.
-   - A few N10 rows show the External column literally reading "Internal" —
-     that's the C-Type value bleeding into the wrong column, not a real
-     external spec. Treated as no exterior reinforcement (N/A). */
-function rschedEmtSize(internalStr){
-  if(!internalStr||typeof internalStr!=='string') return null;
-  const s=internalStr.trim();
-  if(s.indexOf('1/2')===0) return '1/2';
-  if(s.indexOf('3/4')===0) return '3/4';
-  if(s.indexOf('1 1/4')===0||s.indexOf('5 1/4')===0) return '1-1/4';
-  if(s.indexOf('1"')===0) return '1';
+function smPKey(p){p=parseFloat(p)||0;return p<=0.5?0.5:p<=1?1:p<=2?2:p<=3?3:p<=4?4:p<=6?6:10;}
+function smRow(table,D){return SM_RT[table].find(r=>D<=r[1])||null;}
+function smCol(s){ // smallest tabulated spacing >= actual spacing (2 ft minimum column)
+  if(s<=2) return 2;
+  for(let i=SM_SPACINGS.length-1;i>=0;i--){ if(SM_SPACINGS[i]>=s-1e-9) return SM_SPACINGS[i]; }
   return null;
 }
-function rschedExtType(externalStr){
-  if(!externalStr||externalStr==='N/A'||externalStr==='Internal'||externalStr==='External') return null;
-  return externalStr.trim();
+function smParseCell(c){ const m=/^([A-L])(t?)-(\d\d)([A-L]?)$/.exec(c); return m?{cls:m[1],t:!!m[2],ga:+m[3],alt:m[4]||null}:null; }
+/* One side of the duct: dimension D (in.), gauge g, joint spacing L (ft) */
+function smSide(table,D,g,Lft){
+  if(!D) return {status:'none'};
+  const row=smRow(table,D);
+  if(!row) return {status:'over'};
+  const [,,noReinfGa,cells]=row;
+  if(noReinfGa&&g<=noReinfGa) return {status:'unreinforced',noReinfGa};
+  const maxN=Math.max(1,Math.ceil(Lft/2-1e-9)+ (Lft/2>Math.floor(Lft/2)?0:0));
+  for(let n=1;n<=Math.max(maxN,1)+1;n++){
+    const s=Lft/n; const col=smCol(s); if(col==null) continue;
+    const cell=cells[String(col)]; if(!cell) { if(s<=2) break; continue; }
+    const c=smParseCell(cell); if(!c) continue;
+    if(g<=c.ga) return Object.assign({status:'reinforced',n,rs:s,col,cell,noReinfGa},c);
+    if(s<=2) break;
+  }
+  // gauge too light at every spacing: find the lightest gauge that works at the smallest spacing tried
+  return {status:'notDesigned',noReinfGa,minGa:smMinGauge(table,D,Lft)};
 }
-function calcReinforcement(w,h,pressureVal,direction,lenFt){
-  const maxSide0=Math.max(w||0,h||0);
-  if(!maxSide0||!lenFt) return {emt:null,ext:null,isReal:false};
-  const wr=parseFloat(document.getElementById('p-wr')?.value)||95;
-  const lengthIn=lenFt*12;
-  const real=rschedLookup(pressureVal,direction,maxSide0,lengthIn);
-  if(real){
-    let emt=null,ext=null;
-    const emtSizeRaw=rschedEmtSize(real.internal);
-    if(emtSizeRaw&&typeof real.midPanel==='number'&&real.midPanel>0){
-      const numLocations=real.midPanel;
-      const emtSize=emtSizeLabel(emtSizeRaw);
-      const pricePerFt=EMT_PRICE(emtSizeRaw);
-      const barLenFt=maxSide0/12+0.5;
-      const totalFt=barLenFt*numLocations;
-      const materialCost=totalFt*pricePerFt;
-      const installMins=numLocations*EMT_INSTALL_MIN();
-      const laborCost=(installMins/60)*wr;
-      emt={numLocations,emtSize,spacingFt:null,totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost,real:true};
-    }
-    const extType=rschedExtType(real.external);
-    if(extType){
-      const numLocations=Math.max(1,real.jointCount||1);
-      const perimeterFt=2*((w||maxSide0)+(h||maxSide0))/12;
-      const totalFt=perimeterFt*numLocations;
-      const pricePerFt=EXT_PRICE();
-      const materialCost=totalFt*pricePerFt;
-      const installMins=numLocations*EXT_INSTALL_MIN();
-      const laborCost=(installMins/60)*wr;
-      ext={numLocations,type:extType,spacingFt:null,perimeterFt:parseFloat(perimeterFt.toFixed(1)),totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost,real:true};
-    }
-    return {emt,ext,isReal:true,realGauge:real.gauge,realJoints:real.jointCount,clamped:real.clamped};
+function smMinGauge(table,D,Lft){
+  const row=smRow(table,D); if(!row) return null;
+  let best=row[2]||null; // unreinforced gauge
+  for(let n=1;n<=Math.ceil(Lft/2)+1;n++){
+    const col=smCol(Lft/n); const cell=row[3][String(col)]; if(!cell) continue;
+    const c=smParseCell(cell); if(c&&(best==null||c.ga>best)) best=c.ga;
   }
-  return calcReinforcementApprox(w,h,pressureVal,direction,lenFt,wr);
+  return best;
 }
-/* Fallback estimating approximation — only used outside the real schedule's
-   charted range (duct wider than 300"). Same caveat as before: this is my
-   own reasoned estimate, not chart data. */
-function calcReinforcementApprox(w,h,pressureVal,direction,lenFt,wr){
-  const maxSide=Math.max(w||0,h||0);
-  if(!maxSide||!lenFt) return {emt:null,ext:null,isReal:false};
-  const p=parseFloat(pressureVal)||0;
-  let spacingFt;
-  if(p<=1) spacingFt=8;
-  else if(p<=2) spacingFt=6;
-  else if(p<=4) spacingFt=4;
-  else if(p<=6) spacingFt=3;
-  else spacingFt=2;
-  if(direction==='Negative') spacingFt*=0.75;
-
-  let emt=null;
-  if(maxSide>18&&lenFt>spacingFt){
-    const numLocations=Math.floor(lenFt/spacingFt);
-    if(numLocations>=1){
-      const emtSizeRaw=emtSizeFor(pressureVal,maxSide);
-      const emtSize=emtSizeLabel(emtSizeRaw);
-      const pricePerFt=EMT_PRICE(emtSizeRaw);
-      const barLenFt=maxSide/12+0.5;
-      const totalFt=barLenFt*numLocations;
-      const materialCost=totalFt*pricePerFt;
-      const installMins=numLocations*EMT_INSTALL_MIN();
-      const laborCost=(installMins/60)*wr;
-      emt={numLocations,emtSize,spacingFt,totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost,real:false};
+const SM_OVER120={0.5:{ga:18,cls:'I',rs:2.5,tie:5},1:{ga:18,cls:'I',rs:2.5,tie:5},2:{ga:18,cls:'I',rs:2.5,tie:5},3:{ga:18,cls:'I',rs:2.5,tie:5},
+  4:{ga:18,cls:'J',rs:2.5,tie:5},6:{ga:18,cls:'K',rs:2,tie:5},10:{ga:16,cls:'L',rs:2,tie:4}};  // Table 2-49
+/* Main entry. opts: {gauge, conn, tieType:'emt'|'rod', useTieAlt, useMPT, angleLbPrice, rodPrice(size)->$/ft, emtPrice(size)->$/ft, tieMin, angleMin, laborRate} */
+function smacnaReinforce(w,h,pressureVal,direction,lenFt,opts){
+  const W=Math.max(w||0,h||0), H=Math.min(w||0,h||0);
+  const res={W,H,notes:[],warnings:[],sides:[],angles:[],ties:[],minGa:null};
+  if(!W||!lenFt||!opts||!opts.gauge) return res;
+  const g=opts.gauge, conn=opts.conn||'TDC', p=smPKey(pressureVal), dir=direction==='Negative'?'Negative':'Positive';
+  const table=SM_TABLE_FOR_P[p];
+  res.table=table; res.p=p; res.dir=dir; res.lenFt=lenFt;
+  const isT25=conn==='TDC'||conn==='Ductmate';
+  if(conn==='Ductmate') res.notes.push('Ductmate is a slip-on flange &mdash; SMACNA says to use the manufacturer’s ratings. Rated here like TDC (T-25); verify against Ductmate’s published ratings.');
+  const tieSub=(p===10&&W>120)?48:60;
+  const acrossCount=D=>Math.max(1,Math.ceil(D/tieSub)-1);
+  const addAngle=(side,D,cls,count,why)=>{ if(count<=0) return; const a=SM_ANGLE[cls]; res.angles.push({side,D,cls,desc:a.d,lbPerFt:a.lb,count,members:2*count,ft:2*count*(D+2)/12,why}); };
+  const addTies=(spanD,braceD,rsTrib,rows,perRow,why,loadFactor)=>{ // rods span spanD (in.), bracing panels of width braceD
+    if(rows<=0) return;
+    const across=acrossCount(braceD);
+    const load=(loadFactor||0.75)*5.2*p*(braceD/12)*rsTrib/across/(perRow||1);
+    const sz=smSizeTie(opts.tieType||'emt',dir,load,spanD);
+    const count=rows*across*(perRow||1);
+    res.ties.push({spanD,braceD,count,rows,across,perRow:perRow||1,load:Math.round(load),size:sz.size,type:sz.fellBack?'emt':(opts.tieType||'emt'),ok:sz.ok,lenFt:(spanD+2)/12,why});
+    if(!sz.ok) res.warnings.push(`Tie load ${Math.round(load)} lb at ${spanD}″ length is beyond the largest listed ${opts.tieType==='rod'?'rod':'EMT'} size &mdash; needs an engineered tie.`);
+    if(sz.fellBack) res.notes.push(`Threaded rod isn't listed for ${spanD}″ length on negative pressure (Table 2-36) &mdash; EMT used for those ties.`);
+  };
+  // ── Duct over 120 in. (Table 2-49 / Fig. 2-14 / S1.28) ──
+  if(W>120){
+    const o=SM_OVER120[p];
+    res.over120=o; res.minGa=o.ga;
+    if(g>o.ga) res.warnings.push(`Duct over 120″ wide at ${p}″ w.g. needs ${o.ga} ga minimum (Table 2-49). ${g} ga is too light.`);
+    const n=Math.max(1,Math.ceil(lenFt/o.rs-1e-9)); const rs=lenFt/n;
+    const across=acrossCount(W);
+    const entry={side:'W',D:W,status:'reinforced',cls:o.cls,useCls:o.cls,t:true,rs,n,cell:o.cls+'t-'+o.ga,src:'Table 2-49 (over 120″)'};
+    res.sides.push(entry);
+    if(n>1) res.angles.push(mkAngle('W',W,o.cls,n-1,'intermediate'));
+    entry.inter=n>1?`${n-1} intermediate ${SM_ANGLE[o.cls].d} (class ${o.cls}) per section`:'none (joints only)';
+    const r1=isT25?smT25Rating(g,true):null;
+    const rows=Math.max(1,Math.ceil(lenFt/o.tie-1e-9));
+    if(isT25&&smClassIdx(r1)>=smClassIdx(o.cls)){
+      entry.joint=`TDC on ${g} ga + joint tie rods rates ${r1} ≥ ${o.cls}`;
+      res.ties.push(mkTie('W',H,W,Math.min(o.tie,lenFt),1,across,dir==='Positive'?2:1,'at joint',0.75));
+    } else {
+      res.angles.push(mkAngle('W',W,o.cls,1,'joint backup'));
+      entry.joint=`backup ${SM_ANGLE[o.cls].d} (class ${o.cls}) at each joint, tie-rodded`;
+      res.ties.push(mkTie('W',H,W,Math.min(o.tie,lenFt),1,across,1,'at joint backup',0.75));
     }
+    if(rows>1) res.ties.push(mkTie('W',H,W,o.tie,rows-1,across,1,'intermediate',0.75));
+    res.notes.push(`Over 120″: ties spaced evenly across the ${W}″ width, not over ${tieSub}″ apart (${across} per row), rows not over ${o.tie}' apart along the duct (Fig. 2-14, S1.28).`);
+    res.ties.forEach(t=>{ if(!t.ok) res.warnings.push(`Tie load ${t.load} lb at ${t.spanD}″ exceeds the largest listed size &mdash; needs an engineered tie.`); });
+    if(H&&H<=120) evalSide('H',H,smSide(table,H,g,lenFt));
+    return finish();
   }
+  // ── Regular tables 2-1..2-7 ──
+  const wSide=smSide(table,W,g,lenFt);
+  res.minGa=smMinGauge(table,W,lenFt);
+  evalSide('W',W,wSide);
+  if(H) evalSide('H',H,H===W?wSide:smSide(table,H,g,lenFt));
+  return finish();
 
-  // Exterior/joint reinforcement — larger duct and/or higher pressure classes
-  // layer angle iron around the full perimeter on top of (or instead of) EMT.
-  const extTriggered=maxSide>48||(p>=4&&maxSide>36)||(direction==='Negative'&&maxSide>30);
-  let ext=null;
-  if(extTriggered){
-    const extSpacingFt=spacingFt*1.5;
-    const numExtLocations=Math.max(1,Math.round(lenFt/extSpacingFt)||1);
-    const perimeterFt=2*((w||maxSide)+(h||maxSide))/12;
-    const totalFt=perimeterFt*numExtLocations;
-    const pricePerFt=EXT_PRICE();
-    const materialCost=totalFt*pricePerFt;
-    const installMins=numExtLocations*EXT_INSTALL_MIN();
-    const laborCost=(installMins/60)*wr;
-    ext={numLocations:numExtLocations,type:'R Angle 2.5\u00d71.5, 10ga Galv',spacingFt:extSpacingFt,perimeterFt:parseFloat(perimeterFt.toFixed(1)),totalFt:parseFloat(totalFt.toFixed(1)),materialCost,laborCost,totalCost:materialCost+laborCost,real:false};
+  function partsCost(angles,ties){
+    const wr=opts.laborRate||95; let c=0;
+    angles.forEach(a=>{ c+=a.ft*a.lbPerFt*(opts.angleLbPrice||0)+a.count*(opts.angleMin||0)/60*wr; });
+    ties.forEach(t=>{ const pr=t.type==='rod'?(opts.rodPrice?opts.rodPrice(t.size):0):(opts.emtPrice?opts.emtPrice(t.size):0); c+=t.count*t.lenFt*pr+t.count*(opts.tieMin||0)/60*wr; });
+    return c;
   }
-  return {emt,ext,isReal:false};
+  function mkAngle(side,D,cls,count,why){ const a=SM_ANGLE[cls]; return {side,D,cls,desc:a.d,lbPerFt:a.lb,count,members:2*count,ft:2*count*(D+2)/12,why}; }
+  function mkTie(side,spanD,braceD,rsTrib,rows,across,perRow,why,loadFactor){
+    const load=(loadFactor||0.75)*5.2*p*(braceD/12)*rsTrib/across/(perRow||1);
+    const sz=smSizeTie(opts.tieType||'emt',dir,load,spanD);
+    return {side,spanD,braceD,count:rows*across*(perRow||1),rows,across,perRow:perRow||1,load:Math.round(load),size:sz.size,type:sz.fellBack?'emt':(opts.tieType||'emt'),ok:sz.ok,fellBack:!!sz.fellBack,lenFt:(spanD+2)/12,why};
+  }
+  /* Build one compliant configuration for a side at n sections; variant: 'plain' | 'tieAlt' | 'mpt' */
+  function buildCfg(side,D,other,c,n,variant){
+    const rs=lenFt/n, inter=n-1, angles=[], ties=[], text={};
+    const across=acrossCount(D);
+    let cls=c.cls, tieAtInter=c.t;
+    if(variant==='tieAlt'){ if(c.t||!c.alt) return null; cls=c.alt; tieAtInter=true; }
+    if(variant==='mpt'){ if(c.t||inter!==1||lenFt>6) return null; }
+    // intermediates
+    if(inter>0){
+      if(variant==='mpt'){
+        const k=smMptRods(p,rs,g,D); if(!k) return null;
+        ties.push(mkTie(side,other,D,rs,inter,k,1,'midpanel (MPT)',1.0));
+        text.inter=`${k} midpanel tie rod${k>1?'s':''} (MPT) at mid-section instead of an angle`;
+      } else {
+        angles.push(mkAngle(side,D,cls,inter,'intermediate'));
+        if(tieAtInter) ties.push(mkTie(side,other,D,rs,inter,across,1,'intermediate',0.75));
+        text.inter=`${inter} intermediate ${SM_ANGLE[cls].d} (class ${cls})${tieAtInter?' tie-rodded':''} per section`;
+      }
+    } else text.inter='none (joints only)';
+    // joint qualification at the class for this spacing
+    const need=c.cls;
+    if(isT25){
+      const r0=smT25Rating(g,false), r1=smT25Rating(g,true);
+      if(!c.t&&smClassIdx(r0)>=smClassIdx(need)) text.joint=`TDC on ${g} ga rates ${r0} ≥ ${need} ✓`;
+      else if(smClassIdx(r1)>=smClassIdx(need)){
+        const perRow=dir==='Positive'?2:1;
+        ties.push(mkTie(side,other,D,rs,1,across,perRow,'at joint',0.75));
+        text.joint=`TDC on ${g} ga + joint tie rods (JTR) rates ${r1} ≥ ${need} (Table 2-32)`;
+      } else {
+        angles.push(mkAngle(side,D,cls,1,'joint backup'));
+        if(tieAtInter) ties.push(mkTie(side,other,D,rs,1,across,1,'at joint backup',0.75));
+        text.joint=`TDC on ${g} ga only reaches ${r1} even tie-rodded &mdash; backup ${SM_ANGLE[cls].d} (class ${cls}) at each joint`;
+        const ga=[24,22,20,18].find(x=>smClassIdx(smT25Rating(x,true))>=smClassIdx(need));
+        if(ga) text.jointNote=`TDC alone would need ${ga} ga (with joint tie rods) for class ${need}.`;
+      }
+    } else {
+      const isDrive=conn==='S&D'&&side==='H';
+      if(isDrive&&smClassIdx(need)<=smClassIdx('C')&&smT1Accepts(g,p,D,rs)) text.joint=`drive slip accepted as class ${need} (Table 2-48) ✓`;
+      else {
+        angles.push(mkAngle(side,D,cls,1,'joint backup'));
+        if(tieAtInter) ties.push(mkTie(side,other,D,rs,1,across,1,'at joint backup',0.75));
+        text.joint=`${conn==='S&D'?(side==='H'?'drive slip':'S-slip'):'flat joint'} needs a backup ${SM_ANGLE[cls].d} (class ${cls}) at each joint`;
+      }
+    }
+    return {side,D,n,rs,col:c.col,cell:c.cell,cls:c.cls,useCls:cls,t:c.t,alt:c.alt,variant,angles,ties,text,cost:partsCost(angles,ties)};
+  }
+  function evalSide(side,D,s0){
+    const other=side==='W'?H:W;
+    const entry={side,D,status:s0.status,src:'Table 2-'+table};
+    res.sides.push(entry);
+    if(s0.status==='unreinforced'){ entry.text=`no reinforcement needed (${g} ga is in column 2 for ${D}″)`; return; }
+    if(s0.status==='notDesigned'||s0.status==='over'){
+      entry.status='notDesigned';
+      entry.text=`${g} ga is too light for ${D}″ at ${p}″ w.g. with ${lenFt}' joints`;
+      res.warnings.push(`${D}″ side: ${g} ga is not designed at ${p}″ w.g. with ${lenFt}' joint spacing (Table 2-${table}). Use ${s0.minGa||'heavier'} ga or heavier.`);
+      return;
+    }
+    // every spacing the gauge qualifies for is a SMACNA-compliant option — price each, keep the cheapest
+    const row=smRow(table,D); const cands=[];
+    for(let n=1;n<=Math.ceil(lenFt/2-1e-9)+1;n++){
+      const rs=lenFt/n; const col=smCol(rs); if(col==null) continue;
+      const cell=row[3][String(col)]; if(!cell) { if(rs<=2) break; continue; }
+      const c=smParseCell(cell); if(!c||g>c.ga){ if(rs<=2) break; continue; }
+      c.col=col; c.cell=cell;
+      ['plain','tieAlt','mpt'].forEach(v=>{
+        if(v==='tieAlt'&&!opts.useTieAlt) return; if(v==='mpt'&&!opts.useMPT) return;
+        const cfg=buildCfg(side,D,other,c,n,v); if(cfg) cands.push(cfg);
+      });
+      if(rs<=2) break;
+    }
+    if(!cands.length){ entry.status='notDesigned'; res.warnings.push(`${D}″ side: no SMACNA option for ${g} ga.`); return; }
+    cands.sort((a,b)=>a.cost-b.cost||a.n-b.n);
+    const best=cands[0];
+    Object.assign(entry,{status:'reinforced',cls:best.cls,useCls:best.useCls,t:best.t,rs:best.rs,n:best.n,cell:best.cell,col:best.col,variant:best.variant,inter:best.text.inter,joint:best.text.joint,options:cands.length});
+    if(best.text.jointNote) res.notes.push(`${D}″ side: ${best.text.jointNote}`);
+    if(best.t) res.notes.push(`${D}″ side: Table 2-${table} lists ${best.cell} &mdash; tie rods are mandatory ("t").`);
+    if(best.variant==='tieAlt') res.notes.push(`${D}″ side: ${best.cell} downsized to class ${best.useCls} with tie rods (tie-rod alternative).`);
+    best.angles.forEach(a=>res.angles.push(a));
+    best.ties.forEach(t=>{ res.ties.push(t); if(!t.ok) res.warnings.push(`Tie load ${t.load} lb at ${t.spanD}″ length exceeds the largest listed size &mdash; needs an engineered tie.`); if(t.fellBack) res.notes.push(`Threaded rod isn't listed at ${t.spanD}″ length for negative pressure (Table 2-36) &mdash; EMT used for those ties.`); });
+  }
+  function addEndTies(){
+    // (+) over 3 in. wg: angle ends on the wide sides must be tied outside the duct (Fig. 2-13)
+    // unless the short sides carry members at the same locations (closed frame) or internal ties are used.
+    if(!(dir==='Positive'&&p>3)) return;
+    const wAng=res.angles.filter(a=>a.side==='W').reduce((s,a)=>s+a.count,0);
+    const hAng=res.angles.filter(a=>a.side==='H').reduce((s,a)=>s+a.count,0);
+    const wTieRows=res.ties.filter(t=>t.side==='W'&&t.why!=='at joint').reduce((s,t)=>s+t.rows,0);
+    const locs=Math.max(0,wAng-hAng-wTieRows);
+    if(locs>0) res.ties.push({side:'W',spanD:H,braceD:W,count:locs*2,rows:locs,across:2,perRow:1,load:0,size:'3/8',type:'rod',ok:true,lenFt:(H+4)/12,why:'end ties outside duct (Fig. 2-13)'});
+  }
+  function finish(){
+    addEndTies();
+    // Pricing
+    const wr=opts.laborRate||95;
+    let angMat=0,angLab=0,tieMat=0,tieLab=0,angFt=0,angFrames=0,tieCount=0,tieFt=0;
+    res.angles.forEach(a=>{ a.lb=a.ft*a.lbPerFt; a.mat=a.lb*(opts.angleLbPrice||0); a.lab=a.count*(opts.angleMin||0)/60*wr; angMat+=a.mat; angLab+=a.lab; angFt+=a.ft; angFrames+=a.count; });
+    res.ties.forEach(t=>{ const pr=t.type==='rod'?(opts.rodPrice?opts.rodPrice(t.size):0):(opts.emtPrice?opts.emtPrice(t.size):0); t.mat=t.count*t.lenFt*pr; t.lab=t.count*(opts.tieMin||0)/60*wr; tieMat+=t.mat; tieLab+=t.lab; tieCount+=t.count; tieFt+=t.count*t.lenFt; });
+    res.angMat=angMat;res.angLab=angLab;res.tieMat=tieMat;res.tieLab=tieLab;res.angFt=angFt;res.angFrames=angFrames;res.tieCount=tieCount;res.tieFt=tieFt;
+    return res;
+  }
+}
+
+/* Settings readers for the SMACNA engine */
+function selVal(id,d){const e=document.getElementById(id);return e?e.value:d;}
+function numVal(id,d){const v=parseFloat(document.getElementById(id)?.value);return isNaN(v)?d:v;}
+const ROD_PRICE_IDS={'1/4':'p-rod-14','5/16':'p-rod-516','3/8':'p-rod-38','7/16':'p-rod-716','1/2':'p-rod-12','5/8':'p-rod-58','3/4':'p-rod-34','7/8':'p-rod-78','1':'p-rod-1'};
+function ROD_PRICE(size){return numVal(ROD_PRICE_IDS[size]||'p-rod-38',0);}
+function EMT_PRICE(size){
+  const id={'1/2':'p-emt-05','3/4':'p-emt-075','1':'p-emt-1','1-1/4':'p-emt-125','1-1/2':'p-emt-15','2':'p-emt-2'}[size]||'p-emt-125';
+  return numVal(id,0);
+}
+function smacnaOpts(g,conn){
+  return {gauge:parseInt(g)||0,conn:conn||'TDC',tieType:selVal('p-tie-type','emt'),
+    useTieAlt:selVal('p-use-tiealt','no')==='yes',useMPT:selVal('p-use-mpt','no')==='yes',
+    angleLbPrice:numVal('p-ang-lb',1.81),rodPrice:ROD_PRICE,emtPrice:EMT_PRICE,
+    tieMin:numVal('p-emt-min',8),angleMin:numVal('p-ext-min',20),laborRate:WR()};
+}
+const tieLabel=t=>t.type==='rod'?`${t.size}″ threaded rod`:`${t.size}″ EMT`;
+/* Wrapper used everywhere in the estimator. Returns the legacy {emt, ext}
+   shape (emt = all tie rods, ext = all angles) plus the full SMACNA result. */
+function calcReinforcement(w,h,pressureVal,direction,lenFt,g,conn){
+  if(!w||!h||!lenFt||!g) return {emt:null,ext:null,isReal:false,smacna:null};
+  const r=smacnaReinforce(w,h,pressureVal,direction,lenFt,smacnaOpts(g,conn));
+  let emt=null,ext=null;
+  if(r.tieCount>0){
+    const sizes=[...new Set(r.ties.map(tieLabel))];
+    emt={numLocations:r.tieCount,emtSize:sizes.join(' + '),spacingFt:null,totalFt:parseFloat(r.tieFt.toFixed(1)),materialCost:r.tieMat,laborCost:r.tieLab,totalCost:r.tieMat+r.tieLab,real:true};
+  }
+  if(r.angFrames>0){
+    const types=[...new Set(r.angles.map(a=>`${a.desc} (class ${a.cls})`))];
+    ext={numLocations:r.angFrames,type:types.join(' + '),spacingFt:null,perimeterFt:parseFloat(r.angFt.toFixed(1)),totalFt:parseFloat(r.angFt.toFixed(1)),materialCost:r.angMat,laborCost:r.angLab,totalCost:r.angMat+r.angLab,real:true};
+  }
+  return {emt,ext,isReal:true,smacna:r};
+}
+/* Human-readable breakdown of a SMACNA result (preview boxes and line details) */
+function smacnaLines(r,qty){
+  if(!r||!r.sides) return [];
+  const L=[];
+  const head=r.over120?`SMACNA Table 2-49 (over 120″), ${r.p}″ w.g. ${r.dir.toLowerCase()}, ${r.lenFt}' joints`:`SMACNA Table 2-${r.table} (${r.p}″ w.g. ${r.dir.toLowerCase()}), ${r.lenFt}' joints`;
+  L.push(`<strong>${head}</strong>`);
+  r.sides.forEach(sd=>{
+    const lab=sd.side==='W'?`${sd.D}″ sides`:`${sd.D}″ sides`;
+    if(sd.status==='unreinforced') L.push(`${lab}: ${sd.text}`);
+    else if(sd.status==='notDesigned') L.push(`<span style="color:#a32d2d;">${lab}: ${sd.text||'not designed'}</span>`);
+    else if(sd.status==='reinforced') L.push(`${lab}: <strong>${sd.cell}</strong> at ${+sd.rs.toFixed(2)}' spacing &middot; intermediates: ${sd.inter} &middot; joints: ${sd.joint}`);
+  });
+  if(r.angles.length) L.push('Angles per piece: '+r.angles.map(a=>`${a.count}× pair ${a.desc} on ${a.D}″ sides (${a.why})`).join('; '));
+  if(r.ties.length) L.push('Tie rods per piece: '+r.ties.map(t=>`${t.count}× ${tieLabel(t)} @ ${t.spanD}″ long${t.load?` (${t.load} lb)`:''} &mdash; ${t.why}`).join('; '));
+  r.notes.forEach(n=>L.push(`<span style="color:#5b6672;">${n}</span>`));
+  r.warnings.forEach(n=>L.push(`<span style="color:#a32d2d;font-weight:600;">&#9888; ${n}</span>`));
+  return L;
 }
 
 /* ── ROUND/SPIRAL DUCT REINFORCEMENT ──
@@ -1551,6 +1723,20 @@ function updGaugeCheckFit(){
   const isRound=ROUND_FIT_TYPES.has(type);
   const maxSide=Math.max(fw1,fh1,fw2,fh2,fw3,fh3);
   if(!maxSide||!g||metal==='dualwall'){ warn.style.display='none'; return; }
+  if(!isRound){
+    const fl=parseFloat(document.getElementById('f-len').value)||0;
+    const press=document.getElementById('f-press').value;
+    const dir=document.querySelector('input[name="f-press-dir"]:checked')?.value||'Positive';
+    const conn=document.querySelector('input[name="f-conn"]:checked')?.value||'TDC';
+    const fwM=Math.max(fw1,fw2)||fw1, fhM=Math.max(fh1,fh2)||fh1;
+    if(fl&&fwM&&fhM){
+      const r=smacnaReinforce(fwM,fhM,press,dir,fl/12,smacnaOpts(g,conn));
+      const gw=r.warnings.filter(x=>/too light|not designed|needs \d+ ga minimum/i.test(x));
+      if(gw.length){ warn.innerHTML='&#9888; '+gw.join('<br>&#9888; ')+' (S1.16: fittings are reinforced like straight duct.)'; warn.style.display='block'; }
+      else warn.style.display='none';
+      return;
+    }
+  }
   const table=isRound?SMACNA_MIN_GA_ROUND:SMACNA_MIN_GA_RECT;
   const minGa=smacnaMinGa(table,maxSide);
   if(g>minGa){
@@ -1590,14 +1776,13 @@ function updFitReinfPreview(){
   } else {
     const w=Math.max(fw1,fw2)||fw1;
     const h=Math.max(fh1,fh2)||fh1;
-    const {emt,ext,isReal}=calcReinforcement(w,h,press,dir,lenFt);
-    if(!emt&&!ext){ box.style.display='none'; return; }
-    const tag=isReal?'<span style="font-weight:600;color:#0f6e56;">[BCH schedule]</span> ':'<span style="font-weight:600;color:#8a5a00;">[estimate]</span> ';
-    const lines=[]; let totalCost=0;
-    if(emt){ totalCost+=emt.totalCost*qty; lines.push(`${tag}Intermediate reinforcement &mdash; ${emt.numLocations} pc ${emt.emtSize} EMT${qty>1?` &times; ${qty}pc`:''}.`); }
-    if(ext){ totalCost+=ext.totalCost*qty; lines.push(`${tag}Exterior/joint reinforcement &mdash; ${ext.numLocations} band${ext.numLocations===1?'':'s'} of ${ext.type}${qty>1?` &times; ${qty}pc`:''}.`); }
-    document.getElementById('f-reinf-detail').innerHTML=lines.join('<br>');
-    document.getElementById('f-reinf-cost').textContent=`+${fmt(totalCost)} (material + install)`;
+    const fg=parseInt(document.getElementById('f-gauge').value)||0;
+    const fconn=document.querySelector('input[name="f-conn"]:checked')?.value||'TDC';
+    const {emt,ext,smacna}=calcReinforcement(w,h,press,dir,lenFt,fg,fconn);
+    if(!smacna||!smacna.sides.length){ box.style.display='none'; return; }
+    const totalCost=((emt?emt.totalCost:0)+(ext?ext.totalCost:0))*qty;
+    document.getElementById('f-reinf-detail').innerHTML=smacnaLines(smacna,qty).join('<br>');
+    document.getElementById('f-reinf-cost').textContent=totalCost>0?`+${fmt(totalCost)} reinforcement (material + install${qty>1?`, ${qty} pcs`:''})`:'No added reinforcement cost';
     box.style.display='block';
   }
 }
@@ -1610,22 +1795,12 @@ function updReinfPreview(){
   const qty=parseFloat(document.getElementById('r-qty').value)||1;
   const press=document.getElementById('r-press').value;
   const dir=document.querySelector('input[name="r-press-dir"]:checked')?.value||'Positive';
-  const {emt,ext,isReal}=calcReinforcement(w,h,press,dir,len);
-  if(!emt&&!ext){ box.style.display='none'; return; }
-  const lines=[];
-  let totalCost=0;
-  const tag=isReal?'<span style="font-weight:600;color:#0f6e56;">[BCH schedule]</span> ':'<span style="font-weight:600;color:#8a5a00;">[estimate]</span> ';
-  if(emt){
-    totalCost+=emt.totalCost*qty;
-    const spacingNote=emt.spacingFt?` every ~${emt.spacingFt}'`:'';
-    lines.push(`${tag}Intermediate reinforcement${spacingNote} &mdash; ${emt.numLocations} piece${emt.numLocations===1?'':'s'} of ${emt.emtSize} EMT per duct${qty>1?` &times; ${qty}pc`:''}.`);
-  }
-  if(ext){
-    totalCost+=ext.totalCost*qty;
-    lines.push(`${tag}Exterior/joint reinforcement &mdash; ${ext.numLocations} band${ext.numLocations===1?'':'s'} of ${ext.type} (full perimeter, ~${ext.perimeterFt}' each) per duct${qty>1?` &times; ${qty}pc`:''}.`);
-  }
-  document.getElementById('r-reinf-detail').innerHTML=lines.join('<br>');
-  document.getElementById('r-reinf-cost').textContent=`+${fmt(totalCost)} (material + install)`;
+  const g=parseInt(document.getElementById('r-gauge').value)||0;
+  const {emt,ext,smacna}=calcReinforcement(w,h,press,dir,len,g,getConn());
+  if(!smacna||!smacna.sides.length){ box.style.display='none'; return; }
+  const totalCost=((emt?emt.totalCost:0)+(ext?ext.totalCost:0))*qty;
+  document.getElementById('r-reinf-detail').innerHTML=smacnaLines(smacna,qty).join('<br>');
+  document.getElementById('r-reinf-cost').textContent=totalCost>0?`+${fmt(totalCost)} reinforcement (material + install${qty>1?`, ${qty} pcs`:''})`:'No added reinforcement cost';
   box.style.display='block';
 }
 /* One sales tax setting for both modes (was two separate fields — one for
@@ -1646,7 +1821,7 @@ function rp(m,g,ov){
    back to Mode B pricing after Mode A looked like it was set. */
 const SETTINGS_KEY='bchEstimatorSettings_v1';
 function collectSettingsIds(){
-  const ids=['p-co','p-lr','p-lh','p-oh','p-pm','p-tx','p-wr','p-scrap','p-damper-sqft','p-rossi-tier','p-emt-05','p-emt-075','p-emt-1','p-emt-125','p-emt-min','p-ext-price','p-ext-min'];
+  const ids=['p-co','p-lr','p-lh','p-oh','p-pm','p-tx','p-wr','p-scrap','p-damper-sqft','p-rossi-tier','p-tie-type','p-use-tiealt','p-use-mpt','p-ang-lb','p-emt-15','p-emt-2','p-rod-14','p-rod-516','p-rod-38','p-rod-716','p-rod-12','p-rod-58','p-rod-34','p-rod-78','p-rod-1','p-emt-05','p-emt-075','p-emt-1','p-emt-125','p-emt-min','p-ext-price','p-ext-min'];
   document.querySelectorAll('#price-table input[id^="pr-"]').forEach(e=>ids.push(e.id));
   document.querySelectorAll('#liner-grid input[id^="lp-"]').forEach(e=>ids.push(e.id));
   document.querySelectorAll('#rossi-table input[id^="rh-"]').forEach(e=>ids.push(e.id));
@@ -1760,10 +1935,12 @@ function selConn(r){
   document.querySelectorAll('input[name="r-conn"]').forEach(x=>x.parentElement.classList.remove('selected'));
   r.parentElement.classList.add('selected');
   updPrev();
+  if(typeof updReinfPreview==='function'){updReinfPreview();updGaugeCheckRect();}
 }
 function selFConn(r){
   document.querySelectorAll('input[name="f-conn"]').forEach(x=>x.parentElement.classList.remove('selected'));
   r.parentElement.classList.add('selected');
+  if(typeof updFitReinfPreview==='function'){updFitReinfPreview();updGaugeCheckFit();}
 }
 function selectRadioByValue(name,value){
   document.querySelectorAll(`input[name="${name}"]`).forEach(r=>{
@@ -2150,7 +2327,7 @@ async function newRevision(){
    price under the current Settings, plus the previous contract amount and
    the revised contract amount. A CO made from a CO chains (CO #2 is based
    on CO #1's final scope). */
-const CO_PRICE_KEYS=new Set(['ppLb','lCost','weldCost','weldMins','emtMaterialCost','emtLaborCost','extMaterialCost','extLaborCost','ringMaterialCost','ringLaborCost','emtInfo','extInfo','ringInfo','priceWarn','priceWarnKey','linerWarn']);
+const CO_PRICE_KEYS=new Set(['reinfDesc','ppLb','lCost','weldCost','weldMins','emtMaterialCost','emtLaborCost','extMaterialCost','extLaborCost','ringMaterialCost','ringLaborCost','emtInfo','extInfo','ringInfo','priceWarn','priceWarnKey','linerWarn']);
 function coSig(x){const o={};Object.keys(x).sort().forEach(k=>{if(!CO_PRICE_KEYS.has(k))o[k]=x[k];});return JSON.stringify(o);}
 function emptySet(){return {rect:[],round:[],fit:[],acc:[],hw:[]};}
 function totalsFor(set){
@@ -2485,13 +2662,14 @@ function addRect(){
   const weldMins=weldR?weldR.mins:0;
   const pressClass=document.getElementById('r-press').value;
   const pressDir=document.querySelector('input[name="r-press-dir"]:checked')?.value||'Positive';
-  const {emt,ext}=calcReinforcement(w,h,pressClass,pressDir,len);
+  const {emt,ext,smacna}=calcReinforcement(w,h,pressClass,pressDir,len,g,conn);
   const emtMaterialCost=emt?emt.materialCost*qty:0;
   const emtLaborCost=emt?emt.laborCost*qty:0;
   const emtInfo=emt?{emtSize:emt.emtSize,numLocations:emt.numLocations,spacingFt:emt.spacingFt}:null;
   const extMaterialCost=ext?ext.materialCost*qty:0;
   const extLaborCost=ext?ext.laborCost*qty:0;
   const extInfo=ext?{type:ext.type,numLocations:ext.numLocations,perimeterFt:ext.perimeterFt}:null;
+  const reinfDesc=smacna?smacnaLines(smacna,qty):null;
   if(editState.rect!=null){
     const idx=items.rect.findIndex(it=>it.id===editState.rect);
     if(idx>-1){
@@ -2865,7 +3043,7 @@ function addFit(){
   } else {
     const fW=Math.max(fw1||0,fw2||0)||fw1||0;
     const fH=Math.max(fh1||0,fh2||0)||fh1||0;
-    const {emt,ext}=calcReinforcement(fW,fH,fPressClass,fPressDir,fLenFt);
+    const {emt,ext}=calcReinforcement(fW,fH,fPressClass,fPressDir,fLenFt,g,conn);
     if(emt){ fEmtMaterialCost=emt.materialCost*qty; fEmtLaborCost=emt.laborCost*qty; fEmtInfo={emtSize:emt.emtSize,numLocations:emt.numLocations,spacingFt:emt.spacingFt}; }
     if(ext){ fExtMaterialCost=ext.materialCost*qty; fExtLaborCost=ext.laborCost*qty; fExtInfo={type:ext.type,numLocations:ext.numLocations,perimeterFt:ext.perimeterFt}; }
   }
@@ -3114,8 +3292,8 @@ function remove(cat,id){
 
 function cb(c){return `<span class="cbadge ${CC[c]||'cb-raw'}">${c}</span>`;}
 function wb(welded){return welded?'<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;background:#fdf3f3;color:#a32d2d;border:1px solid rgba(163,45,45,.25);margin-left:4px;">welded</span>':'';}
-function rb(emtInfo){return emtInfo?`<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;background:#fdf3ea;color:#8a5a00;border:1px solid rgba(217,140,63,.35);margin-left:4px;" title="${emtInfo.numLocations} pc ${emtInfo.emtSize} EMT @ ~${emtInfo.spacingFt}' o.c.">EMT &times;${emtInfo.numLocations}</span>`:'';}
-function extB(extInfo){return extInfo?`<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;background:#fdeaea;color:#8a1f1f;border:1px solid rgba(163,45,45,.3);margin-left:4px;" title="${extInfo.numLocations} band(s) ${extInfo.type} @ ~${extInfo.perimeterFt}' perimeter each">EXT &times;${extInfo.numLocations}</span>`:'';}
+function rb(emtInfo){return emtInfo?`<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;background:#fdf3ea;color:#8a5a00;border:1px solid rgba(217,140,63,.35);margin-left:4px;" title="${emtInfo.numLocations} tie rod(s) per piece: ${emtInfo.emtSize}">TIE ROD &times;${emtInfo.numLocations}</span>`:'';}
+function extB(extInfo){return extInfo?`<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;background:#fdeaea;color:#8a1f1f;border:1px solid rgba(163,45,45,.3);margin-left:4px;" title="${extInfo.numLocations} angle frame location(s) per piece: ${extInfo.type}">ANGLE &times;${extInfo.numLocations}</span>`:'';}
 function lb(k){if(!k||k==='none')return '\u2014';return `<span style="display:inline-block;font-size:10px;font-weight:500;padding:1px 6px;border-radius:10px;background:var(--bgs);color:var(--txs);border:1px solid rgba(39,80,10,.2);">${ll(k)}</span>`;}
 
 /* ── PER-PIECE MATERIAL CHECKLIST ──
@@ -3134,8 +3312,9 @@ function rectMaterialList(x){
   rows.push(['Connection', x.conn||'\u2014']);
   rows.push(['Liner', x.linerKey?`${ll(x.linerKey)} \u2014 ${(x.lSqft||0).toFixed(1)} sqft, ${fmt(x.lCost||0)}`:'None']);
   rows.push(['Weld', x.welded?`Yes \u2014 ${fmt(x.weldCost||0)}`:'None']);
-  rows.push(['EMT reinforcement', x.emtInfo?`${x.emtInfo.numLocations} pc ${x.emtInfo.emtSize} @ ~${x.emtInfo.spacingFt}' o.c. \u2014 ${fmt((x.emtMaterialCost||0)+(x.emtLaborCost||0))}`:'None']);
-  rows.push(['Exterior/joint reinforcement', x.extInfo?`${x.extInfo.numLocations} band(s) ${x.extInfo.type} \u2014 ${fmt((x.extMaterialCost||0)+(x.extLaborCost||0))}`:'None']);
+  rows.push(['Tie rods', x.emtInfo?`${x.emtInfo.numLocations} pc/piece ${x.emtInfo.emtSize} \u2014 ${fmt((x.emtMaterialCost||0)+(x.emtLaborCost||0))}`:'None']);
+  rows.push(['Angle reinforcement', x.extInfo?`${x.extInfo.numLocations} frame location(s)/piece \u2014 ${x.extInfo.type} \u2014 ${fmt((x.extMaterialCost||0)+(x.extLaborCost||0))}`:'None']);
+  if(x.reinfDesc&&x.reinfDesc.length) rows.push(['SMACNA check', x.reinfDesc.join('<br>')]);
   return `<div class="rect-mat-panel" onclick="event.stopPropagation()">
     <p style="font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px;">Materials for this piece</p>
     <table style="width:100%;border-collapse:collapse;font-size:12px;">
@@ -3317,8 +3496,8 @@ function recalc(){
     const ringTotal=t.ringMaterialCost+t.ringLaborCost;
     const parts=[];
     if(t.scrapCost>0.005) parts.push(`${SCRAP()}% scrap allowance: +${fmt(t.scrapCost)}`);
-    if(emtTotal>0.005) parts.push(`EMT reinforcement: +${fmt(emtTotal)}`);
-    if(extTotal>0.005) parts.push(`Exterior reinforcement: +${fmt(extTotal)}`);
+    if(emtTotal>0.005) parts.push(`Tie rods: +${fmt(emtTotal)}`);
+    if(extTotal>0.005) parts.push(`Angle reinforcement: +${fmt(extTotal)}`);
     if(ringTotal>0.005) parts.push(`Round duct stiffening rings: +${fmt(ringTotal)}`);
     if(parts.length){
       si.textContent='Includes '+parts.join(' \u00b7 ');
@@ -3439,7 +3618,8 @@ function recomputeItemPricing(){
       if(wr){ x.weldCost=wr.cost; x.weldMins=wr.mins; }
     }
     if(x.pressClass&&x.w&&x.h&&x.len){
-      const {emt,ext}=calcReinforcement(x.w,x.h,x.pressClass,x.pressDir,x.len);
+      const {emt,ext,smacna}=calcReinforcement(x.w,x.h,x.pressClass,x.pressDir,x.len,x.g,x.conn);
+      x.reinfDesc=smacna?smacnaLines(smacna,x.qty):null;
       if(emt){
         x.emtMaterialCost=emt.materialCost*x.qty;
         x.emtLaborCost=emt.laborCost*x.qty;
@@ -3494,7 +3674,8 @@ function recomputeItemPricing(){
       } else {
         const fW=Math.max(x.fw1||0,x.fw2||0)||x.fw1||0;
         const fH=Math.max(x.fh1||0,x.fh2||0)||x.fh1||0;
-        const {emt,ext}=calcReinforcement(fW,fH,x.pressClass,x.pressDir,fLenFt);
+        const {emt,ext,smacna}=calcReinforcement(fW,fH,x.pressClass,x.pressDir,fLenFt,x.g,x.conn);
+        x.reinfDesc=smacna?smacnaLines(smacna,x.qty):null;
         if(emt){ x.emtMaterialCost=emt.materialCost*x.qty; x.emtLaborCost=emt.laborCost*x.qty; x.emtInfo={emtSize:emt.emtSize,numLocations:emt.numLocations,spacingFt:emt.spacingFt}; }
         else { x.emtMaterialCost=0; x.emtLaborCost=0; x.emtInfo=null; }
         if(ext){ x.extMaterialCost=ext.materialCost*x.qty; x.extLaborCost=ext.laborCost*x.qty; x.extInfo={type:ext.type,numLocations:ext.numLocations,perimeterFt:ext.perimeterFt}; }
@@ -3573,12 +3754,12 @@ function propTotals(t,showBreakdown){
   if(showBreakdown){
     rows.push(tr('Duct &amp; materials',(t.mat-(t.emtMaterialCost||0)-(t.extMaterialCost||0)-(t.ringMaterialCost||0))*mk));
     if(t.fabLab>0) rows.push(tr('Fabrication labor',t.fabLab*mk));
-    if(t.emtMaterialCost>0) rows.push(tr('EMT reinforcement (material)',t.emtMaterialCost*mk));
-    if(t.extMaterialCost>0) rows.push(tr('Exterior/joint reinforcement (material)',t.extMaterialCost*mk));
+    if(t.emtMaterialCost>0) rows.push(tr('Duct tie rods (material)',t.emtMaterialCost*mk));
+    if(t.extMaterialCost>0) rows.push(tr('Angle reinforcement (material)',t.extMaterialCost*mk));
     if(t.ringMaterialCost>0) rows.push(tr('Round duct stiffening rings (material)',t.ringMaterialCost*mk));
     if(t.weldCost>0) rows.push(tr('Weld labor',t.weldCost*mk));
-    if(t.emtLaborCost>0) rows.push(tr('EMT reinforcement (install labor)',t.emtLaborCost*mk));
-    if(t.extLaborCost>0) rows.push(tr('Exterior/joint reinforcement (install labor)',t.extLaborCost*mk));
+    if(t.emtLaborCost>0) rows.push(tr('Duct tie rods (install labor)',t.emtLaborCost*mk));
+    if(t.extLaborCost>0) rows.push(tr('Angle reinforcement (install labor)',t.extLaborCost*mk));
     if(t.ringLaborCost>0) rows.push(tr('Round duct stiffening rings (install labor)',t.ringLaborCost*mk));
   }
   rows.push(tr('Subtotal',t.preTax,'trow-sub'));
@@ -3632,8 +3813,8 @@ function renderSimple(){
   if(items.fit.length)   scope.push({l:'Fittings',           v:items.fit.reduce((s,x)=>s+x.qty,0)+' pc total'});
   if(items.acc.length)   scope.push({l:'Accessories &amp; connection hardware',v:items.acc.length+' line item'+(items.acc.length!==1?'s':'')});
   if(items.hw.length)    scope.push({l:'Hardware',           v:items.hw.length+' line item'+(items.hw.length!==1?'s':'')});
-  if(items.rect.some(x=>x.emtInfo)||items.fit.some(x=>x.emtInfo)) scope.push({l:'EMT duct reinforcement', v:[...items.rect,...items.fit].reduce((s,x)=>s+(x.emtInfo?x.emtInfo.numLocations*x.qty:0),0)+' pc total'});
-  if(items.rect.some(x=>x.extInfo)||items.fit.some(x=>x.extInfo)) scope.push({l:'Exterior/joint reinforcement', v:[...items.rect,...items.fit].reduce((s,x)=>s+(x.extInfo?x.extInfo.numLocations*x.qty:0),0)+' band(s) total'});
+  if(items.rect.some(x=>x.emtInfo)||items.fit.some(x=>x.emtInfo)) scope.push({l:'Duct tie rods (SMACNA)', v:[...items.rect,...items.fit].reduce((s,x)=>s+(x.emtInfo?x.emtInfo.numLocations*x.qty:0),0)+' pc total'});
+  if(items.rect.some(x=>x.extInfo)||items.fit.some(x=>x.extInfo)) scope.push({l:'Angle reinforcement (SMACNA)', v:[...items.rect,...items.fit].reduce((s,x)=>s+(x.extInfo?x.extInfo.numLocations*x.qty:0),0)+' frame location(s) total'});
   if(items.round.some(x=>x.ringInfo)||items.fit.some(x=>x.ringInfo)) scope.push({l:'Round duct stiffening rings', v:[...items.round,...items.fit].reduce((s,x)=>s+(x.ringInfo?x.ringInfo.numLocations*x.qty:0),0)+' band(s) total'});
   return `<div class="prop-sheet">
     ${propLetterhead('Proposal')}
@@ -3655,8 +3836,8 @@ function renderItemized(){
     const emtEa=((x.emtMaterialCost||0)+(x.emtLaborCost||0))/x.qty;
     const extEa=((x.extMaterialCost||0)+(x.extLaborCost||0))/x.qty;
     const priceEa=lineSell(x)/x.qty;
-    const emtNote=x.emtInfo?` &middot; incl. ${x.emtInfo.emtSize} EMT reinforcement (${x.emtInfo.numLocations}pc, ~${x.emtInfo.spacingFt}' o.c.)`:'';
-    const extNote=x.extInfo?` &middot; incl. ${x.extInfo.type} (${x.extInfo.numLocations} band(s))`:'';
+    const emtNote=x.emtInfo?` &middot; incl. ${x.emtInfo.numLocations} tie rod${x.emtInfo.numLocations>1?'s':''}/pc (${x.emtInfo.emtSize})`:'';
+    const extNote=x.extInfo?` &middot; incl. angle reinforcement ${x.extInfo.type} (${x.extInfo.numLocations}/pc)`:'';
     const sub=`${x.mLabel} &middot; ${x.g}ga &middot; ${x.w}\u2033\u00d7${x.h}\u2033\u00d7${x.len}' &middot; <span class="cbadge ${CC[x.conn]||'cb-raw'}">${x.conn}</span>${x.linerKey?' &middot; '+ll(x.linerKey):''}${x.notes?' &middot; '+x.notes:''}${emtNote}${extNote}`;
     return Array.from({length:x.qty},(_,i)=>pli(`${x.desc}${x.qty>1?' <span style="font-size:11px;color:#aaa;">pc '+(i+1)+' of '+x.qty+'</span>':''}`,sub,fmt(priceEa)));
   });
@@ -3674,7 +3855,7 @@ function renderItemized(){
     const s2=(x.fw2!=null&&x.fh2!=null)?x.fw2+'\u2033\u00d7'+x.fh2+'\u2033':(x.fw2!=null?x.fw2+'\u2033W':(x.fh2!=null?x.fh2+'\u2033H':''));
     const lenLabel=(x.flType&&x.flType!=='Length')?x.flType:'L';
     const dimStr=[s1,s2].filter(Boolean).join(' \u2192 ')+(x.fl!=null?' \u00d7 '+x.fl+'\u2033 '+lenLabel:'');
-    const fReinfNote=(x.emtInfo?` &middot; incl. ${x.emtInfo.emtSize} EMT reinforcement`:'')+(x.extInfo?` &middot; incl. ${x.extInfo.type}`:'')+(x.ringInfo?` &middot; incl. stiffening ring`:'');
+    const fReinfNote=(x.emtInfo?` &middot; incl. tie rods (${x.emtInfo.emtSize})`:'')+(x.extInfo?` &middot; incl. angle reinforcement ${x.extInfo.type}`:'')+(x.ringInfo?` &middot; incl. stiffening ring`:'');
     const sub=`${x.type} &middot; ${x.mLabel} &middot; ${x.g}ga${dimStr?' &middot; '+dimStr:''}${x.conn?' &middot; <span class="cbadge '+(CC[x.conn]||'cb-raw')+'">'+x.conn+'</span>':''}${x.linerKey?' &middot; '+ll(x.linerKey):''}${fReinfNote}`;
     return Array.from({length:x.qty},(_,i)=>pli(`${x.desc}${x.qty>1?' <span style="font-size:11px;color:#aaa;">pc '+(i+1)+' of '+x.qty+'</span>':''}`,sub,fmt(priceEa)));
   });
@@ -3700,8 +3881,8 @@ function renderQuote(){
   if(items.round.length) scope.push('Round / spiral duct fabrication &amp; delivery');
   if(items.fit.length)   scope.push('Fittings fabrication &amp; delivery');
   if(items.acc.length||items.hw.length) scope.push('Accessories, hardware &amp; connection materials');
-  if(items.rect.some(x=>x.emtInfo)||items.fit.some(x=>x.emtInfo)) scope.push('EMT duct reinforcement (material &amp; install)');
-  if(items.rect.some(x=>x.extInfo)||items.fit.some(x=>x.extInfo)) scope.push('Exterior/joint reinforcement (material &amp; install)');
+  if(items.rect.some(x=>x.emtInfo)||items.fit.some(x=>x.emtInfo)) scope.push('SMACNA duct tie rods (material &amp; install)');
+  if(items.rect.some(x=>x.extInfo)||items.fit.some(x=>x.extInfo)) scope.push('SMACNA angle reinforcement (material &amp; install)');
   if(items.round.some(x=>x.ringInfo)||items.fit.some(x=>x.ringInfo)) scope.push('Round duct stiffening rings (material &amp; install)');
   return `<div class="prop-sheet">
     ${propLetterhead('Price Quote')}
